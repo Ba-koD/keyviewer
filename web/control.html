@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Key Viewer Control</title>
+	<link rel="icon" href="/static/favicon.ico" type="image/x-icon" />
+	<style>
+		:root{
+			--bg:#0b0c10; --panel:#12141a; --panel2:#181b22; --text:#eaeef5; --muted:#9aa4b2; --primary:#4f8cff; --border:#232734;
+		}
+		html,body{margin:0; font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial; background:var(--bg); color:var(--text)}
+		.container{max-width:1000px; margin:24px auto; padding:0 16px}
+		.h1{font-size:22px; font-weight:700; margin-bottom:12px}
+		.panel{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:16px}
+		.row{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+		label{color:var(--muted)}
+		input, select, button{background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px 10px}
+		button{cursor:pointer}
+		button.primary{background:var(--primary); border-color:var(--primary)}
+		table{width:100%; border-collapse:collapse; table-layout:fixed}
+		th,td{border-bottom:1px solid var(--border); padding:8px 6px; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+		th.sortable{cursor:pointer; user-select:none}
+		th .arrow{font-size:11px; color:var(--muted); margin-left:4px}
+		.help{color:var(--muted); line-height:1.6}
+		.badge{display:inline-block; background:#2a3040; color:#9ec1ff; border:1px solid var(--border); border-radius:6px; padding:2px 6px; font-size:12px}
+		.right{margin-left:auto}
+		/* Modal */
+		.modal-backdrop{position:fixed; inset:0; background:rgba(0,0,0,0.65); display:none; align-items:center; justify-content:center; z-index:999}
+		.modal{width:560px; max-width:calc(100% - 32px); background:#141821; border:1px solid #2a2f3a; border-radius:12px; padding:18px}
+		.modal h3{margin:4px 0 12px; font-size:22px}
+		.modal .actions{display:flex; gap:10px; justify-content:space-between; margin-top:14px}
+		.modal .actions .spacer{flex:1}
+		.modal .form-row{display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap}
+		.modal .form-row > label{width:140px}
+		.modal .form-row > .field{flex:1; min-width:160px}
+		.danger{background:#ff5b5b; border-color:#ff5b5b}
+		.modal button:disabled{opacity:0.5; filter:grayscale(30%); cursor:not-allowed}
+
+		/* Color picker field */
+		.color-field{display:flex; gap:8px; align-items:center}
+		.color-field input[type="text"]{flex:1}
+		button.pick{width:36px; height:36px; border:1px solid var(--border); border-radius:6px}
+		input.picker-hidden{position:absolute; left:-9999px; width:0; height:0; opacity:0}
+
+		/* Overlay preview inside modal */
+		.overlay-preview{margin-top:12px; border:1px dashed #2a2f3a; border-radius:10px; padding:12px; background:#0f131b}
+		.overlay-preview .queue{display:grid; grid-auto-rows:max-content; gap:var(--chip-gap, 8px)}
+		.overlay-preview .chip{
+			background: var(--chip-bg, rgba(0,0,0,0.6));
+			color: var(--chip-fg, #fff);
+			padding: var(--chip-pad-v, 10px) var(--chip-pad-h, 14px);
+			border-radius: var(--chip-radius, 10px);
+			font-size: var(--chip-font, 24px);
+			font-weight: var(--chip-font-weight, 700);
+			min-width:44px; text-align:center; user-select:none;
+			transition: transform var(--fade-in, 120ms) ease, opacity var(--fade-in, 120ms) ease;
+		}
+		.overlay-preview .chip.hide{opacity:0; transform: translateY(8px); transition: transform var(--fade-out, 120ms) ease, opacity var(--fade-out, 120ms) ease}
+	</style>
+</head>
+<body>
+	<div class="container">
+		<div class="h1">Key Queue Viewer 설정</div>
+
+		<div class="panel">
+			<div class="row">
+				<div class="help">오버레이 설정</div>
+				<button id="openOverlayCfg" class="right">오버레이 설정</button>
+			</div>
+		</div>
+
+		<div class="panel">
+			<div class="help">
+				<span class="badge">모드 설명</span>
+				<div>- 제목: 윈도우 제목에 값이 포함되면 매칭</div>
+				<div>- 프로세스: 프로세스 이름과 정확히 일치해야 매칭 (예: notepad.exe)</div>
+				<div>- HWND: 특정 창 핸들과 일치</div>
+				<div>- 클래스: 윈도우 클래스명과 정확히 일치 (동일 유형의 창 전체)</div>
+				<div>- 모든 창: 모든 포커스 창에서 입력을 감지</div>
+			</div>
+		</div>
+
+		<div class="panel">
+			<div class="row">
+				<label>모드</label>
+				<select id="mode">
+					<option value="disabled">사용 안 함</option>
+					<option value="title">제목(포함)</option>
+					<option value="process">프로세스(정확)</option>
+					<option value="hwnd">윈도우 핸들(HWND)</option>
+					<option value="class">클래스 명(정확)</option>
+					<option value="all">모든 창</option>
+				</select>
+				<label>값 선택</label>
+				<select id="valuePick" style="min-width:220px"><option value="">선택...</option></select>
+				<button id="apply" class="primary">적용</button>
+				<div id="status" class="right help"></div>
+			</div>
+		</div>
+
+		<div class="panel">
+			<div class="row" style="margin-bottom:8px">
+				<label>포트</label>
+				<input id="port" type="number" min="1000" max="65535" step="1" style="width:140px" />
+				<button id="savePort">포트 저장</button>
+				<div id="portStatus" class="help"></div>
+			</div>
+			<div class="help">포트 변경 후에는 서버를 재시작해야 적용됩니다. OBS의 브라우저 소스 URL도 동일 포트로 맞추세요.</div>
+		</div>
+
+		<div class="panel">
+			<div class="row" style="margin-bottom:8px">
+				<div class="help">현재 포커스 창</div>
+			</div>
+			<div class="help" id="fginfo">불러오는 중...</div>
+		</div>
+
+		<div class="panel">
+			<div class="row" style="margin-bottom:8px">
+				<div class="help">현재 열려있는 창</div>
+			</div>
+			<table>
+				<colgroup>
+					<col style="width:46%"/>
+					<col style="width:18%"/>
+					<col style="width:12%"/>
+					<col style="width:16%"/>
+				</colgroup>
+				<thead>
+					<tr>
+						<th id="th_title" data-key="title" class="sortable">제목 <span class="arrow" id="arrow_title"></span></th>
+						<th id="th_process" data-key="process" class="sortable">프로세스 <span class="arrow" id="arrow_process"></span></th>
+						<th id="th_hwnd" data-key="hwnd" class="sortable">HWND <span class="arrow" id="arrow_hwnd"></span></th>
+						<th id="th_class" data-key="class" class="sortable">클래스 <span class="arrow" id="arrow_class"></span></th>
+					</tr>
+				</thead>
+				<tbody id="winTableBody"></tbody>
+			</table>
+		</div>
+	</div>
+
+	<!-- 모달: 모든 창 주의 -->
+	<div class="modal-backdrop" id="modalAll">
+		<div class="modal">
+			<h3>주의!</h3>
+			<p style="font-size:18px; line-height:1.5">해당 기능을 이용하면 비밀번호 입력에서 오버레이가 작동해 문제가 생길 수 있습니다!</p>
+			<div class="actions">
+				<button id="saveAll" class="danger" disabled>활성화</button>
+				<span class="spacer"></span>
+				<button id="cancelAll">취소</button>
+			</div>
+		</div>
+	</div>
+
+	<!-- 모달: 오버레이 설정 -->
+	<div class="modal-backdrop" id="modalOverlay">
+		<div class="modal">
+			<h3>오버레이 설정</h3>
+			<div class="form-row"><label>Fade In(ms)</label><input id="ov_fade_in" class="field" type="number" min="0" step="10"/></div>
+			<div class="form-row"><label>Fade Out(ms)</label><input id="ov_fade_out" class="field" type="number" min="0" step="10"/></div>
+			<div class="form-row"><label>배경색(전체)</label><div class="field color-field"><input id="ov_bg" type="text" placeholder="#000000"/><button id="ov_bg_pick" class="pick" title="색 선택"></button><input id="ov_bg_picker" type="color" class="picker-hidden"/></div></div>
+			<div class="form-row"><label>투명 배경</label><input id="ov_bg_trans" type="checkbox"/> <span class="help">체크하면 배경이 완전 투명</span></div>
+			<div class="form-row"><label>칩 배경색</label><div class="field color-field"><input id="ov_chip_bg" type="text" placeholder="#000000"/><button id="ov_chip_bg_pick" class="pick" title="색 선택"></button><input id="ov_chip_bg_picker" type="color" class="picker-hidden"/></div></div>
+			<div class="form-row"><label>텍스트 색</label><div class="field color-field"><input id="ov_chip_fg" type="text" placeholder="#ffffff"/><button id="ov_chip_fg_pick" class="pick" title="색 선택"></button><input id="ov_chip_fg_picker" type="color" class="picker-hidden"/></div></div>
+			<div class="form-row"><label>칩 간격(px)</label><input id="ov_gap" class="field" type="number" min="0" step="1"/></div>
+			<div class="form-row"><label>세로 패딩(px)</label><input id="ov_pad_v" class="field" type="number" min="0" step="1"/></div>
+			<div class="form-row"><label>가로 패딩(px)</label><input id="ov_pad_h" class="field" type="number" min="0" step="1"/></div>
+			<div class="form-row"><label>모서리(px)</label><input id="ov_radius" class="field" type="number" min="0" step="1"/></div>
+			<div class="form-row"><label>폰트(px)</label><input id="ov_font_px" class="field" type="number" min="8" step="1"/></div>
+			<div class="form-row"><label>폰트 두께</label><input id="ov_font_w" class="field" type="number" min="100" step="50"/></div>
+			<div class="form-row"><label>열(Cols)</label><input id="ov_cols" class="field" type="number" min="1" step="1"/></div>
+			<div class="form-row"><label>행(Rows)</label><input id="ov_rows" class="field" type="number" min="0" step="1"/></div>
+			<div class="help">행(Rows)에 0을 입력하면 제한 없이 여러 줄로 자동 감쌉니다.</div>
+			<!-- 한 줄 표시 옵션 제거 -->
+			<div class="form-row"><label>정렬</label><select id="ov_align" class="field"><option value="left">좌측</option><option value="center" selected>중앙</option><option value="right">우측</option></select></div>
+			<div class="form-row"><label>쌓이는 방향</label><select id="ov_direction" class="field"><option value="ltr" selected>왼→오 (LTR)</option><option value="rtl">오→왼 (RTL)</option></select></div>
+
+			<div class="overlay-preview" id="ov_preview">
+				<div class="help" style="margin-bottom:8px">미리보기</div>
+				<div class="queue" id="ov_preview_queue"></div>
+			</div>
+
+			<div class="actions">
+				<button id="saveOverlay" class="primary">저장</button>
+				<span class="spacer"></span>
+				<button id="closeOverlay">닫기</button>
+			</div>
+		</div>
+	</div>
+
+	<script>
+	(async function(){
+		const modeEl = document.getElementById('mode');
+		// 값 텍스트 입력 제거
+		const statusEl = document.getElementById('status');
+		const listEl = null;
+		const portEl = document.getElementById('port');
+		const portStatusEl = document.getElementById('portStatus');
+		const fginfoEl = document.getElementById('fginfo');
+		const valuePick = document.getElementById('valuePick');
+		let lastWindows = [];
+		const winTableBody = document.getElementById('winTableBody');
+		let sortKey = 'process';
+		let sortDir = 'asc'; // 'asc' | 'desc'
+		const headerMap = {
+			title: document.getElementById('th_title'),
+			process: document.getElementById('th_process'),
+			hwnd: document.getElementById('th_hwnd'),
+			class: document.getElementById('th_class')
+		};
+		const arrowMap = {
+			title: document.getElementById('arrow_title'),
+			process: document.getElementById('arrow_process'),
+			hwnd: document.getElementById('arrow_hwnd'),
+			class: document.getElementById('arrow_class')
+		};
+
+		const modalAll = document.getElementById('modalAll');
+		const cancelAll = document.getElementById('cancelAll');
+		const saveAll = document.getElementById('saveAll');
+		let confirmTimer = null;
+
+		const modalOverlay = document.getElementById('modalOverlay');
+		const openOverlayCfg = document.getElementById('openOverlayCfg');
+		const closeOverlay = document.getElementById('closeOverlay');
+		const saveOverlay = document.getElementById('saveOverlay');
+
+		const ov_fade_in = document.getElementById('ov_fade_in');
+		const ov_fade_out = document.getElementById('ov_fade_out');
+		const ov_chip_bg = document.getElementById('ov_chip_bg');
+		const ov_chip_fg = document.getElementById('ov_chip_fg');
+		const ov_bg_pickBtn = document.getElementById('ov_bg_pick');
+		const ov_bg_picker = document.getElementById('ov_bg_picker');
+		const ov_bg_trans = document.getElementById('ov_bg_trans');
+		const ov_chip_bg_pickBtn = document.getElementById('ov_chip_bg_pick');
+		const ov_chip_bg_picker = document.getElementById('ov_chip_bg_picker');
+		const ov_chip_fg_pickBtn = document.getElementById('ov_chip_fg_pick');
+		const ov_chip_fg_picker = document.getElementById('ov_chip_fg_picker');
+		const ov_bg = document.getElementById('ov_bg');
+		const ov_gap = document.getElementById('ov_gap');
+		const ov_pad_v = document.getElementById('ov_pad_v');
+		const ov_pad_h = document.getElementById('ov_pad_h');
+		const ov_radius = document.getElementById('ov_radius');
+		const ov_font_px = document.getElementById('ov_font_px');
+		const ov_font_w = document.getElementById('ov_font_w');
+		const ov_cols = document.getElementById('ov_cols');
+		const ov_rows = document.getElementById('ov_rows');
+		// single line 옵션 제거
+		const ov_align = document.getElementById('ov_align');
+		const ov_direction = document.getElementById('ov_direction');
+
+		function openModalAll(){
+			modalAll.style.display = 'flex';
+			saveAll.disabled = true;
+			if (confirmTimer) clearTimeout(confirmTimer);
+			confirmTimer = setTimeout(()=> { saveAll.disabled = false; }, 2000);
+		}
+		function closeModalAll(){
+			modalAll.style.display = 'none';
+			if (confirmTimer) clearTimeout(confirmTimer);
+		}
+
+		function openModalOverlay(){ modalOverlay.style.display = 'flex'; }
+		function closeModalOverlay(){ modalOverlay.style.display = 'none'; }
+
+		function isValidHex(h){ return /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/.test(h); }
+		function setPickBtn(btn, val){ if (isValidHex(val)) { btn.style.background = val; } }
+		function hookColorPair(textEl, pickBtn, picker){
+			pickBtn.addEventListener('click', ()=> {
+				try{
+					if (picker.showPicker) { picker.showPicker(); return; }
+				}catch(e){}
+				// Fallback: temporarily move near button and click
+				const rect = pickBtn.getBoundingClientRect();
+				picker.style.position = 'fixed';
+				picker.style.left = (rect.left + 10) + 'px';
+				picker.style.top = (rect.top + 10) + 'px';
+				picker.style.width = '1px'; picker.style.height = '1px'; picker.style.opacity = '0.001';
+				document.body.appendChild(picker);
+				picker.click();
+			});
+			picker.addEventListener('input', ()=> { textEl.value = picker.value; setPickBtn(pickBtn, textEl.value); updatePreview(); });
+			textEl.addEventListener('input', ()=> { setPickBtn(pickBtn, textEl.value); updatePreview(); });
+		}
+
+		function updatePreview(){
+			const root = ov_preview;
+			root.style.setProperty('--chip-bg', ov_chip_bg.value || 'rgba(0,0,0,0.6)');
+			root.style.setProperty('--chip-fg', ov_chip_fg.value || '#ffffff');
+			const bgVal = ov_bg_trans.checked ? 'rgba(0,0,0,0)' : (ov_bg.value || 'rgba(0,0,0,0)');
+			root.style.setProperty('--bg', bgVal);
+			root.style.setProperty('--chip-gap', (Number(ov_gap.value)||8) + 'px');
+			root.style.setProperty('--chip-pad-v', (Number(ov_pad_v.value)||10) + 'px');
+			root.style.setProperty('--chip-pad-h', (Number(ov_pad_h.value)||14) + 'px');
+			root.style.setProperty('--chip-radius', (Number(ov_radius.value)||10) + 'px');
+			root.style.setProperty('--chip-font', (Number(ov_font_px.value)||24) + 'px');
+			root.style.setProperty('--chip-font-weight', String(Number(ov_font_w.value)||700));
+			root.style.setProperty('--fade-in', (Number(ov_fade_in.value)||120) + 'ms');
+			root.style.setProperty('--fade-out', (Number(ov_fade_out.value)||120) + 'ms');
+			const colsVal = Number(ov_cols.value)||8;
+			const rowsVal = Number(ov_rows.value)||1;
+			root.style.setProperty('--cols', String(colsVal));
+			root.style.setProperty('--rows', String(rowsVal));
+			root.style.setProperty('--single-scale', '1');
+			const alignMap = { left: 'left', center: 'center', right: 'right' };
+			root.style.setProperty('--align', alignMap[ov_align.value] || 'center');
+			root.style.setProperty('--dir', (ov_direction.value === 'rtl') ? 'rtl' : 'ltr');
+
+			// Rebuild preview chips: always Q,W,E,R but obey capacity when rows>0
+			const labels = ['Q','W','E','R'];
+			const cols = colsVal; const rows = rowsVal;
+			let count = labels.length;
+			if (rows > 0) { const cap = Math.max(1, cols * rows); count = Math.min(count, cap); }
+			ov_preview_queue.style.gridTemplateColumns = `repeat(${cols}, max-content)`;
+			ov_preview_queue.style.justifyContent = alignMap[ov_align.value] || 'center';
+			ov_preview_queue.style.direction = (ov_direction.value === 'rtl') ? 'rtl' : 'ltr';
+			ov_preview_queue.innerHTML = '';
+			for (let i=0;i<count;i++){
+				const chip = document.createElement('div');
+				chip.className = 'chip';
+				chip.textContent = labels[i];
+				ov_preview_queue.appendChild(chip);
+			}
+		}
+
+		['input','change'].forEach(evt=>{
+			[ov_fade_in,ov_fade_out,ov_chip_bg,ov_chip_fg,ov_bg,ov_gap,ov_pad_v,ov_pad_h,ov_radius,ov_font_px,ov_font_w,ov_cols,ov_rows,ov_align,ov_direction].forEach(el=>{
+				el.addEventListener(evt, updatePreview);
+			});
+		});
+
+		// 미리보기: QWER 4개 + rows/cols 규칙
+		async function loadOverlayConfig(){
+			try{
+				const res = await fetch('/api/overlay-config');
+				const c = await res.json();
+				ov_fade_in.value = c.fade_in_ms ?? 120;
+				ov_fade_out.value = c.fade_out_ms ?? 120;
+				const isTrans = (typeof c.background === 'string') && (c.background.toLowerCase() === 'transparent' || c.background.includes('rgba') && c.background.endsWith(',0)') || c.background === '#00000000');
+				ov_bg_trans.checked = !!isTrans;
+				ov_bg.disabled = !!isTrans; ov_bg_pickBtn.disabled = !!isTrans;
+				ov_bg.value = (!isTrans && c.background && c.background.startsWith('#')) ? c.background : '#000000';
+				ov_chip_bg.value = (c.chip_bg && c.chip_bg.startsWith('#')) ? c.chip_bg : '#000000';
+				ov_chip_fg.value = (c.chip_fg && c.chip_fg.startsWith('#')) ? c.chip_fg : '#ffffff';
+				ov_gap.value = c.chip_gap ?? 8;
+				ov_pad_v.value = c.chip_pad_v ?? 10;
+				ov_pad_h.value = c.chip_pad_h ?? 14;
+				ov_radius.value = c.chip_radius ?? 10;
+				ov_font_px.value = c.chip_font_px ?? 24;
+				ov_font_w.value = c.chip_font_weight ?? 700;
+				ov_cols.value = c.cols ?? 8;
+				ov_rows.value = c.rows ?? 1;
+				// single-line 제거
+				ov_align.value = (c.align || 'center');
+				ov_direction.value = (c.direction || 'ltr');
+				setPickBtn(ov_bg_pickBtn, ov_bg.value);
+				setPickBtn(ov_chip_bg_pickBtn, ov_chip_bg.value);
+				setPickBtn(ov_chip_fg_pickBtn, ov_chip_fg.value);
+				updatePreview();
+			}catch(e){}
+		}
+
+		async function saveOverlayConfig(){
+			const payload = {
+				fade_in_ms: Number(ov_fade_in.value),
+				fade_out_ms: Number(ov_fade_out.value),
+				background: (ov_bg_trans.checked ? 'rgba(0,0,0,0)' : ov_bg.value),
+				chip_bg: ov_chip_bg.value,
+				chip_fg: ov_chip_fg.value,
+				chip_gap: Number(ov_gap.value),
+				chip_pad_v: Number(ov_pad_v.value),
+				chip_pad_h: Number(ov_pad_h.value),
+				chip_radius: Number(ov_radius.value),
+				chip_font_px: Number(ov_font_px.value),
+				chip_font_weight: Number(ov_font_w.value),
+				cols: Number(ov_cols.value),
+				rows: Number(ov_rows.value),
+				// single-line 제거
+				align: ov_align.value,
+				direction: ov_direction.value
+			};
+			try{
+				await fetch('/api/overlay-config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+				closeModalOverlay();
+			}catch(e){}
+		}
+
+		async function refreshTarget(){
+			const res = await fetch('/api/target');
+			const j = await res.json();
+			modeEl.value = j.mode || 'disabled';
+			refreshPickerForMode();
+		}
+
+		// 텍스트 입력 제거로 placeholder 로직 삭제
+
+		async function apply(){
+			const m = modeEl.value;
+			if (m === 'all') { openModalAll(); return; }
+			await doApply(m, valuePick.value || null);
+		}
+
+		async function doApply(mode, value){
+			statusEl.textContent = '저장 중...';
+			try{
+				await fetch('/api/target', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, value }) });
+				statusEl.textContent = '적용됨';
+				setTimeout(()=> statusEl.textContent = '', 1200);
+			}catch(e){ statusEl.textContent = '오류'; }
+		}
+
+		function setSort(newKey){
+			if (sortKey === newKey){ sortDir = (sortDir === 'asc') ? 'desc' : 'asc'; }
+			else { sortKey = newKey; sortDir = 'asc'; }
+			updateHeaderArrows();
+			// Re-render
+			fillTable();
+			refreshPickerForMode();
+		}
+
+		function updateHeaderArrows(){
+			Object.keys(arrowMap).forEach(k => { if (arrowMap[k]) arrowMap[k].textContent = ''; });
+			const arr = arrowMap[sortKey];
+			if (arr) arr.textContent = (sortDir === 'asc') ? '▲' : '▼';
+		}
+
+		function sortWindows(list){
+			const dir = (sortDir === 'asc') ? 1 : -1;
+			const copy = Array.from(list || []);
+			copy.sort((a,b)=>{
+				let av = a?.[sortKey] ?? '';
+				let bv = b?.[sortKey] ?? '';
+				if (sortKey === 'hwnd'){
+					const an = Number(av)||0, bn = Number(bv)||0;
+					if (an === bn) return 0;
+					return an < bn ? -dir : dir;
+				}
+				av = String(av);
+				bv = String(bv);
+				const cmp = av.localeCompare(bv);
+				return cmp * dir;
+			});
+			return copy;
+		}
+
+		function fillTable(){
+			const sorted = sortWindows(lastWindows);
+			if (winTableBody){
+				winTableBody.innerHTML = sorted.map(w => `
+					<tr data-hwnd="${w.hwnd||''}">
+						<td class="click-title" title="${w.title||''}">${w.title||''}</td>
+						<td title="${w.process||''}">${w.process||''}</td>
+						<td title="${w.hwnd||''}">${w.hwnd||''}</td>
+						<td title="${w.class||''}">${w.class||''}</td>
+					</tr>
+				`).join('');
+				// attach focus handlers
+				winTableBody.querySelectorAll('td.click-title').forEach(td => {
+					td.style.cursor = 'pointer';
+					td.addEventListener('click', async () => {
+						const tr = td.parentElement;
+						const hwnd = tr?.getAttribute('data-hwnd');
+						if (!hwnd) return;
+						try{ await fetch('/api/focus', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ hwnd }) }); }catch(e){}
+					});
+				});
+			}
+		}
+
+		async function loadWindows(){
+			try{
+				const res = await fetch('/api/windows');
+				const list = await res.json();
+				lastWindows = Array.isArray(list) ? list : [];
+				fillTable();
+				refreshPickerForMode();
+			}catch(e){
+				lastWindows = [];
+				if (winTableBody){ winTableBody.innerHTML = ''; }
+				refreshPickerForMode();
+			}
+		}
+
+		function refreshPickerForMode(){
+			const m = modeEl.value;
+			let values = [];
+			if (m === 'title') values = lastWindows.map(w => w.title).filter(Boolean);
+			if (m === 'process') values = lastWindows.map(w => w.process).filter(Boolean);
+			if (m === 'class') values = lastWindows.map(w => w.class).filter(Boolean);
+			if (m === 'hwnd') values = lastWindows.map(w => w.hwnd).filter(Boolean);
+			const uniq = Array.from(new Set(values));
+			if (m === 'hwnd') uniq.sort((a,b)=> ((Number(a)||0) - (Number(b)||0)) * (sortDir==='asc'?1:-1));
+			else uniq.sort((a,b)=> String(a||'').localeCompare(String(b||'')) * (sortDir==='asc'?1:-1));
+			valuePick.innerHTML = '<option value="">선택...</option>' + uniq.map(v => `<option value="${String(v)}">${String(v)}</option>`).join('');
+		}
+
+		async function loadConfig(){
+			try{
+				const res = await fetch('/api/config');
+				const j = await res.json();
+				portEl.value = j.port || 8000;
+			}catch(e){ portEl.value = 8000; }
+		}
+
+		async function savePort(){
+			portStatusEl.textContent = '저장 중...';
+			try{
+				const res = await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ port: Number(portEl.value) }) });
+				const j = await res.json();
+				portStatusEl.textContent = j.message || (j.ok ? '저장됨' : '오류');
+			} catch(e) {
+				portStatusEl.textContent = '오류';
+			}
+			setTimeout(()=> portStatusEl.textContent = '', 1500);
+		}
+
+		async function loadForeground(){
+			try{
+				const res = await fetch('/api/foreground');
+				const j = await res.json();
+				fginfoEl.textContent = `HWND=${j.hwnd||''} | TITLE=${j.title||''} | PROCESS=${j.process_name||''} | CLASS=${j.class||''}`;
+			}catch(e){
+				fginfoEl.textContent = '읽기 실패';
+			}
+		}
+
+		document.getElementById('apply').addEventListener('click', apply);
+		document.getElementById('savePort').addEventListener('click', savePort);
+		valuePick.addEventListener('change', ()=>{});
+		modeEl.addEventListener('change', ()=> { refreshPickerForMode(); });
+		openOverlayCfg.addEventListener('click', async ()=>{ await loadOverlayConfig(); openModalOverlay(); });
+		closeOverlay.addEventListener('click', ()=> closeModalOverlay());
+		saveOverlay.addEventListener('click', saveOverlayConfig);
+
+		cancelAll.addEventListener('click', ()=>{ closeModalAll(); });
+		saveAll.addEventListener('click', async ()=>{
+			await doApply('all', null);
+			closeModalAll();
+		});
+
+		hookColorPair(ov_bg, ov_bg_pickBtn, ov_bg_picker);
+		hookColorPair(ov_chip_bg, ov_chip_bg_pickBtn, ov_chip_bg_picker);
+		hookColorPair(ov_chip_fg, ov_chip_fg_pickBtn, ov_chip_fg_picker);
+		ov_bg_trans.addEventListener('change', ()=> { ov_bg.disabled = ov_bg_trans.checked; ov_bg_pickBtn.disabled = ov_bg_trans.checked; updatePreview(); });
+
+		await Promise.all([refreshTarget(), loadWindows(), loadConfig(), loadForeground()]);
+		updateHeaderArrows();
+		Object.values(headerMap).forEach(th => {
+			if (!th) return;
+			th.addEventListener('click', ()=> setSort(th.dataset.key));
+		});
+		setInterval(loadWindows, 3000);
+		setInterval(loadForeground, 1000);
+	})();
+	</script>
+</body>
+</html>
