@@ -34,19 +34,12 @@ if (-Not (Test-Path $venvPython)) {
 	}
 	# Create venv
 	if (-Not (Test-Path $venvPython)) {
-		try {
-			Write-Host "[Build] Creating venv via 'py -3'" -ForegroundColor Cyan
-			py -3 -m venv .venv
-		} catch {
-			Write-Host "[Build] 'py' not available. Trying 'python'" -ForegroundColor Yellow
-			python -m venv .venv
-		}
+		try { Write-Host "[Build] Creating venv via 'py -3'" -ForegroundColor Cyan; py -3 -m venv .venv }
+		catch { Write-Host "[Build] 'py' not available. Trying 'python'" -ForegroundColor Yellow; python -m venv .venv }
 	}
 }
 
-if (-Not (Test-Path $venvPython)) {
-	throw "Could not create venv. Ensure Python 3.11+ is installed and available."
-}
+if (-Not (Test-Path $venvPython)) { throw "Could not create venv. Ensure Python 3.11+ is installed and available." }
 
 Write-Host "[Build] Installing dependencies" -ForegroundColor Cyan
 & $venvPython -m pip install --upgrade pip
@@ -57,23 +50,27 @@ $entry = "app\launcher.py"
 $datas = "web;web"
 $icon = "web\favicon.ico"
 
-# Clean previous outputs (optional but recommended)
+# Clean previous outputs
 if (Test-Path .\build) { Remove-Item -Recurse -Force .\build }
 if (Test-Path .\dist) { Remove-Item -Recurse -Force .\dist }
 if (Test-Path .\KeyQueueViewer.spec) { Remove-Item -Force .\KeyQueueViewer.spec }
 
-# Build command as argument list
+# Build command as argument list (onefile)
 $argList = @(
 	"-m", "PyInstaller",
 	"--clean",
+	"--onefile",
 	"--noconsole",
 	"--name", "KeyQueueViewer",
 	"--icon", $icon,
 	"--add-data", $datas,
+	"--hidden-import", "win32gui",
+	"--hidden-import", "win32process",
+	"--hidden-import", "win32con",
 	$entry
 )
 
 Write-Host "[Build] Running: $venvPython $($argList -join ' ')" -ForegroundColor Cyan
 & $venvPython @argList
 
-Write-Host "[Build] Done. Output in .\dist\KeyQueueViewer" -ForegroundColor Green
+Write-Host "[Build] Done. Output in .\dist\KeyQueueViewer.exe" -ForegroundColor Green
