@@ -513,6 +513,24 @@ async def api_get_config() -> Dict[str, int]:
 	return {"port": app_config.port}
 
 
+@app.get("/api/launcher-language")
+async def api_get_launcher_language() -> Dict[str, str]:
+	"""런처의 언어 설정을 가져옵니다."""
+	try:
+		# 런처 설정 파일에서 언어 정보를 읽어옵니다
+		launcher_config_path = _config_dir() / "launcher_config.json"
+		if launcher_config_path.exists():
+			with open(launcher_config_path, 'r', encoding='utf-8') as f:
+				launcher_config = json.load(f)
+				language = launcher_config.get("language", "ko")
+				return {"language": language}
+	except Exception:
+		pass
+	
+	# 기본값 반환
+	return {"language": "ko"}
+
+
 @app.post("/api/config")
 async def api_set_config(payload: Dict[str, int]) -> JSONResponse:
 	port = int(payload.get("port", app_config.port))
