@@ -1,8 +1,8 @@
-fastapi>=0.110.0
-uvicorn[standard]>=0.27.0
+fastapi>=0.68.0
+uvicorn>=0.15.0
 keyboard>=0.13.5
 pywin32>=306
-psutil>=5.9.8
+psutil>=5.8.0
 pyinstaller>=6.6.0
-pystray>=0.19.5
-pillow>=10.3.0
+pystray>=0.19.4
+Pillow>=8.0.0

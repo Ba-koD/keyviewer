@@ -17,6 +17,14 @@ import uvicorn
 import ctypes
 import logging
 
+# For system tray functionality
+try:
+    import pystray
+    from PIL import Image, ImageDraw
+    HAS_PYSTRAY = True
+except ImportError:
+    HAS_PYSTRAY = False
+
 # Ensure taskbar pin uses our app identity (affects taskbar icon)
 try:
 	ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("KeyQueueViewer")
@@ -63,7 +71,19 @@ class LanguageManager:
 				"stop_failed": "Failed to stop server: {error}",
 				"startup_failed": "Failed to update startup option: {error}",
 				"console": "Console",
-				"console_visibility_info": "Console visibility is applied immediately, but detailed logs require server restart."
+				"console_visibility_info": "Console visibility is applied immediately, but detailed logs require server restart.",
+				"startup_successful": "Startup Enabled",
+				"startup_message": "Application will now start automatically with Windows and run in system tray.",
+				"startup_failed_message": "Failed to enable startup: {error}",
+				"minimize_to_tray": "Minimize to Tray",
+				"show_from_tray": "Show from Tray",
+				"tray_not_supported": "System tray is not supported. Please install pystray and PIL packages.",
+				"show_window": "Show Window",
+				"exit": "Exit",
+				"tray_failed": "Failed to minimize to tray: {error}",
+				"show_failed": "Failed to show window: {error}",
+				"exit_confirm": "Exit Confirmation",
+				"exit_message": "Do you want to minimize to system tray?\n\nYes: Minimize to tray\nNo: Exit completely\nCancel: Keep window open"
 			},
 			"ko": {
 				"title": "키 큐 뷰어",
@@ -94,7 +114,19 @@ class LanguageManager:
 				"stop_failed": "서버 중지에 실패했습니다: {error}",
 				"startup_failed": "시작 옵션 업데이트에 실패했습니다: {error}",
 				"console": "콘솔",
-				"console_visibility_info": "콘솔 가시성은 즉시 적용되지만, 자세한 로그는 서버 재시작이 필요합니다."
+				"console_visibility_info": "콘솔 가시성은 즉시 적용되지만, 자세한 로그는 서버 재시작이 필요합니다.",
+				"startup_successful": "시작 자동 활성화",
+				"startup_message": "애플리케이션이 Windows 시작 시 자동으로 실행되고 시스템 트레이에서 실행됩니다.",
+				"startup_failed_message": "시작 자동 활성화에 실패했습니다: {error}",
+				"minimize_to_tray": "트레이로 최소화",
+				"show_from_tray": "트레이에서 표시",
+				"tray_not_supported": "시스템 트레이가 지원되지 않습니다. pystray 및 PIL 패키지를 설치해야 합니다.",
+				"show_window": "창 표시",
+				"exit": "종료",
+				"tray_failed": "트레이로 최소화하는데 실패했습니다: {error}",
+				"show_failed": "창을 표시하는데 실패했습니다: {error}",
+				"exit_confirm": "종료 확인",
+				"exit_message": "시스템 트레이로 최소화하시겠습니까?\n\n예: 트레이로 최소화\n아니오: 완전히 종료\n취소: 창을 열어둡니다"
 			}
 		}
 		return texts.get(language, texts["en"]).get(key, key)
@@ -210,6 +242,31 @@ def _resource_path(*relative_parts: str) -> str:
 		return str(base.joinpath(*relative_parts))
 	except Exception:
 		return str(Path(*relative_parts))
+
+
+def create_tray_icon() -> Optional[pystray.Icon]:
+	"""Create system tray icon with menu."""
+	if not HAS_PYSTRAY:
+		return None
+	
+	try:
+		# Try to load favicon.ico first
+		icon_path = _resource_path("web", "favicon.ico")
+		if os.path.exists(icon_path):
+			image = Image.open(icon_path)
+		else:
+			# Create a simple colored icon if favicon not available
+			image = Image.new('RGB', (64, 64), color='#4f8cff')
+			draw = ImageDraw.Draw(image)
+			draw.rectangle([16, 16, 48, 48], fill='#ffffff')
+		
+		return image
+	except Exception:
+		# Fallback to simple colored icon
+		image = Image.new('RGB', (64, 64), color='#4f8cff')
+		draw = ImageDraw.Draw(image)
+		draw.rectangle([16, 16, 48, 48], fill='#ffffff')
+		return image
 
 
 class UvicornController:
@@ -329,6 +386,11 @@ class App(tk.Tk):
 		self.title(LanguageManager.get_text(self.current_language, "title"))
 		self.geometry("520x480")
 		self.resizable(False, False)
+		
+		# System tray support
+		self.tray_icon = None
+		self.is_minimized_to_tray = False
+		
 		# Set window/taskbar icon from bundled favicon.ico
 		try:
 			icon_path = _resource_path("web", "favicon.ico")
@@ -388,6 +450,10 @@ class App(tk.Tk):
 		row1b.pack(fill=tk.X, pady=6)
 		self.chk_console = ttk.Checkbutton(row1b, text=LanguageManager.get_text(self.current_language, "toggle_console"), variable=self.console_var, command=self._on_toggle_console)
 		self.chk_console.pack(side=tk.LEFT)
+		
+		# Windows startup checkbox
+		self.chk_startup = ttk.Checkbutton(row1b, text=LanguageManager.get_text(self.current_language, "toggle_startup"), variable=self.startup_var, command=self._on_toggle_startup)
+		self.chk_startup.pack(side=tk.LEFT, padx=(16, 0))
 
 		row2 = ttk.Frame(frm)
 		row2.pack(fill=tk.X, pady=6)
@@ -395,6 +461,12 @@ class App(tk.Tk):
 		self.btn_control.pack(side=tk.LEFT)
 		self.btn_overlay = ttk.Button(row2, text=LanguageManager.get_text(self.current_language, "overlay"), command=self._open_overlay)
 		self.btn_overlay.pack(side=tk.LEFT, padx=8)
+		
+		# Background toggle button
+		row2b = ttk.Frame(frm)
+		row2b.pack(fill=tk.X, pady=6)
+		self.btn_background = ttk.Button(row2b, text=LanguageManager.get_text(self.current_language, "minimize_to_tray"), command=self._toggle_background)
+		self.btn_background.pack(side=tk.LEFT)
 
 		row4 = ttk.Frame(frm)
 		row4.pack(fill=tk.BOTH, expand=True, pady=(16,0))
@@ -405,6 +477,13 @@ class App(tk.Tk):
 		self.info.pack(fill=tk.BOTH, expand=True)
 
 		self.after(500, self._poll_status)
+		
+		# Bind window closing event
+		self.protocol("WM_DELETE_WINDOW", self._on_closing)
+		
+		# Auto-start if startup is enabled
+		if self.startup_var.get():
+			self.after(1000, self._auto_start_on_startup)
 
 	def _open_control(self) -> None:
 		webbrowser.open(f"http://127.0.0.1:{self.controller.port}/control")
@@ -467,10 +546,14 @@ class App(tk.Tk):
 				self._open_control()
 				return
 		except Exception as e:
-			messagebox.showerror(
-				LanguageManager.get_text(self.current_language, "error"),
-				LanguageManager.get_text(self.current_language, "start_failed").format(error=str(e))
-			)
+			# Don't show error message during auto-startup
+			if not hasattr(self, '_is_auto_starting') or not self._is_auto_starting:
+				messagebox.showerror(
+					LanguageManager.get_text(self.current_language, "error"),
+					LanguageManager.get_text(self.current_language, "start_failed").format(error=str(e))
+				)
+			else:
+				print(f"Server start error during auto-startup: {e}")
 
 	def _on_stop(self) -> None:
 		try:
@@ -537,8 +620,15 @@ class App(tk.Tk):
 		self.btn_start.config(text=LanguageManager.get_text(self.current_language, "start_server"))
 		self.btn_stop.config(text=LanguageManager.get_text(self.current_language, "stop_server"))
 		self.chk_console.config(text=LanguageManager.get_text(self.current_language, "toggle_console"))
+		self.chk_startup.config(text=LanguageManager.get_text(self.current_language, "toggle_startup"))
 		self.btn_control.config(text=LanguageManager.get_text(self.current_language, "web_control"))
 		self.btn_overlay.config(text=LanguageManager.get_text(self.current_language, "overlay"))
+		
+		# Update background button text based on current state
+		if self.is_minimized_to_tray:
+			self.btn_background.config(text=LanguageManager.get_text(self.current_language, "show_from_tray"))
+		else:
+			self.btn_background.config(text=LanguageManager.get_text(self.current_language, "minimize_to_tray"))
 		
 		# Update labels
 		self.lbl.config(text="Server status:")
@@ -591,6 +681,137 @@ class App(tk.Tk):
 				messagebox.showwarning("Invalid Port", LanguageManager.get_text(self.current_language, "port_invalid"))
 		except ValueError:
 			messagebox.showwarning("Invalid Input", "Please enter a valid port number (1000-65535).")
+
+	def _toggle_background(self) -> None:
+		"""Toggle between normal window and system tray."""
+		if self.is_minimized_to_tray:
+			self._show_from_tray()
+		else:
+			self._minimize_to_tray()
+
+	def _minimize_to_tray(self) -> None:
+		"""Minimize window to system tray."""
+		if not HAS_PYSTRAY:
+			messagebox.showwarning(
+				LanguageManager.get_text(self.current_language, "error"),
+				LanguageManager.get_text(self.current_language, "tray_not_supported")
+			)
+			return
+		
+		try:
+			# Create tray icon if not exists
+			if self.tray_icon is None:
+				image = create_tray_icon()
+				if image:
+					menu = pystray.Menu(
+						pystray.MenuItem(
+							LanguageManager.get_text(self.current_language, "show_window"),
+							self._show_from_tray
+						),
+						pystray.MenuItem(
+							LanguageManager.get_text(self.current_language, "exit"),
+							self._exit_from_tray
+						)
+					)
+					self.tray_icon = pystray.Icon("KeyQueueViewer", image, "Key Queue Viewer", menu)
+			
+			# Hide window and show tray icon
+			self.withdraw()
+			if self.tray_icon:
+				self.tray_icon.run_detached()
+			
+			self.is_minimized_to_tray = True
+			self.btn_background.config(text=LanguageManager.get_text(self.current_language, "show_from_tray"))
+			
+		except Exception as e:
+			# Don't show error message during auto-startup
+			if not hasattr(self, '_is_auto_starting'):
+				messagebox.showerror(
+					LanguageManager.get_text(self.current_language, "error"),
+					LanguageManager.get_text(self.current_language, "tray_failed").format(error=str(e))
+				)
+			else:
+				print(f"Tray minimize error during auto-startup: {e}")
+
+	def _show_from_tray(self) -> None:
+		"""Show window from system tray."""
+		try:
+			# Show window
+			self.deiconify()
+			self.lift()
+			self.focus_force()
+			
+			# Stop tray icon
+			if self.tray_icon:
+				self.tray_icon.stop()
+				self.tray_icon = None
+			
+			self.is_minimized_to_tray = False
+			self.btn_background.config(text=LanguageManager.get_text(self.current_language, "minimize_to_tray"))
+			
+		except Exception as e:
+			messagebox.showerror(
+				LanguageManager.get_text(self.current_language, "error"),
+				LanguageManager.get_text(self.current_language, "show_failed").format(error=str(e))
+			)
+
+	def _exit_from_tray(self) -> None:
+		"""Exit application from system tray."""
+		try:
+			if self.tray_icon:
+				self.tray_icon.stop()
+			self.quit()
+		except Exception:
+			self.quit()
+
+	def _on_closing(self) -> None:
+		"""Handle window closing event."""
+		if self.is_minimized_to_tray:
+			# If minimized to tray, just hide the window
+			self._minimize_to_tray()
+		else:
+			# If not minimized to tray, ask user what to do
+			response = messagebox.askyesnocancel(
+				LanguageManager.get_text(self.current_language, "exit_confirm"),
+				LanguageManager.get_text(self.current_language, "exit_message")
+			)
+			if response is True:  # Yes - minimize to tray
+				self._minimize_to_tray()
+			elif response is False:  # No - exit completely
+				self._exit_from_tray()
+			# Cancel - do nothing (keep window open)
+
+	def _auto_start_on_startup(self) -> None:
+		"""Attempt to auto-start the application on Windows startup."""
+		try:
+			# Set auto-starting flag to suppress error messages
+			self._is_auto_starting = True
+			
+			# Start server automatically
+			if not self.controller.is_running():
+				self._on_start()
+			
+			# Minimize to tray without showing any message
+			self._minimize_to_tray()
+			
+			# Show a brief notification that app is running in tray
+			if self.tray_icon:
+				self.tray_icon.notify(
+					LanguageManager.get_text(self.current_language, "startup_successful"),
+					LanguageManager.get_text(self.current_language, "startup_message")
+				)
+				
+		except Exception as e:
+			# Log error but don't show message box during startup
+			print(f"Auto-startup error: {e}")
+			# Still try to minimize to tray even if server start failed
+			try:
+				self._minimize_to_tray()
+			except:
+				pass
+		finally:
+			# Clear the flag
+			self._is_auto_starting = False
 
 
 def main() -> None:

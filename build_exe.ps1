@@ -45,15 +45,29 @@ Write-Host "[Build] Installing dependencies" -ForegroundColor Cyan
 & $venvPython -m pip install --upgrade pip
 & $venvPython -m pip install -r requirements.txt
 
-# PyInstaller options
-$entry = "app\launcher.py"
-$datas = "web;web"
-$icon = "web\favicon.ico"
-
 # Clean previous outputs
 if (Test-Path .\build) { Remove-Item -Recurse -Force .\build }
 if (Test-Path .\dist) { Remove-Item -Recurse -Force .\dist }
 if (Test-Path .\KeyQueueViewer.spec) { Remove-Item -Force .\KeyQueueViewer.spec }
+
+# Read version from version.txt file
+$versionFile = "version.txt"
+if (Test-Path $versionFile) {
+    $version = Get-Content $versionFile -Raw | ForEach-Object { $_.Trim() }
+    Write-Host "[Build] Version loaded from $versionFile : $version" -ForegroundColor Green
+} else {
+    $version = "1.0.0"
+    Write-Host "[Build] Version file not found, using default: $version" -ForegroundColor Yellow
+    Write-Host "[Build] Create version.txt file to set custom version" -ForegroundColor Yellow
+}
+
+$appName = "KeyQueueViewer.v$version"
+Write-Host "[Build] Building $appName" -ForegroundColor Cyan
+
+# PyInstaller options
+$entry = "app\launcher.py"
+$datas = "web;web"
+$icon = "web\favicon.ico"
 
 # Build command as argument list (onefile)
 $argList = @(
@@ -61,16 +75,22 @@ $argList = @(
 	"--clean",
 	"--onefile",
 	"--noconsole",
-	"--name", "KeyQueueViewer",
+	"--name", $appName,
 	"--icon", $icon,
 	"--add-data", $datas,
 	"--hidden-import", "win32gui",
 	"--hidden-import", "win32process",
 	"--hidden-import", "win32con",
+	"--exclude-module", "tkinter.test",
+	"--exclude-module", "unittest",
+	"--exclude-module", "test",
+	"--exclude-module", "distutils",
+	"--exclude-module", "setuptools",
+	"--exclude-module", "pkg_resources",
 	$entry
 )
 
 Write-Host "[Build] Running: $venvPython $($argList -join ' ')" -ForegroundColor Cyan
 & $venvPython @argList
 
-Write-Host "[Build] Done. Output in .\dist\KeyQueueViewer.exe" -ForegroundColor Green
+Write-Host "[Build] Done. Output in .\dist\$appName.exe" -ForegroundColor Green
