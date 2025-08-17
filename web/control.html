@@ -100,7 +100,7 @@
 			<div class="help" style="margin-top:8px; padding:8px; background:var(--panel2); border-radius:6px;">
 				<strong id="currentSelectionLabel" data-text-ko="현재 선택 상태:" data-text-en="Current Selection Status:">현재 선택 상태:</strong><br>
 				<span id="modeStatusLabel" data-text-ko="모드:" data-text-en="Mode:">모드:</span> <span id="debugMode" class="badge">-</span><br>
-				<span id="selectedValueLabel" data-text-ko="선택된 값:" data-text-en="Selected Value:">선택된 값:</span> <span id="debugValue" class="badge">-</span><br>
+				<span id="selectedValueLabel" data-text-ko="저장된 값:" data-text-en="Saved Value:">저장된 값:</span> <span id="debugValue" class="badge">-</span><br>
 				<span id="applyStatusLabel" data-text-ko="적용 상태:" data-text-en="Apply Status:">적용 상태:</span> <span id="debugStatus" class="badge">-</span>
 			</div>
 		</div>
@@ -251,6 +251,7 @@
 
 		let savedValue = '';
 		let currentLanguage = 'en';
+		let currentStatus = ''; // 현재 작동 상태 저장
 
 		async function loadLanguageSettings() {
 			try {
@@ -320,12 +321,25 @@
 			if (fginfoEl.textContent && fginfoEl.textContent.includes('읽기 실패')) {
 				fginfoEl.textContent = lang === 'ko' ? '읽기 실패' : 'Read Failed';
 			}
+			if (currentStatus) {
+				if (currentStatus === '비활성화' || currentStatus === 'Disabled') {
+					currentStatus = lang === 'ko' ? '비활성화' : 'Disabled';
+				} else if (currentStatus === '모든 창 활성화' || currentStatus === 'All Windows Active') {
+					currentStatus = lang === 'ko' ? '모든 창 활성화' : 'All Windows Active';
+				} else if (currentStatus === '활성화' || currentStatus === 'Active') {
+					currentStatus = lang === 'ko' ? '활성화' : 'Active';
+				} else if (currentStatus === '설정 안됨' || currentStatus === 'Not Configured') {
+					currentStatus = lang === 'ko' ? '설정 안됨' : 'Not Configured';
+				}
+			}
+			
+			updateDebugInfo();
 		}
 
 		function updateDebugInfo() {
 			debugMode.textContent = modeEl.value || '-';
-			debugValue.textContent = valuePick.value || '-';
-			debugStatus.textContent = statusEl.textContent || '-';
+			debugValue.textContent = savedValue || '-';
+			debugStatus.textContent = currentStatus || '-';
 		}
 
 		function openModalAll(){
@@ -467,6 +481,17 @@
 			modeEl.value = j.mode || 'disabled';
 			valuePick.value = j.value || '';
 			savedValue = j.value || '';
+			
+			if (j.mode === 'disabled') {
+				currentStatus = currentLanguage === 'ko' ? '비활성화' : 'Disabled';
+			} else if (j.mode === 'all') {
+				currentStatus = currentLanguage === 'ko' ? '모든 창 활성화' : 'All Windows Active';
+			} else if (j.value) {
+				currentStatus = currentLanguage === 'ko' ? '활성화' : 'Active';
+			} else {
+				currentStatus = currentLanguage === 'ko' ? '설정 안됨' : 'Not Configured';
+			}
+			
 			refreshPickerForMode();
 			updateDebugInfo();
 		}
@@ -484,6 +509,18 @@
 				await fetch('/api/target', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, value }) });
 				statusEl.textContent = currentLanguage === 'ko' ? '적용됨' : 'Applied';
 				savedValue = value || '';
+				
+				// 적용 후 상태 업데이트
+				if (mode === 'disabled') {
+					currentStatus = currentLanguage === 'ko' ? '비활성화' : 'Disabled';
+				} else if (mode === 'all') {
+					currentStatus = currentLanguage === 'ko' ? '모든 창 활성화' : 'All Windows Active';
+				} else if (value) {
+					currentStatus = currentLanguage === 'ko' ? '활성화' : 'Active';
+				} else {
+					currentStatus = currentLanguage === 'ko' ? '설정 안됨' : 'Not Configured';
+				}
+				
 				updateDebugInfo();
 			}catch(e){ 
 				statusEl.textContent = currentLanguage === 'ko' ? '오류' : 'Error'; 
@@ -561,17 +598,22 @@
 				const list = await res.json();
 				lastWindows = Array.isArray(list) ? list : [];
 				fillTable();
-				refreshPickerForMode();
+				
+				if (!valuePick.matches(':focus') && document.activeElement !== valuePick) {
+					refreshPickerForMode();
+				}
 			}catch(e){
 				lastWindows = [];
 				if (winTableBody){ winTableBody.innerHTML = ''; }
-				refreshPickerForMode();
+				
+				if (!valuePick.matches(':focus') && document.activeElement !== valuePick) {
+					refreshPickerForMode();
+				}
 			}
 		}
 
 		function refreshPickerForMode(){
 			const m = modeEl.value;
-			const currentValue = valuePick.value;
 			
 			let values = [];
 			if (m === 'title') values = lastWindows.map(w => w.title).filter(Boolean);
@@ -585,10 +627,9 @@
 			const selectText = currentLanguage === 'ko' ? '선택...' : 'Select...';
 			valuePick.innerHTML = `<option value="">${selectText}</option>` + uniq.map(v => `<option value="${String(v)}">${String(v)}</option>`).join('');
 			
+			// 항상 저장된 값만 표시 (사용자가 선택한 값 무시)
 			if (savedValue && uniq.includes(savedValue)) {
 				valuePick.value = savedValue;
-			} else if (currentValue && uniq.includes(currentValue)) {
-				valuePick.value = currentValue;
 			} else {
 				valuePick.value = '';
 			}
@@ -613,7 +654,7 @@
 
 		document.getElementById('apply').addEventListener('click', apply);
 		// document.getElementById('savePort').addEventListener('click', savePort); // Removed savePort
-		valuePick.addEventListener('change', ()=>{ updateDebugInfo(); });
+		// valuePick.addEventListener('change', ()=>{ updateDebugInfo(); }); // 사용자가 선택한 값은 저장 전까지 무시
 		modeEl.addEventListener('change', ()=> { 
 			refreshPickerForMode(); 
 			updateDebugInfo();

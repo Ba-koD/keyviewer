@@ -1,5 +1,6 @@
 fastapi>=0.68.0
-uvicorn>=0.15.0
+uvicorn[standard]>=0.15.0
+websockets>=10.0
 keyboard>=0.13.5
 pywin32>=306
 psutil>=5.8.0
