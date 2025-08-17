@@ -63,11 +63,18 @@ if (Test-Path $versionFile) {
 
 $appName = "KeyQueueViewer.v$version"
 Write-Host "[Build] Building $appName" -ForegroundColor Cyan
+Write-Host "[Build] NOTE: Run the generated EXE as Administrator for best compatibility" -ForegroundColor Yellow
 
 # PyInstaller options
 $entry = "app\launcher.py"
 $datas = "web;web"
 $icon = "web\favicon.ico"
+
+# Windows Defender 오탐 방지를 위한 추가 옵션
+$additionalArgs = @(
+	"--distpath", ".\dist",
+	"--workpath", ".\build"
+)
 
 # Build command as argument list (onefile)
 $argList = @(
@@ -89,11 +96,11 @@ $argList = @(
 	"--exclude-module", "test",
 	"--exclude-module", "distutils",
 	"--exclude-module", "setuptools",
-	"--exclude-module", "pkg_resources",
-	$entry
-)
+	"--exclude-module", "pkg_resources"
+) + $additionalArgs + @($entry)
 
 Write-Host "[Build] Running: $venvPython $($argList -join ' ')" -ForegroundColor Cyan
 & $venvPython @argList
 
 Write-Host "[Build] Done. Output in .\dist\$appName.exe" -ForegroundColor Green
+Write-Host "[Build] IMPORTANT: Run the EXE as Administrator to avoid Windows Defender false positives" -ForegroundColor Red
