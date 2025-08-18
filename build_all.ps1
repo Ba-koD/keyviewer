@@ -180,16 +180,16 @@ if (Test-Path $distPath) {
 
 Write-Host ""
 Write-Host "===============================================" -ForegroundColor Cyan
-Write-Host "🎉 BUILD COMPLETE! 🎉" -ForegroundColor Green
+Write-Host "BUILD COMPLETE!" -ForegroundColor Green
 Write-Host "===============================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "📁 Built files location: dist/" -ForegroundColor Yellow
-Write-Host "📦 Files created:" -ForegroundColor Yellow
-Write-Host "   • KBQV-Installer-$version.exe (Installer - onefile)" -ForegroundColor White
-Write-Host "   • KBQV-Portable-$version.exe (Portable - onefile)" -ForegroundColor White
-Write-Host "   • KBQV-v$version.zip (Main Program - onedir)" -ForegroundColor White
+Write-Host "Built files location: dist/" -ForegroundColor Yellow
+Write-Host "Files created:" -ForegroundColor Yellow
+Write-Host "   * KBQV-Installer-$version.exe (Installer - onefile)" -ForegroundColor White
+Write-Host "   * KBQV-Portable-$version.exe (Portable - onefile)" -ForegroundColor White
+Write-Host "   * KBQV-v$version.zip (Main Program - onedir)" -ForegroundColor White
 Write-Host ""
-Write-Host "🚀 Next steps:" -ForegroundColor Cyan
+Write-Host "Next steps:" -ForegroundColor Cyan
 Write-Host "   1. Test the installer: dist\KBQV-Installer-$version.exe" -ForegroundColor White
 Write-Host "   2. Test the portable: dist\KBQV-Portable-$version.exe" -ForegroundColor White
 Write-Host "   3. Extract and test: dist\KBQV-v$version.zip" -ForegroundColor White
