@@ -1,21 +1,29 @@
-# Key Queue Viewer 가이드 (한국어)
+# KeyQueueViewer 가이드 (한국어)
 
-이 문서는 Windows + OBS 환경에서 Key Queue Viewer(가변 길이 키 큐 오버레이)를 설치/설정/빌드하는 완전 가이드입니다.
+이 문서는 KeyQueueViewer(키 입력 모니터링 도구)를 설치/설정/빌드하는 완전 가이드입니다.
 
 ## 기능 요약
-- 선택한 창이 포커스일 때만 키 입력 반영
-- 눌린 순서대로 칩이 쌓이고, 떼면 제거 (큐)
-- 매칭 모드: 제목(포함), 프로세스(정확), HWND, 클래스, 모든 창
-- 오버레이 커스터마이즈: 색상(배경/텍스트/칩), 폰트/모서리/패딩, 페이드 시간, 열/행, 정렬(좌/중앙/우), 쌓이는 방향(LTR/RTL)
-- 미리보기 + 컬러 피커, 현재 포커스/열린 창 목록, 헤더 클릭 정렬
-- EXE 런처: 시작/중지/상태, 관리자 권한 안내, 콘솔 토글, 시작프로그램 등록
+- 실시간 키 입력 모니터링
+- 웹 기반 인터페이스로 키 로그 확인
+- 시스템 트레이 통합
+- Windows 시작 프로그램 관리
+- 자동 설치기로 쉬운 배포
+
+## 빌드 시스템
+
+이 프로젝트는 **하이브리드 빌드 접근법**을 사용하여 보안과 편의성을 모두 최적화합니다:
+
+- **메인 프로그램**: `cx_Freeze`로 빌드 (Windows Defender 오탐 감소)
+- **설치기**: `PyInstaller onefile`로 빌드 (단일 실행 파일 배포)
 
 ## 요구 사항
 - Windows 10/11
-- 관리자 권한(전역 키 후킹 시 권장)
+- Python 3.11+
+- PowerShell (빌드용)
+- 가상환경 (권장)
 
-## 1) 설치/실행
-PowerShell(관리자 권장)에서 실행:
+## 1) 개발 모드 실행
+PowerShell에서 실행:
 ```powershell
 cd <프로젝트 경로>
 Set-ExecutionPolicy Bypass -Scope Process -Force
@@ -25,17 +33,35 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
   - Control: `http://127.0.0.1:포트/control`
   - Overlay: `http://127.0.0.1:포트/overlay` (기본 8000)
 
-## 2) 대상 창 설정
-Control의 상단에서 설정합니다.
-- 모드: 제목/프로세스/HWND/클래스/모든 창
-- 값 선택: 모드에 맞는 후보가 드롭다운에 자동 채워짐
-- 현재 열려있는 창 표: 제목/프로세스/HWND/클래스, 헤더 클릭 정렬, 제목 클릭 시 해당 창 포커스 이동
+## 2) 빌드 및 설치 (권장)
 
-## 3) 오버레이 설정
-- “오버레이 설정” → 모달에서 색상/레이아웃/정렬/방향/페이드 시간 등을 변경
-- 미리보기: cols×rows 규칙을 따르며, rows=0이면 제한 없이 감쌈
-- 색상: hex 입력 + 컬러 피커 버튼 지원(투명 배경 옵션)
-- 저장 시 오버레이가 즉시 갱신됨(WebSocket)
+### 하이브리드 빌드 실행
+```powershell
+./build_hybrid.ps1
+```
+
+### 빌드 과정
+1. **메인 프로그램 빌드**: cx_Freeze로 안전하게 빌드
+2. **설치기 빌드**: PyInstaller onefile로 단일 실행 파일 생성
+3. **패키지 생성**: 설치기 + 메인 프로그램을 자동으로 패키징
+
+### 빌드 결과
+```
+dist/
+├── KeyQueueViewer_Main/          # 메인 프로그램 (cx_Freeze)
+├── KeyQueueViewer_Installer.exe  # 설치기 (PyInstaller onefile)
+└── KeyQueueViewer_Installer_Complete/  # 배포용 패키지
+    ├── KeyQueueViewer_Installer.exe
+    ├── main_program/
+    └── README.txt
+```
+
+## 3) 설치 과정
+
+1. **설치기 실행**: `KeyQueueViewer_Installer.exe` 실행
+2. **경로 선택**: 설치 디렉토리 선택 (기본: `C:\Program Files\KeyQueueViewer`)
+3. **바로가기 옵션**: 바탕화면 및 시작 메뉴 바로가기 생성 여부 선택
+4. **설치 완료**: 프로그램이 자동으로 등록되고 바로가기 생성
 
 ## 4) OBS 설정
 1. 브라우저 소스 추가
@@ -44,20 +70,52 @@ Control의 상단에서 설정합니다.
 ```css
 body { background-color: rgba(0,0,0,0); margin: 0; overflow: hidden; }
 ```
-위에꺼 지우기
 
-## 5) EXE 빌드
-- 빌드 스크립트:
-```powershell
-./build_exe.ps1
+## 5) 프로젝트 구조
 ```
-- 포함 내용: 관리자 상승, 실행정책 Bypass, Python/venv 보장, 의존성 설치, 클린 빌드, 아이콘 지정
-- 결과: `dist/KeyQueueViewer/KeyQueueViewer.exe`
+keyviewer/
+├── app/
+│   └── launcher.py           # 메인 애플리케이션
+├── installer.py              # 자동 설치기
+├── setup_main.py             # cx_Freeze 설정
+├── build_hybrid.ps1          # 빌드 스크립트
+├── requirements.txt           # 의존성 관리
+└── version.txt               # 버전 정보
+```
+
+## 보안 기능
+
+- **cx_Freeze 빌드**: Windows Defender 오탐 감소
+- **하이브리드 접근법**: 보안(cx_Freeze)과 편의성(PyInstaller) 결합
+- **자체 포함**: 설치기에 모든 필요한 파일 포함
+- **레지스트리 통합**: 적절한 Windows 프로그램 등록
 
 ## 문제 해결
+
+### 빌드 문제
+- Python 3.11+ 설치 확인
+- PowerShell을 관리자 권한으로 실행
+- 가상환경 설정 확인
+
+### 설치 문제
+- 설치기를 관리자 권한으로 실행
+- 대상 디렉토리가 쓰기 가능한지 확인
+- Windows Defender 제외 설정 확인
+
+### 실행 문제
 - 정렬/방향이 어긋남: OBS 사용자 지정 CSS의 `margin: 0;` 적용 + 소스 새로고침
 - 포트 충돌: 런처가 감지 시 기존 Control을 자동 오픈
 - 키가 고정됨: 관리자 권한 실행, 보안 프로그램 확인
 
-## 주의
-- “모든 창” 모드는 민감 입력 상황에서 오버레이가 표시될 수 있으므로 주의하세요(2초 지연 확인 포함).
+## 주의사항
+
+- **"모든 창" 모드**: 민감한 입력 상황에서 오버레이가 표시될 수 있으므로 주의 (2초 지연 확인 포함)
+- **관리자 권한**: 전역 키 후킹 시 권장
+- **Windows Defender**: cx_Freeze 빌드로 오탐 감소
+
+## 지원
+
+문제나 질문이 있으면 다음을 확인하세요:
+- GitHub Issues
+- 프로젝트 문서
+- 빌드 로그 및 오류 메시지
