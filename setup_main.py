@@ -1,5 +1,5 @@
-from cx_Freeze import setup, Executable
 import sys
+from cx_Freeze import setup, Executable
 import os
 
 # 버전 정보 읽기
@@ -13,58 +13,53 @@ def get_version():
 version = get_version()
 build_folder = f"KBQV-v{version}"
 
-# 빌드 옵션 설정
-build_exe_options = {
-    "packages": [
-        "os", "sys", "threading", "time", "webbrowser", "socket", 
-        "json", "pathlib", "typing", "tkinter", "tkinter.ttk", 
-        "tkinter.messagebox", "winreg", "uvicorn", "ctypes", 
-        "logging", "pystray", "PIL", "PIL.Image", "PIL.ImageDraw",
-        "win32gui", "win32process", "win32con", "websockets",
-        "websockets.legacy.client", "websockets.legacy.server"
-    ],
-    "excludes": [
-        "tkinter.test", "unittest", "test", "distutils", 
-        "setuptools", "pkg_resources", "email", "html", "http",
-        "xml", "pydoc", "doctest", "argparse", "getopt"
-    ],
-    "include_files": [
-        ("web/", "web/"),  # 웹 파일들 포함
-        ("version.txt", "version.txt")  # 버전 파일 포함
-    ],
-    "optimize": 2,
-    "build_exe": f"dist/{build_folder}"
-}
-
-# 기본 설정
+# Windows에서 GUI 애플리케이션으로 실행
 base = None
 if sys.platform == "win32":
-    base = "Win32GUI"  # 콘솔 창 숨김
+    base = "Win32GUI"
 
-# 실행 파일 설정
+# 필요한 모듈들 포함
+build_exe_options = {
+    "packages": [
+        "fastapi", "uvicorn", "websockets", "keyboard", "win32api", "win32con", 
+        "win32gui", "psutil", "pystray", "PIL", "asyncio", "uvicorn.logging",
+        "uvicorn.config", "uvicorn.protocols", "uvicorn.lifespan", "uvicorn.loops",
+        "uvicorn.middleware", "uvicorn.server", "uvicorn.workers", "http", "http.client",
+        "http.server", "http.cookies", "http.cookiejar", "urllib", "urllib.request",
+        "urllib.parse", "urllib.error", "urllib.robotparser", "json", "zipfile",
+        "tempfile", "shutil", "os", "sys", "threading", "time", "datetime"
+    ],
+    "excludes": [],
+    "include_files": [
+        ("web/", "web/"),
+        ("version.txt", "version.txt")
+    ],
+    "build_exe": f"dist/{build_folder}",
+    "optimize": 2,
+    "include_msvcr": True,
+    "zip_include_packages": "*",
+    "zip_exclude_packages": []
+}
+
 executables = [
     Executable(
         "app/launcher.py",
         base=base,
         target_name=f"KBQV-v{version}.exe",
-        icon="web/favicon.ico",
-        shortcut_name="KeyQueueViewer",
-        shortcut_dir="DesktopFolder"
+        icon="web/favicon.ico"
     )
 ]
 
-# 메타데이터
 metadata = {
     "name": "KeyQueueViewer",
     "version": version,
-    "description": "Key Input Monitoring Tool with Web Interface",
+    "description": "Keyboard Queue Viewer - Real-time keyboard input monitoring tool",
     "author": "KeyQueueViewer",
     "author_email": "support@keyqueueviewer.com",
-    "url": "https://github.com/Ba-koD/keyviewer",
-    "license": "MIT"
+    "url": "https://github.com/your-username/keyviewer",
+    "options": {"build_exe": build_exe_options}
 }
 
-# 설정 실행
 setup(
     name=metadata["name"],
     version=metadata["version"],
@@ -72,7 +67,6 @@ setup(
     author=metadata["author"],
     author_email=metadata["author_email"],
     url=metadata["url"],
-    license=metadata["license"],
-    options={"build_exe": build_exe_options},
+    options=metadata["options"],
     executables=executables
 ) 

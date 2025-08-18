@@ -66,8 +66,21 @@ jobs:
         }
         
         Write-Host "Found $($files.Count) files in source folder"
-        Compress-Archive -Path "$source_folder\*" -DestinationPath $zip_name
+        # ZIP 파일 생성 (폴더 구조 유지)
+        Write-Host "Creating ZIP file: $zip_name"
+        Compress-Archive -Path $source_folder -DestinationPath $zip_name
         Write-Host "Created: $zip_name"
+        # ZIP 파일 내용 확인 (for debugging)
+        Write-Host "ZIP file contents:"
+        Expand-Archive -Path $zip_name -DestinationPath "temp_check" -Force
+        Get-ChildItem "temp_check" -Recurse | ForEach-Object {
+            if ($_.PSIsContainer) {
+                Write-Host "  [FOLDER] $($_.FullName.Replace('temp_check\', ''))"
+            } else {
+                Write-Host "  [FILE] $($_.FullName.Replace('temp_check\', ''))"
+            }
+        }
+        Remove-Item "temp_check" -Recurse -Force
         
     - name: List build artifacts
       run: |
