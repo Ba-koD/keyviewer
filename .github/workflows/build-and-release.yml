@@ -2,7 +2,7 @@ name: Build and Release
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
   workflow_dispatch:
 
 jobs:
@@ -76,13 +76,6 @@ jobs:
             Write-Host "  [FILE] $($_.Name)" -ForegroundColor White
           }
         }
-        
-    - name: Create Git tag
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git tag -a "v${{ steps.version.outputs.version }}" -m "Release v${{ steps.version.outputs.version }}"
-        git push origin "v${{ steps.version.outputs.version }}"
         
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
