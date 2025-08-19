@@ -143,7 +143,8 @@ if (Test-Path $zip_path) {
     Remove-Item $zip_path -Force
 }
 
-Compress-Archive -Path "$source_folder\*" -DestinationPath $zip_path
+# 폴더 자체를 압축 (폴더 구조 유지)
+Compress-Archive -Path $source_folder -DestinationPath $zip_path
 Write-Host "Created: $zip_path" -ForegroundColor Green
 
 # Step 5: Check build results
