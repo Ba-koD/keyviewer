@@ -111,6 +111,23 @@ jobs:
             echo "full_changelog=" >> $env:GITHUB_OUTPUT
         }
         
+    - name: Force Update Tag
+      run: |
+        $version = "${{ needs.build.outputs.version }}"
+        $tagName = "v$version"
+        
+        # 기존 태그가 있다면 삭제
+        if (git tag -l $tagName) {
+          Write-Host "Removing existing tag: $tagName"
+          git tag -d $tagName
+          git push origin :refs/tags/$tagName
+        }
+        
+        # 새 태그 생성
+        Write-Host "Creating new tag: $tagName"
+        git tag $tagName
+        git push origin $tagName
+        
     - name: Create Release
       id: create_release
       uses: softprops/action-gh-release@v1
