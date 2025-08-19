@@ -791,24 +791,9 @@ class App(tk.Tk):
 			if not self.controller.is_running():
 				self._on_start()
 			
-			# Minimize to tray without showing any message
-			self._minimize_to_tray()
-			
-			# Show a brief notification that app is running in tray
-			if self.tray_icon:
-				self.tray_icon.notify(
-					LanguageManager.get_text(self.current_language, "startup_successful"),
-					LanguageManager.get_text(self.current_language, "startup_message")
-				)
-				
 		except Exception as e:
 			# Log error but don't show message box during startup
 			print(f"Auto-startup error: {e}")
-			# Still try to minimize to tray even if server start failed
-			try:
-				self._minimize_to_tray()
-			except:
-				pass
 		finally:
 			# Clear the flag
 			self._is_auto_starting = False

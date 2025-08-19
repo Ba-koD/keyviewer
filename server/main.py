@@ -515,9 +515,9 @@ async def api_get_config() -> Dict[str, int]:
 
 @app.get("/api/launcher-language")
 async def api_get_launcher_language() -> Dict[str, str]:
-	"""런처의 언어 설정을 가져옵니다."""
+	"""Get launcher language setting."""
 	try:
-		# 런처 설정 파일에서 언어 정보를 읽어옵니다
+		# Read language info from launcher config file
 		launcher_config_path = _config_dir() / "launcher_config.json"
 		if launcher_config_path.exists():
 			with open(launcher_config_path, 'r', encoding='utf-8') as f:
@@ -527,7 +527,7 @@ async def api_get_launcher_language() -> Dict[str, str]:
 	except Exception:
 		pass
 	
-	# 기본값 반환
+	# Return default value
 	return {"language": "ko"}
 
 
@@ -535,10 +535,10 @@ async def api_get_launcher_language() -> Dict[str, str]:
 async def api_set_config(payload: Dict[str, int]) -> JSONResponse:
 	port = int(payload.get("port", app_config.port))
 	if port < 1000 or port > 65535:
-		return JSONResponse({"ok": False, "message": "포트는 1000-65535 범위여야 합니다."}, status_code=400)
+		return JSONResponse({"ok": False, "message": "Port must be between 1000-65535"}, status_code=400)
 	app_config.port = port
 	save_app_config(app_config)
-	return JSONResponse({"ok": True, "message": "저장됨. 서버 재시작 후 적용됩니다.", "port": app_config.port})
+	return JSONResponse({"ok": True, "message": "Saved. Restart server to apply.", "port": app_config.port})
 
 
 @app.get("/api/overlay-config")

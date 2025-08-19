@@ -1,6 +1,8 @@
-import sys
-from cx_Freeze import setup, Executable
+# KeyQueueViewer PyInstaller Spec File
+# This file is used for PyInstaller configuration
+
 import os
+import sys
 
 # 버전 정보 읽기
 def get_version():
@@ -13,60 +15,37 @@ def get_version():
 version = get_version()
 build_folder = f"KBQV-v{version}"
 
-# Windows에서 GUI 애플리케이션으로 실행
-base = None
-if sys.platform == "win32":
-    base = "Win32GUI"
+# PyInstaller 설정
+# 이 파일은 참고용이며, 실제 빌드는 다음 명령어로 수행합니다:
+# pyinstaller --onedir --noconsole --name "KBQV-v{version}" --icon "web/favicon.ico" --add-data "web;web" app/launcher.py
 
-# 필요한 모듈들 포함
-build_exe_options = {
-    "packages": [
-        "fastapi", "uvicorn", "websockets", "keyboard", "win32api", "win32con", 
-        "win32gui", "psutil", "pystray", "PIL", "asyncio", "uvicorn.logging",
-        "uvicorn.config", "uvicorn.protocols", "uvicorn.lifespan", "uvicorn.loops",
-        "uvicorn.middleware", "uvicorn.server", "uvicorn.workers", "http", "http.client",
-        "http.server", "http.cookies", "http.cookiejar", "urllib", "urllib.request",
-        "urllib.parse", "urllib.error", "urllib.robotparser", "json", "zipfile",
-        "tempfile", "shutil", "os", "sys", "threading", "time", "datetime"
-    ],
-    "excludes": [],
-    "include_files": [
-        ("web/", "web/"),
-        ("version.txt", "version.txt")
-    ],
-    "build_exe": f"dist/{build_folder}",
-    "optimize": 2,
-    "include_msvcr": True,
-    "zip_include_packages": "*",
-    "zip_exclude_packages": []
-}
-
-executables = [
-    Executable(
-        "app/launcher.py",
-        base=base,
-        target_name=f"KBQV-v{version}.exe",
-        icon="web/favicon.ico"
-    )
+# 필요한 모듈들 (PyInstaller가 자동으로 감지하지만, 명시적으로 포함할 수 있음)
+hidden_imports = [
+    "fastapi", "uvicorn", "websockets", "keyboard", "win32api", "win32con", 
+    "win32gui", "psutil", "pystray", "PIL", "asyncio", "uvicorn.logging",
+    "uvicorn.config", "uvicorn.protocols", "uvicorn.lifespan", "uvicorn.loops",
+    "uvicorn.middleware", "uvicorn.server", "uvicorn.workers", "http", "http.client",
+    "http.server", "http.cookies", "http.cookiejar", "urllib", "urllib.request",
+    "urllib.parse", "urllib.error", "urllib.robotparser", "json", "zipfile",
+    "tempfile", "shutil", "os", "sys", "threading", "time", "datetime"
 ]
 
-metadata = {
-    "name": "KeyQueueViewer",
-    "version": version,
-    "description": "Keyboard Queue Viewer - Real-time keyboard input monitoring tool",
-    "author": "KeyQueueViewer",
-    "author_email": "support@keyqueueviewer.com",
-    "url": "https://github.com/your-username/keyviewer",
-    "options": {"build_exe": build_exe_options}
-}
+# 포함할 데이터 파일들
+datas = [
+    ("web/", "web/"),
+    ("version.txt", ".")
+]
 
-setup(
-    name=metadata["name"],
-    version=metadata["version"],
-    description=metadata["description"],
-    author=metadata["author"],
-    author_email=metadata["author_email"],
-    url=metadata["url"],
-    options=metadata["options"],
-    executables=executables
-) 
+# 제외할 모듈들
+excludes = []
+
+# PyInstaller 명령어 예시
+print(f"PyInstaller 명령어 예시:")
+print(f"pyinstaller --onedir --noconsole --name 'KBQV-v{version}' --icon 'web/favicon.ico' --add-data 'web;web' app/launcher.py")
+print(f"")
+print(f"또는 onefile 버전:")
+print(f"pyinstaller --onefile --noconsole --name 'KBQV-v{version}' --icon 'web/favicon.ico' --add-data 'web;web' app/launcher.py")
+print(f"")
+print(f"빌드된 파일은 dist/ 폴더에 생성됩니다.")
+print(f"onedir: dist/KBQV-v{version}/ 폴더")
+print(f"onefile: dist/KBQV-v{version}.exe 파일") 

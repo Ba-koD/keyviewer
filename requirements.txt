@@ -4,7 +4,6 @@ websockets>=10.0
 keyboard>=0.13.5
 pywin32>=306
 psutil>=5.8.0
-cx_Freeze>=6.15.0
 PyInstaller>=6.6.0
 pystray>=0.19.4
 Pillow>=8.0.0

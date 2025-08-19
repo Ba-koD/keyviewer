@@ -51,82 +51,67 @@ if (Test-Path $versionFile) {
 
 Write-Host "===============================================" -ForegroundColor Cyan
 Write-Host "    KeyQueueViewer Full Build Script" -ForegroundColor Cyan
-Write-Host "    (cx_Freeze + PyInstaller)" -ForegroundColor Cyan
+Write-Host "    (PyInstaller Only - Modular Build)" -ForegroundColor Cyan
 Write-Host "===============================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Step 1: Build main program (cx_Freeze)
-Write-Host "[Step 1] Building main program... (cx_Freeze)" -ForegroundColor Green
-Write-Host "This step builds with cx_Freeze to reduce Windows Defender false positives." -ForegroundColor Yellow
+# Step 1: Build main program (onedir)
+Write-Host "[Step 1] Building main program... (onedir)" -ForegroundColor Green
+Write-Host "This step builds with PyInstaller onedir to create a folder-based executable." -ForegroundColor Yellow
 Write-Host ""
 
 try {
-    Write-Host "[Build] Building main program with cx_Freeze..." -ForegroundColor Cyan
-    & $venvPython setup_main.py build
+    Write-Host "[Build] Running onedir.ps1..." -ForegroundColor Cyan
+    & ".\onedir.ps1"
     if ($LASTEXITCODE -ne 0) {
-        throw "Main program build failed with exit code $LASTEXITCODE"
+        throw "onedir build failed with exit code $LASTEXITCODE"
     }
     Write-Host "[Step 1] Complete!" -ForegroundColor Green
 } catch {
-    Write-Host "[ERROR] Main program build failed: $_" -ForegroundColor Red
-    Write-Host "Please check:" -ForegroundColor Yellow
-    Write-Host "  1. Python virtual environment is activated" -ForegroundColor White
-    Write-Host "  2. cx_Freeze is installed: pip install cx_Freeze" -ForegroundColor White
-    Write-Host "  3. All dependencies are installed: pip install -r requirements.txt" -ForegroundColor White
-    Write-Host "  4. setup_main.py file exists and is valid" -ForegroundColor White
+    Write-Host "[ERROR] onedir build failed: $_" -ForegroundColor Red
+    Write-Host "Please check onedir.ps1 for detailed error information." -ForegroundColor Yellow
     exit 1
 }
 
 Write-Host ""
 Write-Host "===============================================" -ForegroundColor Cyan
 
-# Step 2: Build installer (PyInstaller onefile)
-Write-Host "[Step 2] Building installer... (PyInstaller onefile)" -ForegroundColor Green
+# Step 2: Build installer (onefile)
+Write-Host "[Step 2] Building installer... (onefile)" -ForegroundColor Green
 Write-Host "This step creates a single installer executable using PyInstaller." -ForegroundColor Yellow
 Write-Host ""
 
 try {
-    Write-Host "[Build] Building installer with PyInstaller onefile..." -ForegroundColor Cyan
-    $installerName = "KBQV-Installer-$version"
-    & $venvPython -m PyInstaller --clean --onefile --noconsole --name $installerName --icon "web/favicon.ico" installer.py
+    Write-Host "[Build] Running installer.ps1..." -ForegroundColor Cyan
+    & ".\installer.ps1"
     if ($LASTEXITCODE -ne 0) {
         throw "Installer build failed with exit code $LASTEXITCODE"
     }
     Write-Host "[Step 2] Complete!" -ForegroundColor Green
 } catch {
     Write-Host "[ERROR] Installer build failed: $_" -ForegroundColor Red
-    Write-Host "Please check:" -ForegroundColor Yellow
-    Write-Host "  1. Python virtual environment is activated" -ForegroundColor White
-    Write-Host "  2. PyInstaller is installed: pip install PyInstaller" -ForegroundColor White
-    Write-Host "  3. installer.py file exists and is valid" -ForegroundColor White
-    Write-Host "  4. web/favicon.ico file exists" -ForegroundColor White
+    Write-Host "Please check installer.ps1 for detailed error information." -ForegroundColor Yellow
     exit 1
 }
 
 Write-Host ""
 Write-Host "===============================================" -ForegroundColor Cyan
 
-# Step 3: Build portable version (PyInstaller onefile)
-Write-Host "Step 3: Building portable version... (PyInstaller onefile)" -ForegroundColor Green
+# Step 3: Build portable version (onefile)
+Write-Host "[Step 3] Building portable version... (onefile)" -ForegroundColor Green
 Write-Host "This step creates a portable executable using PyInstaller (may trigger Windows Defender)." -ForegroundColor Yellow
 Write-Host ""
 
 try {
-    Write-Host "[Build] Building portable version with PyInstaller onefile..." -ForegroundColor Cyan
-    $portableName = "KBQV-Portable-$version"
-    & $venvPython -m PyInstaller --clean --onefile --noconsole --name $portableName --icon "web/favicon.ico" --add-data "web;web" app/launcher.py
+    Write-Host "[Build] Running portable.ps1..." -ForegroundColor Cyan
+    & ".\portable.ps1"
     if ($LASTEXITCODE -ne 0) {
         throw "Portable version build failed with exit code $LASTEXITCODE"
     }
     Write-Host "[Step 3] Complete!" -ForegroundColor Green
 } catch {
     Write-Host "[ERROR] Portable version build failed: $_" -ForegroundColor Red
-    Write-Host "Please check:" -ForegroundColor Yellow
-    Write-Host "  1. Python virtual environment is activated" -ForegroundColor White
-    Write-Host "  2. PyInstaller is installed: pip install PyInstaller" -ForegroundColor White
-    Write-Host "  3. app/launcher.py file exists and is valid" -ForegroundColor White
-    Write-Host "  4. web/ folder exists with required files" -ForegroundColor White
-    Write-Host "  5. web/favicon.ico file exists" -ForegroundColor White
+    Write-Host "Please check portable.ps1 for detailed error information." -ForegroundColor Yellow
     exit 1
 }
 
@@ -134,7 +119,7 @@ Write-Host ""
 Write-Host "===============================================" -ForegroundColor Cyan
 
 # Step 4: Create onedir zip package
-Write-Host "Step 4: Creating onedir zip package..." -ForegroundColor Green
+Write-Host "[Step 4] Creating onedir zip package..." -ForegroundColor Green
 $zip_name = "KBQV-v$version.zip"
 $zip_path = "dist\$zip_name"
 $source_folder = "dist\KBQV-v$version"
@@ -161,8 +146,8 @@ if (Test-Path $zip_path) {
 Compress-Archive -Path "$source_folder\*" -DestinationPath $zip_path
 Write-Host "Created: $zip_path" -ForegroundColor Green
 
-# Step 4: Check build results
-Write-Host "[Step 4] Checking build results..." -ForegroundColor Green
+# Step 5: Check build results
+Write-Host "[Step 5] Checking build results..." -ForegroundColor Green
 
 $distPath = ".\dist"
 if (Test-Path $distPath) {

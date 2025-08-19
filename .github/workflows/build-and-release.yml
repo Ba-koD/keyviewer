@@ -14,6 +14,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # 전체 히스토리를 가져와서 태그 비교 가능하게 함
       
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -32,55 +34,21 @@ jobs:
         echo "version=$version" >> $env:GITHUB_OUTPUT
         Write-Host "Version: $version"
         
-    - name: Build main program (cx_Freeze onedir)
+    - name: Build all versions using build_all.ps1
       run: |
-        python setup_main.py build
+        # PowerShell 실행 정책 설정
+        Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
         
-    - name: Build installer (PyInstaller onefile)
-      run: |
-        $installerName = "KBQV-Installer-${{ steps.version.outputs.version }}"
-        python -m PyInstaller --clean --onefile --noconsole --name $installerName --icon "web/favicon.ico" installer.py
+        # build_all.ps1 스크립트 실행
+        Write-Host "Starting build process with build_all.ps1..." -ForegroundColor Green
+        .\build_all.ps1
         
-    - name: Build portable version (PyInstaller onefile)
-      run: |
-        $portableName = "KBQV-Portable-${{ steps.version.outputs.version }}"
-        python -m PyInstaller --clean --onefile --noconsole --name $portableName --icon "web/favicon.ico" --add-data "web;web" app/launcher.py
-        
-    - name: Create onedir zip package
-      run: |
-        cd dist
-        $zip_name = "KBQV-v${{ steps.version.outputs.version }}.zip"
-        $source_folder = "KBQV-v${{ steps.version.outputs.version }}"
-        
-        # 소스 폴더 확인
-        if (-not (Test-Path $source_folder)) {
-            Write-Host "ERROR: Source folder not found: $source_folder"
-            exit 1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Build failed with exit code $LASTEXITCODE" -ForegroundColor Red
+            exit $LASTEXITCODE
         }
         
-        # 폴더 내용 확인
-        $files = Get-ChildItem $source_folder -Recurse | Where-Object { -not $_.PSIsContainer }
-        if ($files.Count -eq 0) {
-            Write-Host "ERROR: Source folder is empty: $source_folder"
-            exit 1
-        }
-        
-        Write-Host "Found $($files.Count) files in source folder"
-        # ZIP 파일 생성 (폴더 구조 유지)
-        Write-Host "Creating ZIP file: $zip_name"
-        Compress-Archive -Path $source_folder -DestinationPath $zip_name
-        Write-Host "Created: $zip_name"
-        # ZIP 파일 내용 확인 (for debugging)
-        Write-Host "ZIP file contents:"
-        Expand-Archive -Path $zip_name -DestinationPath "temp_check" -Force
-        Get-ChildItem "temp_check" -Recurse | ForEach-Object {
-            if ($_.PSIsContainer) {
-                Write-Host "  [FOLDER] $($_.FullName.Replace('temp_check\', ''))"
-            } else {
-                Write-Host "  [FILE] $($_.FullName.Replace('temp_check\', ''))"
-            }
-        }
-        Remove-Item "temp_check" -Recurse -Force
+        Write-Host "Build completed successfully!" -ForegroundColor Green
         
     - name: List build artifacts
       run: |
@@ -105,6 +73,11 @@ jobs:
     if: github.ref == 'refs/heads/master'
     
     steps:
+    - name: Checkout code (with tags)
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # 전체 히스토리를 가져와서 태그 비교 가능하게 함
+        
     - name: Download build artifacts
       uses: actions/download-artifact@v4
       with:
@@ -114,6 +87,29 @@ jobs:
     - name: Show version from build
       run: |
         echo "Release version: ${{ needs.build.outputs.version }}"
+        
+    - name: Generate Changelog
+      id: changelog
+      run: |
+        $version = "${{ needs.build.outputs.version }}"
+        $currentTag = "v$version"
+        
+        # 이전 태그 찾기 (현재 태그보다 낮은 가장 최근 태그)
+        $tags = git tag --sort=-version:refname | Where-Object { $_ -lt $currentTag }
+        if ($tags.Count -gt 0) {
+            $previousTag = $tags[0]
+            Write-Host "Previous tag found: $previousTag"
+            echo "previous_tag=$previousTag" >> $env:GITHUB_OUTPUT
+            
+            # Full Changelog 생성
+            $changelog = "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$previousTag...$currentTag"
+            echo "full_changelog=$changelog" >> $env:GITHUB_OUTPUT
+            Write-Host "Generated changelog: $changelog"
+        } else {
+            Write-Host "No previous tags found"
+            echo "previous_tag=" >> $env:GITHUB_OUTPUT
+            echo "full_changelog=" >> $env:GITHUB_OUTPUT
+        }
         
     - name: Create Release
       id: create_release
@@ -142,12 +138,16 @@ jobs:
           
           ### 📋 Notes
           - Installer automatically downloads the latest version from GitHub
-          - Main program built with cx_Freeze to reduce Windows Defender false positives
-          - Portable version built with PyInstaller (may trigger security software)
+          - Main program built with PyInstaller onedir for better compatibility
+          - Portable version built with PyInstaller onefile (may trigger security software)
+          - All builds are automated using build_all.ps1 script
           
           ### 🔗 Links
           - **Repository**: https://github.com/${{ github.repository }}
           - **Releases**: https://github.com/${{ github.repository }}/releases
+          
+          ### 📝 Changelog
+          ${{ steps.changelog.outputs.full_changelog }}
         files: |
           ./dist/KBQV-Installer-*.exe
           ./dist/KBQV-Portable-*.exe

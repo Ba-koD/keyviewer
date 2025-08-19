@@ -10,9 +10,22 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
 .\run.ps1
 ```
 
-### Build and Install
+### Build All Versions
 ```powershell
-.\build_hybrid.ps1
+Set-ExecutionPolicy Bypass -Scope Process -Force
+.\build_all.ps1
+```
+
+### Individual Builds
+```powershell
+# Main program (onedir)
+.\onedir.ps1
+
+# Installer (onefile)
+.\installer.ps1
+
+# Portable version (onefile)
+.\portable.ps1
 ```
 
 ## Documentation
@@ -27,9 +40,22 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
 - System tray integration
 - Windows startup management
 - Auto-installer for easy deployment
+- Multiple build options (onedir, onefile, portable)
 
-## Build System
+## Build Output
 
-This project uses a **hybrid build approach**:
-- **Main Program**: `cx_Freeze` (reduces Windows Defender false positives)
-- **Installer**: `PyInstaller onefile` (single executable distribution)
+After running `build_all.ps1`, you'll get:
+```
+dist/
+├── KBQV-v1.0.4/                    # Main program (onedir)
+├── KBQV-Installer-1.0.4.exe       # Installer (onefile)
+├── KBQV-Portable-1.0.4.exe        # Portable version (onefile)
+└── KBQV-v1.0.4.zip               # Main program compressed file
+```
+
+## Requirements
+
+- Windows 10/11
+- Python 3.11+
+- PowerShell
+- PyInstaller

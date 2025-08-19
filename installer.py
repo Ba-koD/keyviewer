@@ -18,8 +18,16 @@ class InstallerApp:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("KeyQueueViewer 자동설치기")
-        self.root.geometry("500x550")
+        self.root.geometry("500x600")
         self.root.resizable(False, False)
+        
+        # 아이콘 설정
+        try:
+            icon_path = os.path.join(os.path.dirname(__file__), "web", "favicon.ico")
+            if os.path.exists(icon_path):
+                self.root.iconbitmap(icon_path)
+        except:
+            pass  # 아이콘 설정 실패 시 무시
         
         # 기본 설치 경로 설정
         self.default_install_path = self.get_default_install_path()
@@ -29,7 +37,6 @@ class InstallerApp:
         self.create_shortcut = tk.BooleanVar(value=True)
         self.create_desktop_shortcut = tk.BooleanVar(value=True)
         self.start_menu_shortcut = tk.BooleanVar(value=True)
-        self.debug_mode = tk.BooleanVar(value=False)  # 디버그 모드 추가
         
         # GitHub 정보
         self.github_repo = "Ba-koD/keyviewer"  # 실제 GitHub 저장소로 변경 필요
@@ -39,8 +46,8 @@ class InstallerApp:
         
         self.setup_ui()
         
-        # 시작 시 업데이트 확인
-        self.check_for_updates()
+        # UI 설정 완료 후 업데이트 확인
+        self.root.after(100, self.check_for_updates)
         
     def get_default_install_path(self):
         """기본 설치 경로를 반환합니다."""
@@ -77,6 +84,10 @@ class InstallerApp:
         self.version_info_label = ttk.Label(version_frame, text="버전을 선택해주세요")
         self.version_info_label.pack()
         
+        # 상태 표시 라벨 추가
+        self.status_label = ttk.Label(version_frame, text="", foreground="blue")
+        self.status_label.pack(pady=(5, 0))
+        
         # 설치 경로 선택
         path_frame = ttk.LabelFrame(main_frame, text="설치 경로", padding="10")
         path_frame.pack(fill=tk.X, pady=(0, 15))
@@ -101,91 +112,65 @@ class InstallerApp:
         ttk.Checkbutton(shortcut_frame, text="시작 메뉴 바로가기", 
                        variable=self.start_menu_shortcut).pack(anchor=tk.W)
         
-        # 디버그 옵션 추가
-        debug_frame = ttk.LabelFrame(main_frame, text="디버그 옵션", padding="10")
-        debug_frame.pack(fill=tk.X, pady=(0, 15))
+        # 다운로드 및 설치 진행상황 표시
+        progress_frame = ttk.LabelFrame(main_frame, text="진행상황", padding="10")
+        progress_frame.pack(fill=tk.X, pady=(0, 15))
         
-        debug_check = ttk.Checkbutton(debug_frame, text="디버그 모드 (콘솔 창 표시)", 
-                                     variable=self.debug_mode, 
-                                     command=self.toggle_debug_mode)
-        debug_check.pack(anchor=tk.W)
+        # 다운로드 진행상황
+        self.download_progress_var = tk.StringVar(value="다운로드 대기 중")
+        self.download_progress_label = ttk.Label(progress_frame, textvariable=self.download_progress_var)
+        self.download_progress_label.pack(pady=(0, 5))
         
-        # 디버그 모드 설명
-        debug_info = ttk.Label(debug_frame, text="설치 과정의 상세 로그를 콘솔 창에서 확인할 수 있습니다", 
-                              font=("Arial", 8), foreground="gray")
-        debug_info.pack(anchor=tk.W, pady=(5, 0))
+        self.download_progress_bar = ttk.Progressbar(progress_frame, mode='determinate', length=400)
+        self.download_progress_bar.pack(fill=tk.X)
+        
+        self.download_speed_label = ttk.Label(progress_frame, text="", font=("Arial", 8), foreground="gray")
+        self.download_speed_label.pack(pady=(5, 0))
+        
+        # 설치 진행상황 (초기에는 숨김)
+        self.install_progress_var = tk.StringVar(value="설치 대기 중")
+        self.install_progress_label = ttk.Label(progress_frame, textvariable=self.install_progress_var)
+        self.install_progress_bar = ttk.Progressbar(progress_frame, mode='determinate', length=400)
         
         # 설치 버튼
         self.install_btn = ttk.Button(main_frame, text="설치 시작", 
                                      command=self.start_installation, style="Accent.TButton")
         self.install_btn.pack(pady=20)
-        
-        # 진행 상황 표시
-        self.progress = ttk.Progressbar(main_frame, mode='indeterminate')
-        self.progress.pack(fill=tk.X, pady=(0, 10))
-        
-        self.status_label = ttk.Label(main_frame, text="설치할 버전을 선택하고 '설치 시작' 버튼을 클릭하세요.")
-        self.status_label.pack()
-        
-        # 스타일 설정
-        style = ttk.Style()
-        style.configure("Accent.TButton", font=("Arial", 10, "bold"))
-        
-        # 수동 업데이트 확인 버튼
-        update_frame = ttk.Frame(main_frame)
-        update_frame.pack(fill=tk.X, pady=(10, 0))
-        self.update_btn = ttk.Button(update_frame, text="업데이트 확인", 
-                                    command=self.check_for_updates_manual)
-        self.update_btn.pack(side=tk.RIGHT)
-    
-    def toggle_debug_mode(self):
-        """디버그 모드를 토글합니다."""
-        if self.debug_mode.get():
-            # 콘솔 창 표시
-            if hasattr(sys, '_getframe'):
-                # Windows에서 콘솔 창 표시
-                try:
-                    import ctypes
-                    ctypes.windll.kernel32.AllocConsole()
-                    sys.stdout = open('CONOUT$', 'w')
-                    sys.stderr = open('CONOUT$', 'w')
-                    print("=== 디버그 모드 활성화 ===")
-                    print("설치 과정의 상세 로그가 이 창에 표시됩니다.")
-                    print("=" * 40)
-                except:
-                    pass
-        else:
-            # 콘솔 창 숨기기 (설치 중에는 변경 불가)
-            pass
     
     def check_for_updates(self):
         """자동으로 업데이트를 확인합니다."""
         try:
+            print("[DEBUG] check_for_updates 시작")
             # GitHub API에서 모든 릴리즈 정보 가져오기
             api_url = f"https://api.github.com/repos/{self.github_repo}/releases"
+            print(f"[DEBUG] API URL: {api_url}")
+            
             with urllib.request.urlopen(api_url) as response:
                 releases = json.loads(response.read().decode())
+            print(f"[DEBUG] API 응답 받음: {len(releases)}개 릴리즈")
             
-            # 릴리즈 정보 정리 (1.0.4 이상만)
             self.all_releases = []
             for release in releases:
                 tag_name = release['tag_name']
-                # v1.0.4 이상인지 확인
-                if self.is_version_greater_or_equal(tag_name, "v1.0.4"):
-                    # KBQV-v{version}.zip 파일 찾기
-                    download_url = None
-                    for asset in release.get('assets', []):
-                        if asset['name'].startswith('KBQV-v') and asset['name'].endswith('.zip'):
-                            download_url = asset['browser_download_url']
-                            break
-                    
-                    if download_url:
-                        self.all_releases.append({
-                            'tag_name': tag_name,
-                            'name': release.get('name', tag_name),
-                            'download_url': download_url,
-                            'published_at': release['published_at']
-                        })
+                print(f"[DEBUG] 릴리즈 처리 중: {tag_name}")
+                # KBQV{globing}.zip 파일 찾기
+                download_url = None
+                for asset in release.get('assets', []):
+                    if asset['name'].startswith('KBQV') and asset['name'].endswith('.zip'):
+                        download_url = asset['browser_download_url']
+                        print(f"[DEBUG] 다운로드 URL 찾음: {download_url}")
+                        break
+                
+                if download_url:
+                    self.all_releases.append({
+                        'tag_name': tag_name,
+                        'name': release.get('name', tag_name),
+                        'download_url': download_url,
+                        'published_at': release['published_at']
+                    })
+                    print(f"[DEBUG] 릴리즈 추가됨: {tag_name}")
+            
+            print(f"[DEBUG] 총 {len(self.all_releases)}개 릴리즈 수집됨")
             
             # 최신 버전 순으로 정렬
             self.all_releases.sort(key=lambda x: x['tag_name'], reverse=True)
@@ -198,20 +183,29 @@ class InstallerApp:
                 else:
                     version_list.append(release['tag_name'])
             
+            print(f"[DEBUG] 버전 목록: {version_list}")
             self.version_combo['values'] = version_list
             
             if self.all_releases:
                 # 기본적으로 최신 버전 선택
                 self.version_combo.set(version_list[0])
                 self.on_version_selected()
-                self.status_label.config(text=f"사용 가능한 버전: {len(self.all_releases)}개")
+                if hasattr(self, 'status_label'):
+                    self.status_label.config(text=f"사용 가능한 버전: {len(self.all_releases)}개")
+                print(f"[DEBUG] 상태 라벨 업데이트 완료: {len(self.all_releases)}개 버전")
             else:
                 self.version_info_label.config(text="사용 가능한 버전이 없습니다")
                 self.install_btn.config(state='disabled')
+                print("[DEBUG] 사용 가능한 버전 없음")
                 
         except Exception as e:
+            print(f"[DEBUG] 예외 발생: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
             self.version_info_label.config(text="버전 확인 실패 - 인터넷 연결을 확인하세요")
             self.install_btn.config(state='disabled')
+            if hasattr(self, 'status_label'):
+                self.status_label.config(text="버전 확인 실패")
             print(f"업데이트 확인 실패: {e}")
     
     def is_version_greater_or_equal(self, version1, version2):
@@ -235,16 +229,21 @@ class InstallerApp:
     
     def on_version_selected(self, event=None):
         """버전이 선택되었을 때 호출됩니다."""
+        print(f"[DEBUG] on_version_selected 호출됨, event: {event}")
         selected = self.version_var.get()
+        print(f"[DEBUG] 선택된 버전: {selected}")
         if not selected:
+            print("[DEBUG] 선택된 버전이 없음")
             return
         
         # (최신버전) 텍스트 제거
         clean_version = selected.replace(" (최신버전)", "")
+        print(f"[DEBUG] 정리된 버전: {clean_version}")
         
         # 선택된 릴리즈 찾기
         for release in self.all_releases:
             if release['tag_name'] == clean_version:
+                print(f"[DEBUG] 릴리즈 찾음: {release}")
                 self.selected_version = release
                 self.download_url = release['download_url']
                 
@@ -257,24 +256,10 @@ class InstallerApp:
                 # 설치 버튼 활성화
                 self.install_btn.config(state='normal')
                 self.status_label.config(text=f"'{clean_version}' 버전 설치 준비 완료")
+                print(f"[DEBUG] 버전 선택 완료: {clean_version}")
                 break
-    
-    def check_for_updates_manual(self):
-        """수동으로 업데이트를 확인합니다."""
-        self.update_btn.config(state='disabled')
-        self.status_label.config(text="업데이트 확인 중...")
-        
-        try:
-            self.check_for_updates()
-            if self.all_releases:
-                self.status_label.config(text=f"사용 가능한 버전 {len(self.all_releases)}개 확인됨")
-            else:
-                self.status_label.config(text="사용 가능한 버전이 없습니다")
-        except Exception as e:
-            messagebox.showerror("업데이트 실패", f"업데이트 확인에 실패했습니다:\n{e}")
-            self.status_label.config(text="업데이트 확인 실패")
-        finally:
-            self.update_btn.config(state='normal')
+        else:
+            print(f"[DEBUG] 릴리즈를 찾을 수 없음: {clean_version}")
     
     def browse_path(self):
         """설치 경로를 선택하는 대화상자를 엽니다."""
@@ -287,13 +272,17 @@ class InstallerApp:
     
     def start_installation(self):
         """설치를 시작합니다."""
+        print("[DEBUG] start_installation 호출됨")
         if not self.selected_version or not self.download_url:
+            print("[DEBUG] 설치할 버전이 선택되지 않음")
             messagebox.showerror("오류", "설치할 버전을 선택해주세요.")
             return
             
         install_path = self.install_path.get().strip()
+        print(f"[DEBUG] 설치 경로: {install_path}")
         
         if not install_path:
+            print("[DEBUG] 설치 경로가 입력되지 않음")
             messagebox.showerror("오류", "설치 경로를 입력해주세요.")
             return
         
@@ -308,19 +297,17 @@ class InstallerApp:
             messagebox.showerror("오류", f"설치 경로가 유효하지 않습니다: {e}")
             return
         
-        # 디버그 모드가 활성화되어 있으면 콘솔 창 표시
-        if self.debug_mode.get():
-            self.toggle_debug_mode()
-        
         # 설치 시작
+        print("[DEBUG] 설치 시작 - UI 업데이트")
         self.install_btn.config(state='disabled')
-        self.progress.start()
         self.status_label.config(text="설치 중...")
         
         # 별도 스레드에서 설치 실행
+        print("[DEBUG] 설치 스레드 시작")
         install_thread = threading.Thread(target=self.perform_installation, args=(install_path,))
         install_thread.daemon = True
         install_thread.start()
+        print("[DEBUG] 설치 스레드 시작됨")
     
     def perform_installation(self, install_path):
         """실제 설치 수행"""
@@ -329,7 +316,6 @@ class InstallerApp:
             print(f"[DEBUG] Installation started for version: {self.selected_version['tag_name']}")
             print(f"[DEBUG] Download URL: {self.download_url}")
             print(f"[DEBUG] Install path: {install_path}")
-            print(f"[DEBUG] Debug mode: {self.debug_mode.get()}")
             
             # 임시 디렉토리 생성
             temp_dir = tempfile.mkdtemp(prefix='keyviewer_install_')
@@ -339,8 +325,29 @@ class InstallerApp:
             zip_path = os.path.join(temp_dir, f"KBQV-{self.selected_version['tag_name']}.zip")
             print(f"[DEBUG] Downloading ZIP to: {zip_path}")
             
-            urllib.request.urlretrieve(self.download_url, zip_path)
+            # 다운로드 진행상황 초기화
+            self.reset_download_progress()
+            
+            # 파일 크기 확인
+            try:
+                response = urllib.request.urlopen(self.download_url)
+                total_size = int(response.headers.get('content-length', 0))
+                response.close()
+            except:
+                total_size = 0
+            
+            # 진행상황 콜백을 사용한 다운로드
+            def download_progress_hook(count, block_size, total_size):
+                downloaded = count * block_size
+                self.update_download_progress(downloaded, total_size)
+                self.root.update_idletasks()
+            
+            urllib.request.urlretrieve(self.download_url, zip_path, download_progress_hook)
             print(f"[DEBUG] ZIP download completed. File size: {os.path.getsize(zip_path)} bytes")
+            
+            # 다운로드 완료
+            self.download_progress_var.set("다운로드 완료!")
+            self.download_progress_bar['value'] = 100
             
             # ZIP 파일 내용 확인
             print(f"[DEBUG] ZIP file contents:")
@@ -443,12 +450,36 @@ class InstallerApp:
             print(f"[DEBUG] Error type: {type(e).__name__}")
             import traceback
             traceback.print_exc()
-            messagebox.showerror("설치 실패", f"설치 중 오류가 발생했습니다:\n{str(e)}")
+            self.installation_failed(str(e))
     
     def update_status(self, message):
         """상태 메시지를 업데이트합니다."""
         self.root.after(0, lambda: self.status_label.config(text=message))
         time.sleep(0.5)  # 사용자가 메시지를 볼 수 있도록 잠시 대기
+    
+    def update_download_progress(self, downloaded_bytes, total_bytes, speed=None):
+        """다운로드 진행상황을 업데이트합니다."""
+        if total_bytes > 0:
+            progress = (downloaded_bytes / total_bytes) * 100
+            self.download_progress_bar['value'] = progress
+            
+            # 진행률 텍스트 업데이트
+            downloaded_mb = downloaded_bytes / (1024 * 1024)
+            total_mb = total_bytes / (1024 * 1024)
+            self.download_progress_var.set(f"다운로드 중... {downloaded_mb:.1f}MB / {total_mb:.1f}MB ({progress:.1f}%)")
+            
+            # 속도 표시
+            if speed:
+                speed_mb = speed / (1024 * 1024)
+                self.download_speed_label.config(text=f"다운로드 속도: {speed_mb:.1f} MB/s")
+        else:
+            self.download_progress_var.set("다운로드 중...")
+    
+    def reset_download_progress(self):
+        """다운로드 진행상황을 초기화합니다."""
+        self.download_progress_bar['value'] = 0
+        self.download_progress_var.set("다운로드 대기 중")
+        self.download_speed_label.config(text="")
     
     def create_shortcut_file(self, install_path, shortcut_type):
         """바로가기 파일을 생성합니다."""
@@ -526,8 +557,9 @@ class InstallerApp:
     
     def installation_complete(self, install_path):
         """설치 완료 처리를 합니다."""
-        self.progress.stop()
-        self.install_btn.config(state='normal')
+        print("[DEBUG] installation_complete 호출됨")
+        self.root.after(0, lambda: self.install_btn.config(state='normal'))
+        self.root.after(0, lambda: self.status_label.config(text="설치 완료!"))
         
         # 완료 메시지
         message = f"""설치가 완료되었습니다!
@@ -538,27 +570,29 @@ class InstallerApp:
 프로그램을 실행하려면 설치된 폴더의 KBQV-{self.selected_version['tag_name']}.exe를 실행하거나
 생성된 바로가기를 사용하세요."""
 
-        messagebox.showinfo("설치 완료", message)
+        self.root.after(0, lambda: messagebox.showinfo("설치 완료", message))
         
         # 설치된 폴더 열기 옵션
-        if messagebox.askyesno("폴더 열기", "설치된 폴더를 열까요?"):
-            try:
-                os.startfile(install_path)
-            except:
-                subprocess.run(["explorer", install_path])
+        def ask_open_folder():
+            if messagebox.askyesno("폴더 열기", "설치된 폴더를 열까요?"):
+                try:
+                    os.startfile(install_path)
+                except:
+                    subprocess.run(["explorer", install_path])
+            # 프로그램 종료
+            self.root.after(1000, self.root.quit)
         
-        # 프로그램 종료
-        self.root.quit()
+        self.root.after(100, ask_open_folder)
     
     def installation_failed(self, error_message):
         """설치 실패 처리를 합니다."""
-        self.progress.stop()
-        self.install_btn.config(state='normal')
-        self.status_label.config(text="설치 실패")
+        print(f"[DEBUG] installation_failed 호출됨: {error_message}")
+        self.root.after(0, lambda: self.install_btn.config(state='normal'))
+        self.root.after(0, lambda: self.status_label.config(text="설치 실패"))
         
-        messagebox.showerror("설치 실패", 
+        self.root.after(0, lambda: messagebox.showerror("설치 실패", 
                            f"설치 중 오류가 발생했습니다:\n\n{error_message}\n\n"
-                           "관리자 권한으로 실행하거나 다른 경로를 선택해보세요.")
+                           "관리자 권한으로 실행하거나 다른 경로를 선택해보세요."))
     
     def run(self):
         """애플리케이션을 실행합니다."""

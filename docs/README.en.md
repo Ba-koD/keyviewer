@@ -11,10 +11,11 @@ This document is a complete guide to install, configure, and build KeyQueueViewe
 
 ## Build System
 
-This project uses a **hybrid build approach** to optimize both security and convenience:
+This project uses a **PyInstaller-based modular build system** to provide various deployment options:
 
-- **Main Program**: Built with `cx_Freeze` (reduces Windows Defender false positives)
+- **Main Program**: Built with `PyInstaller onedir` (folder-based executable)
 - **Installer**: Built with `PyInstaller onefile` (single executable distribution)
+- **Portable Version**: Built with `PyInstaller onefile` (executable without installation)
 
 ## Requirements
 - Windows 10/11
@@ -35,33 +36,54 @@ After the server starts:
 
 ## 2) Build and Install (Recommended)
 
-### Run Hybrid Build
+### Run Full Build (All Versions)
 ```powershell
-./build_hybrid.ps1
+./build_all.ps1
+```
+
+### Run Individual Builds
+```powershell
+# Main program (onedir)
+./onedir.ps1
+
+# Installer (onefile)
+./installer.ps1
+
+# Portable version (onefile)
+./portable.ps1
 ```
 
 ### Build Process
-1. **Main Program Build**: Uses cx_Freeze for security
+1. **Main Program Build**: Uses PyInstaller onedir to create folder-based executable
 2. **Installer Build**: Uses PyInstaller onefile for convenience
-3. **Package Creation**: Automatically creates a self-contained installer package
+3. **Portable Version Build**: Uses PyInstaller onefile to create executable without installation
+4. **Package Creation**: Automatically creates ZIP file of main program
 
 ### Build Output
 ```
 dist/
-├── KeyQueueViewer_Main/          # Main program (cx_Freeze)
-├── KeyQueueViewer_Installer.exe  # Installer (PyInstaller onefile)
-└── KeyQueueViewer_Installer_Complete/  # Distribution package
-    ├── KeyQueueViewer_Installer.exe
-    ├── main_program/
-    └── README.txt
+├── KBQV-v1.0.4/                    # Main program (onedir)
+├── KBQV-Installer-1.0.4.exe       # Installer (onefile)
+├── KBQV-Portable-1.0.4.exe        # Portable version (onefile)
+└── KBQV-v1.0.4.zip               # Main program compressed file
 ```
 
 ## 3) Installation Process
 
-1. **Run Installer**: Execute `KeyQueueViewer_Installer.exe`
+### Using Installer (Recommended)
+1. **Run Installer**: Execute `KBQV-Installer-1.0.4.exe`
 2. **Choose Path**: Select installation directory (default: `C:\Program Files\KeyQueueViewer`)
 3. **Shortcut Options**: Choose to create desktop and Start Menu shortcuts
 4. **Complete**: Program is automatically registered and shortcuts are created
+
+### Using Portable Version
+1. **Direct Execution**: Copy `KBQV-Portable-1.0.4.exe` to desired location and run
+2. **No Installation Required**: No files copied to registry or system folders
+3. **Portable**: Easy to move to USB or other computers
+
+### Using Compressed File
+1. **Extract**: Extract `KBQV-v1.0.4.zip` to desired location
+2. **Run**: Execute `KBQV-v1.0.4.exe` in the extracted folder
 
 ## 4) OBS Setup
 1. Add Browser Source
@@ -77,18 +99,32 @@ keyviewer/
 ├── app/
 │   └── launcher.py           # Main application
 ├── installer.py              # Auto-installer
-├── setup_main.py             # cx_Freeze configuration
-├── build_hybrid.ps1          # Build script
+├── build_all.ps1             # Full build script
+├── onedir.ps1                # Main program build script
+├── installer.ps1             # Installer build script
+├── portable.ps1              # Portable version build script
 ├── requirements.txt           # Dependencies
 └── version.txt               # Version information
 ```
 
+## Build Options
+
+### onedir (Folder-based)
+- **Advantages**: Fast startup, easy debugging, file modification possible
+- **Disadvantages**: Multiple files, deployment requires attention
+- **Use case**: Development, testing, customization
+
+### onefile (Single file)
+- **Advantages**: Single executable, easy deployment, portable
+- **Disadvantages**: Slower startup, potential Windows Defender false positives
+- **Use case**: Final distribution, user installation
+
 ## Security Features
 
-- **cx_Freeze Build**: Reduces Windows Defender false positives
-- **Hybrid Approach**: Combines security (cx_Freeze) with convenience (PyInstaller)
-- **Self-contained**: Installer includes all necessary files
-- **Registry Integration**: Proper Windows program registration
+- **PyInstaller Build**: Stable and proven build system
+- **Modular Approach**: Provides optimized build options for different purposes
+- **Self-contained**: Each build includes all necessary files
+- **Registry Integration**: Proper Windows program registration when using installer
 
 ## Troubleshooting
 
@@ -96,6 +132,7 @@ keyviewer/
 - Ensure Python 3.11+ is installed
 - Run PowerShell as Administrator if needed
 - Check virtual environment setup
+- Verify PyInstaller installation: `pip install PyInstaller`
 
 ### Installation Issues
 - Run installer as Administrator
@@ -111,7 +148,7 @@ keyviewer/
 
 - **"All windows" mode**: Can reveal overlay during password entry; includes 2-second confirm dialog
 - **Admin privileges**: Recommended for global key hook
-- **Windows Defender**: cx_Freeze build reduces false positives
+- **Windows Defender**: onefile builds may trigger false positives; set exclusions if needed
 
 ## Support
 
@@ -119,3 +156,4 @@ For issues and questions, please check:
 - GitHub Issues
 - Project documentation
 - Build logs and error messages
+- PowerShell execution policy settings
