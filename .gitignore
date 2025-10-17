@@ -19,7 +19,6 @@ dist/
 src-tauri/target/
 src-tauri/gen/
 *.rs.bk
-Cargo.lock
 
 # Tauri build artifacts
 src-tauri/target/
