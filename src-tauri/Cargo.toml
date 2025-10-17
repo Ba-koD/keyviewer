@@ -27,11 +27,11 @@ futures-util = "0.3"
 tower = "0.5"
 dirs = "5.0"
 open = "5.0"
-winreg = "0.52"
 single-instance = "0.3"
 
 # Windows-specific dependencies
 [target.'cfg(windows)'.dependencies]
+winreg = "0.52"
 windows = { version = "0.58", features = [
     "Win32_Foundation",
     "Win32_UI_WindowsAndMessaging",
