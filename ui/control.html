@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Key Viewer Control</title>
+	<link rel="icon" href="/static/favicon.ico" type="image/x-icon" />
+	<link rel="stylesheet" href="/static/control.css">
+	<style>
+		:root{
+			--bg:#0b0c10; --panel:#12141a; --panel2:#181b22; --text:#eaeef5; --muted:#9aa4b2; --primary:#4f8cff; --border:#232734;
+		}
+		html,body{margin:0; font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial; background:var(--bg); color:var(--text)}
+		.container{max-width:1000px; margin:24px auto; padding:0 16px}
+		.h1{font-size:22px; font-weight:700; margin-bottom:12px}
+		.panel{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:16px}
+		.row{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+		label{color:var(--muted)}
+		input, select, button{background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px 10px}
+		button{cursor:pointer}
+		button.primary{background:var(--primary); border-color:var(--primary)}
+		table{width:100%; border-collapse:collapse; table-layout:fixed}
+		th,td{border-bottom:1px solid var(--border); padding:8px 6px; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+		th.sortable{cursor:pointer; user-select:none}
+		th .arrow{font-size:11px; color:var(--muted); margin-left:4px}
+		.help{color:var(--muted); line-height:1.6}
+		.badge{display:inline-block; background:#2a3040; color:#9ec1ff; border:1px solid var(--border); border-radius:6px; padding:2px 6px; font-size:12px}
+		.right{margin-left:auto}
+		/* Modal */
+		.modal-backdrop{position:fixed; inset:0; background:rgba(0,0,0,0.65); display:none; align-items:center; justify-content:center; z-index:999}
+		.modal{width:560px; max-width:calc(100% - 32px); background:#141821; border:1px solid #2a2f3a; border-radius:12px; padding:18px}
+		.modal h3{margin:4px 0 12px; font-size:22px}
+		.modal .actions{display:flex; gap:10px; justify-content:space-between; margin-top:14px}
+		.modal .actions .spacer{flex:1}
+		.modal .form-row{display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap}
+		.modal .form-row > label{width:140px}
+		.modal .form-row > .field{flex:1; min-width:160px}
+		.danger{background:#ff5b5b; border-color:#ff5b5b}
+		.modal button:disabled{opacity:0.5; filter:grayscale(30%); cursor:not-allowed}
+
+		/* Color picker field */
+		.color-field{display:flex; gap:8px; align-items:center}
+		.color-field input[type="text"]{flex:1}
+		button.pick{width:36px; height:36px; border:1px solid var(--border); border-radius:6px}
+		input.picker-hidden{position:absolute; left:-9999px; width:0; height:0; opacity:0}
+
+		/* Overlay preview inside modal */
+		.overlay-preview{margin-top:12px; border:1px dashed #2a2f3a; border-radius:10px; padding:12px; background:#0f131b}
+		.overlay-preview .queue{display:grid; grid-auto-rows:max-content; gap:var(--chip-gap, 8px)}
+		.overlay-preview .chip{
+			background: var(--chip-bg, rgba(0,0,0,0.6));
+			color: var(--chip-fg, #fff);
+			padding: var(--chip-pad-v, 10px) var(--chip-pad-h, 14px);
+			border-radius: var(--chip-radius, 10px);
+			font-size: var(--chip-font, 24px);
+			font-weight: var(--chip-font-weight, 700);
+			min-width:44px; text-align:center; user-select:none;
+			transition: transform var(--fade-in, 120ms) ease, opacity var(--fade-in, 120ms) ease;
+		}
+		.overlay-preview .chip.hide{opacity:0; transform: translateY(8px); transition: transform var(--fade-out, 120ms) ease, opacity var(--fade-out, 120ms) ease}
+	</style>
+</head>
+<body>
+	<div class="container">
+		<div class="h1" id="title" data-text-ko="Key Queue Viewer 설정" data-text-en="Key Queue Viewer Settings">Key Queue Viewer 설정</div>
+
+		<div class="panel">
+			<div class="row">
+				<div class="help" id="overlaySettingsLabel" data-text-ko="오버레이 설정" data-text-en="Overlay Settings">오버레이 설정</div>
+				<button id="openOverlayCfg" class="right" data-text-ko="오버레이 설정" data-text-en="Overlay Settings">오버레이 설정</button>
+			</div>
+		</div>
+
+		<div class="panel">
+			<div class="help">
+				<span class="badge" id="modeExplanationLabel" data-text-ko="모드 설명" data-text-en="Mode Explanation">모드 설명</span>
+				<div id="modeExplanation1" data-text-ko="- 제목: 윈도우 제목에 값이 포함되면 매칭" data-text-en="- Title: Matches when window title contains the value">- 제목: 윈도우 제목에 값이 포함되면 매칭</div>
+				<div id="modeExplanation2" data-text-ko="- 프로세스: 프로세스 이름과 정확히 일치해야 매칭 (예: notepad.exe)" data-text-en="- Process: Must exactly match process name (e.g., notepad.exe)">- 프로세스: 프로세스 이름과 정확히 일치해야 매칭 (예: notepad.exe)</div>
+				<div id="modeExplanation3" data-text-ko="- HWND: 특정 창 핸들과 일치" data-text-en="- HWND: Matches specific window handle">- HWND: 특정 창 핸들과 일치</div>
+				<div id="modeExplanation4" data-text-ko="- 클래스: 윈도우 클래스명과 정확히 일치 (동일 유형의 창 전체)" data-text-en="- Class: Must exactly match window class name (all windows of same type)">- 클래스: 윈도우 클래스명과 정확히 일치 (동일 유형의 창 전체)</div>
+				<div id="modeExplanation5" data-text-ko="- 모든 창: 모든 포커스 창에서 입력을 감지" data-text-en="- All Windows: Detects input in all focused windows">- 모든 창: 모든 포커스 창에서 입력을 감지</div>
+			</div>
+		</div>
+
+		<div class="panel">
+			<div class="row">
+				<label id="modeLabel" data-text-ko="모드" data-text-en="Mode">모드</label>
+				<select id="mode">
+					<option value="disabled" data-text-ko="사용 안 함" data-text-en="Disabled">사용 안 함</option>
+					<option value="title" data-text-ko="제목(포함)" data-text-en="Title (Contains)">제목(포함)</option>
+					<option value="process" selected data-text-ko="프로세스(정확)" data-text-en="Process (Exact)">프로세스(정확)</option>
+					<option value="hwnd" data-text-ko="윈도우 핸들(HWND)" data-text-en="Window Handle (HWND)">윈도우 핸들(HWND)</option>
+					<option value="class" data-text-ko="클래스 명(정확)" data-text-en="Class Name (Exact)">클래스 명(정확)</option>
+					<option value="all" data-text-ko="모든 창" data-text-en="All Windows">모든 창</option>
+				</select>
+				<label id="valueSelectLabel" data-text-ko="값 선택" data-text-en="Value Selection">값 선택</label>
+				<select id="valuePick" style="min-width:220px"><option value="" data-text-ko="선택..." data-text-en="Select...">선택...</option></select>
+				<button id="apply" class="primary" data-text-ko="적용" data-text-en="Apply">적용</button>
+				<div id="status" class="right help"></div>
+			</div>
+			<div class="help" style="margin-top:8px; padding:8px; background:var(--panel2); border-radius:6px;">
+				<strong id="currentSelectionLabel" data-text-ko="현재 선택 상태:" data-text-en="Current Selection Status:">현재 선택 상태:</strong><br>
+				<span id="modeStatusLabel" data-text-ko="모드:" data-text-en="Mode:">모드:</span> <span id="debugMode" class="badge">-</span><br>
+				<span id="selectedValueLabel" data-text-ko="저장된 값:" data-text-en="Saved Value:">저장된 값:</span> <span id="debugValue" class="badge">-</span><br>
+				<span id="applyStatusLabel" data-text-ko="적용 상태:" data-text-en="Apply Status:">적용 상태:</span> <span id="debugStatus" class="badge">-</span>
+			</div>
+		</div>
+
+		<div class="panel">
+			<div class="row" style="margin-bottom:8px">
+				<div class="help" id="currentFocusLabel" data-text-ko="현재 포커스 창" data-text-en="Current Focus Window">현재 포커스 창</div>
+			</div>
+			<div class="help" id="fginfo" data-text-ko="불러오는 중..." data-text-en="Loading...">불러오는 중...</div>
+		</div>
+
+		<div class="panel">
+			<div class="row" style="margin-bottom:8px">
+				<div class="help" id="openWindowsLabel" data-text-ko="현재 열려있는 창 (선택하면 적용됨)" data-text-en="Currently Open Windows (Click to apply)">현재 열려있는 창 (선택하면 적용됨)</div>
+			</div>
+			<table>
+				<colgroup>
+					<col style="width:46%"/>
+					<col style="width:18%"/>
+					<col style="width:12%"/>
+					<col style="width:16%"/>
+				</colgroup>
+				<thead>
+					<tr>
+						<th id="th_title" data-key="title" class="sortable" data-text-ko="제목" data-text-en="Title">제목 <span class="arrow" id="arrow_title"></span></th>
+						<th id="th_process" data-key="process" class="sortable" data-text-ko="프로세스" data-text-en="Process">프로세스 <span class="arrow" id="arrow_process"></span></th>
+						<th id="th_hwnd" data-key="hwnd" class="sortable" data-text-ko="HWND" data-text-en="HWND">HWND <span class="arrow" id="arrow_hwnd"></span></th>
+						<th id="th_class" data-key="class" class="sortable" data-text-ko="클래스" data-text-en="Class">클래스 <span class="arrow" id="arrow_class"></span></th>
+					</tr>
+				</thead>
+				<tbody id="winTableBody"></tbody>
+			</table>
+		</div>
+	</div>
+
+	<div class="modal-backdrop" id="modalAll">
+		<div class="modal">
+			<h3 id="warningTitle" data-text-ko="주의!" data-text-en="Warning!">주의!</h3>
+			<p style="font-size:18px; line-height:1.5" id="warningMessage" data-text-ko="해당 기능을 이용하면 비밀번호 입력에서 오버레이가 작동해 문제가 생길 수 있습니다!" data-text-en="Using this feature may cause overlay to work during password input, which could cause problems!">해당 기능을 이용하면 비밀번호 입력에서 오버레이가 작동해 문제가 생길 수 있습니다!</p>
+			<div class="actions">
+				<button id="saveAll" class="danger" disabled data-text-ko="활성화" data-text-en="Activate">활성화</button>
+				<span class="spacer"></span>
+				<button id="cancelAll" data-text-ko="취소" data-text-en="Cancel">취소</button>
+			</div>
+		</div>
+	</div>
+
+	<div class="modal-backdrop" id="modalOverlay">
+		<div class="modal">
+			<h3 id="overlaySettingsTitle" data-text-ko="오버레이 설정" data-text-en="Overlay Settings">오버레이 설정</h3>
+			<div class="form-row"><label id="fadeInLabel" data-text-ko="Fade In(ms)" data-text-en="Fade In(ms)">Fade In(ms)</label><input id="ov_fade_in" class="field" type="number" min="0" step="10"/></div>
+			<div class="form-row"><label id="fadeOutLabel" data-text-ko="Fade Out(ms)" data-text-en="Fade Out(ms)">Fade Out(ms)</label><input id="ov_fade_out" class="field" type="number" min="0" step="10"/></div>
+			<div class="form-row"><label id="bgColorLabel" data-text-ko="배경색(전체)" data-text-en="Background Color (Overall)">배경색(전체)</label><div class="field color-field"><input id="ov_bg" type="text" placeholder="#000000"/><button id="ov_bg_pick" class="pick" title="색 선택" data-title-ko="색 선택" data-title-en="Color Picker"></button><input id="ov_bg_picker" type="color" class="picker-hidden"/></div></div>
+			<div class="form-row"><label id="transparentBgLabel" data-text-ko="투명 배경" data-text-en="Transparent Background">투명 배경</label><input id="ov_bg_trans" type="checkbox"/> <span class="help" id="transparentBgHelp" data-text-ko="체크하면 배경이 완전 투명" data-text-en="Check to make background completely transparent">체크하면 배경이 완전 투명</span></div>
+			<div class="form-row"><label id="chipBgLabel" data-text-ko="칩 배경색" data-text-en="Chip Background Color">칩 배경색</label><div class="field color-field"><input id="ov_chip_bg" type="text" placeholder="#000000"/><button id="ov_chip_bg_pick" class="pick" title="색 선택" data-title-ko="색 선택" data-title-en="Color Picker"></button><input id="ov_chip_bg_picker" type="color" class="picker-hidden"/></div></div>
+			<div class="form-row"><label id="textColorLabel" data-text-ko="텍스트 색" data-text-en="Text Color">텍스트 색</label><div class="field color-field"><input id="ov_chip_fg" type="text" placeholder="#ffffff"/><button id="ov_chip_fg_pick" class="pick" title="색 선택" data-title-ko="색 선택" data-title-en="Color Picker"></button><input id="ov_chip_fg_picker" type="color" class="picker-hidden"/></div></div>
+			<div class="form-row"><label id="chipGapLabel" data-text-ko="칩 간격(px)" data-text-en="Chip Gap(px)">칩 간격(px)</label><input id="ov_gap" class="field" type="number" min="0" step="1"/></div>
+			<div class="form-row"><label id="padVLabel" data-text-ko="세로 패딩(px)" data-text-en="Vertical Padding(px)">세로 패딩(px)</label><input id="ov_pad_v" class="field" type="number" min="0" step="1"/></div>
+			<div class="form-row"><label id="padHLabel" data-text-ko="가로 패딩(px)" data-text-en="Horizontal Padding(px)">가로 패딩(px)</label><input id="ov_pad_h" class="field" type="number" min="0" step="1"/></div>
+			<div class="form-row"><label id="radiusLabel" data-text-ko="모서리(px)" data-text-en="Corner Radius(px)">모서리(px)</label><input id="ov_radius" class="field" type="number" min="0" step="1"/></div>
+			<div class="form-row"><label id="fontSizeLabel" data-text-ko="폰트(px)" data-text-en="Font Size(px)">폰트(px)</label><input id="ov_font_px" class="field" type="number" min="8" step="1"/></div>
+			<div class="form-row"><label id="fontWeightLabel" data-text-ko="폰트 두께" data-text-en="Font Weight">폰트 두께</label><input id="ov_font_w" class="field" type="number" min="100" step="50"/></div>
+			<div class="form-row"><label id="colsLabel" data-text-ko="열(Cols)" data-text-en="Columns(Cols)">열(Cols)</label><input id="ov_cols" class="field" type="number" min="1" step="1"/></div>
+			<div class="form-row"><label id="rowsLabel" data-text-ko="행(Rows)" data-text-en="Rows">행(Rows)</label><input id="ov_rows" class="field" type="number" min="0" step="1"/></div>
+			<div class="help" id="rowsHelp" data-text-ko="행(Rows)에 0을 입력하면 제한 없이 여러 줄로 자동 감쌉니다." data-text-en="Enter 0 in Rows to automatically wrap to multiple lines without limit.">행(Rows)에 0을 입력하면 제한 없이 여러 줄로 자동 감쌉니다.</div>
+			<div class="form-row"><label id="alignLabel" data-text-ko="정렬" data-text-en="Alignment">정렬</label><select id="ov_align" class="field"><option value="left" data-text-ko="좌측" data-text-en="Left">좌측</option><option value="center" selected data-text-ko="중앙" data-text-en="Center">중앙</option><option value="right" data-text-ko="우측" data-text-en="Right">우측</option></select></div>
+			<div class="form-row"><label id="directionLabel" data-text-ko="쌓이는 방향" data-text-en="Stacking Direction">쌓이는 방향</label><select id="ov_direction" class="field"><option value="ltr" selected data-text-ko="왼→오 (LTR)" data-text-en="Left→Right (LTR)">왼→오 (LTR)</option><option value="rtl" data-text-ko="오→왼 (RTL)" data-text-en="Right→Left (RTL)">오→왼 (RTL)</option></select></div>
+
+			<div class="overlay-preview" id="ov_preview">
+				<div class="help" style="margin-bottom:8px" id="previewLabel" data-text-ko="미리보기" data-text-en="Preview">미리보기</div>
+				<div class="queue" id="ov_preview_queue"></div>
+			</div>
+
+			<div class="actions">
+				<button id="saveOverlay" class="primary" data-text-ko="저장" data-text-en="Save">저장</button>
+				<span class="spacer"></span>
+				<button id="closeOverlay" data-text-ko="닫기" data-text-en="Close">닫기</button>
+			</div>
+		</div>
+	</div>
+
+	<script>
+	(async function(){
+		const modeEl = document.getElementById('mode');
+		const statusEl = document.getElementById('status');
+		const listEl = null;
+		const fginfoEl = document.getElementById('fginfo');
+		const valuePick = document.getElementById('valuePick');
+		let lastWindows = [];
+		const winTableBody = document.getElementById('winTableBody');
+		let sortKey = 'process';
+		let sortDir = 'asc'; // 'asc' | 'desc'
+		const headerMap = {
+			title: document.getElementById('th_title'),
+			process: document.getElementById('th_process'),
+			hwnd: document.getElementById('th_hwnd'),
+			class: document.getElementById('th_class')
+		};
+		const arrowMap = {
+			title: document.getElementById('arrow_title'),
+			process: document.getElementById('arrow_process'),
+			hwnd: document.getElementById('arrow_hwnd'),
+			class: document.getElementById('arrow_class')
+		};
+
+		function safeAddEventListener(element, event, handler) {
+			if (element && typeof element.addEventListener === 'function') {
+				element.addEventListener(event, handler);
+			}
+		}
+
+		const modalAll = document.getElementById('modalAll');
+		const cancelAll = document.getElementById('cancelAll');
+		const saveAll = document.getElementById('saveAll');
+		let confirmTimer = null;
+
+		const modalOverlay = document.getElementById('modalOverlay');
+		const openOverlayCfg = document.getElementById('openOverlayCfg');
+		const closeOverlay = document.getElementById('closeOverlay');
+		const saveOverlay = document.getElementById('saveOverlay');
+
+		const ov_fade_in = document.getElementById('ov_fade_in');
+		const ov_fade_out = document.getElementById('ov_fade_out');
+		const ov_chip_bg = document.getElementById('ov_chip_bg');
+		const ov_chip_fg = document.getElementById('ov_chip_fg');
+		const ov_bg_pickBtn = document.getElementById('ov_bg_pick');
+		const ov_bg_picker = document.getElementById('ov_bg_picker');
+		const ov_bg_trans = document.getElementById('ov_bg_trans');
+		const ov_chip_bg_pickBtn = document.getElementById('ov_chip_bg_pick');
+		const ov_chip_bg_picker = document.getElementById('ov_chip_bg_picker');
+		const ov_chip_fg_pickBtn = document.getElementById('ov_chip_fg_pick');
+		const ov_chip_fg_picker = document.getElementById('ov_chip_fg_picker');
+		const ov_bg = document.getElementById('ov_bg');
+		const ov_gap = document.getElementById('ov_gap');
+		const ov_pad_v = document.getElementById('ov_pad_v');
+		const ov_pad_h = document.getElementById('ov_pad_h');
+		const ov_radius = document.getElementById('ov_radius');
+		const ov_font_px = document.getElementById('ov_font_px');
+		const ov_font_w = document.getElementById('ov_font_w');
+		const ov_cols = document.getElementById('ov_cols');
+		const ov_rows = document.getElementById('ov_rows');
+		const ov_align = document.getElementById('ov_align');
+		const ov_direction = document.getElementById('ov_direction');
+
+		const debugMode = document.getElementById('debugMode');
+		const debugValue = document.getElementById('debugValue');
+		const debugStatus = document.getElementById('debugStatus');
+
+		let savedValue = '';
+		let currentLanguage = 'ko'; // 기본값을 한국어로 설정
+		let currentStatus = ''; // 현재 작동 상태 저장
+
+		async function loadLanguageSettings() {
+			try {
+				const response = await fetch('/api/launcher-language');
+				if (response.ok) {
+					const data = await response.json();
+					currentLanguage = data.language || 'ko';
+					console.log('✓ Language loaded:', currentLanguage);
+					updateUILanguage();
+				} else {
+					console.warn('Failed to load language, using default: ko');
+					currentLanguage = 'ko';
+					updateUILanguage();
+				}
+			} catch (e) {
+				console.error('Error loading language:', e);
+				currentLanguage = 'ko'; // 에러 시에도 한국어를 기본으로
+				updateUILanguage();
+			}
+		}
+
+		function updateUILanguage() {
+			const lang = currentLanguage;
+			
+			document.querySelectorAll('[data-text-ko], [data-text-en]').forEach(element => {
+				const koText = element.getAttribute('data-text-ko');
+				const enText = element.getAttribute('data-text-en');
+				
+				if (lang === 'ko' && koText) {
+					element.textContent = koText;
+				} else if (lang === 'en' && enText) {
+					element.textContent = enText;
+				}
+			});
+
+			document.querySelectorAll('[data-title-ko], [data-title-en]').forEach(element => {
+				const koTitle = element.getAttribute('data-title-ko');
+				const enTitle = element.getAttribute('data-title-en');
+				
+				if (lang === 'ko' && koTitle) {
+					element.title = koTitle;
+				} else if (lang === 'en' && enTitle) {
+					element.title = enTitle;
+				}
+			});
+
+			document.querySelectorAll('select option[data-text-ko], select option[data-text-en]').forEach(option => {
+				const koText = option.getAttribute('data-text-ko');
+				const enText = option.getAttribute('data-text-en');
+				
+				if (lang === 'ko' && koText) {
+					option.textContent = koText;
+				} else if (lang === 'en' && enText) {
+					option.textContent = enText;
+				}
+			});
+
+			if (lang === 'ko') {
+				document.title = 'Key Queue Viewer 설정';
+			} else {
+				document.title = 'Key Queue Viewer Settings';
+			}
+
+			if (statusEl.textContent) {
+				if (statusEl.textContent === '저장 중...' || statusEl.textContent === 'Saving...') {
+					statusEl.textContent = lang === 'ko' ? '저장 중...' : 'Saving...';
+				} else if (statusEl.textContent === '적용됨' || statusEl.textContent === 'Applied') {
+					statusEl.textContent = lang === 'ko' ? '적용됨' : 'Applied';
+				} else if (statusEl.textContent === '오류' || statusEl.textContent === 'Error') {
+					statusEl.textContent = lang === 'ko' ? '오류' : 'Error';
+				}
+			}
+
+			if (fginfoEl.textContent && fginfoEl.textContent.includes('읽기 실패')) {
+				fginfoEl.textContent = lang === 'ko' ? '읽기 실패' : 'Read Failed';
+			}
+			if (currentStatus) {
+				if (currentStatus === '비활성화' || currentStatus === 'Disabled') {
+					currentStatus = lang === 'ko' ? '비활성화' : 'Disabled';
+				} else if (currentStatus === '모든 창 활성화' || currentStatus === 'All Windows Active') {
+					currentStatus = lang === 'ko' ? '모든 창 활성화' : 'All Windows Active';
+				} else if (currentStatus === '활성화' || currentStatus === 'Active') {
+					currentStatus = lang === 'ko' ? '활성화' : 'Active';
+				} else if (currentStatus === '설정 안됨' || currentStatus === 'Not Configured') {
+					currentStatus = lang === 'ko' ? '설정 안됨' : 'Not Configured';
+				}
+			}
+			
+			updateDebugInfo();
+		}
+
+		function updateDebugInfo() {
+			debugMode.textContent = modeEl.value || '-';
+			debugValue.textContent = savedValue || '-';
+			debugStatus.textContent = currentStatus || '-';
+		}
+
+		function openModalAll(){
+			modalAll.style.display = 'flex';
+			saveAll.disabled = true;
+			if (confirmTimer) clearTimeout(confirmTimer);
+			confirmTimer = setTimeout(()=> { saveAll.disabled = false; }, 2000);
+		}
+		function closeModalAll(){
+			modalAll.style.display = 'none';
+			if (confirmTimer) clearTimeout(confirmTimer);
+		}
+
+		function openModalOverlay(){ modalOverlay.style.display = 'flex'; }
+		function closeModalOverlay(){ modalOverlay.style.display = 'none'; }
+
+		function isValidHex(h){ return /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/.test(h); }
+		function setPickBtn(btn, val){ if (isValidHex(val)) { btn.style.background = val; } }
+		function hookColorPair(textEl, pickBtn, picker){
+			pickBtn.addEventListener('click', ()=> {
+				try{
+					if (picker.showPicker) { picker.showPicker(); return; }
+				}catch(e){}
+				// Fallback: temporarily move near button and click
+				const rect = pickBtn.getBoundingClientRect();
+				picker.style.position = 'fixed';
+				picker.style.left = (rect.left + 10) + 'px';
+				picker.style.top = (rect.top + 10) + 'px';
+				picker.style.width = '1px'; picker.style.height = '1px'; picker.style.opacity = '0.001';
+				document.body.appendChild(picker);
+				picker.click();
+			});
+			picker.addEventListener('input', ()=> { textEl.value = picker.value; setPickBtn(pickBtn, textEl.value); updatePreview(); });
+			textEl.addEventListener('input', ()=> { setPickBtn(pickBtn, textEl.value); updatePreview(); });
+		}
+
+		function updatePreview(){
+			const root = ov_preview;
+			root.style.setProperty('--chip-bg', ov_chip_bg.value || 'rgba(0,0,0,0.6)');
+			root.style.setProperty('--chip-fg', ov_chip_fg.value || '#ffffff');
+			const bgVal = ov_bg_trans.checked ? 'rgba(0,0,0,0)' : (ov_bg.value || 'rgba(0,0,0,0)');
+			root.style.setProperty('--bg', bgVal);
+			root.style.setProperty('--chip-gap', (Number(ov_gap.value)||8) + 'px');
+			root.style.setProperty('--chip-pad-v', (Number(ov_pad_v.value)||10) + 'px');
+			root.style.setProperty('--chip-pad-h', (Number(ov_pad_h.value)||14) + 'px');
+			root.style.setProperty('--chip-radius', (Number(ov_radius.value)||10) + 'px');
+			root.style.setProperty('--chip-font', (Number(ov_font_px.value)||24) + 'px');
+			root.style.setProperty('--chip-font-weight', String(Number(ov_font_w.value)||700));
+			root.style.setProperty('--fade-in', (Number(ov_fade_in.value)||120) + 'ms');
+			root.style.setProperty('--fade-out', (Number(ov_fade_out.value)||120) + 'ms');
+			const colsVal = Number(ov_cols.value)||8;
+			const rowsVal = Number(ov_rows.value)||1;
+			root.style.setProperty('--cols', String(colsVal));
+			root.style.setProperty('--rows', String(rowsVal));
+			root.style.setProperty('--single-scale', '1');
+			const alignMap = { left: 'left', center: 'center', right: 'right' };
+			root.style.setProperty('--align', alignMap[ov_align.value] || 'center');
+			root.style.setProperty('--dir', (ov_direction.value === 'rtl') ? 'rtl' : 'ltr');
+
+			// Rebuild preview chips: always Q,W,E,R but obey capacity when rows>0
+			const labels = ['Q','W','E','R'];
+			const cols = colsVal; const rows = rowsVal;
+			let count = labels.length;
+			if (rows > 0) { const cap = Math.max(1, cols * rows); count = Math.min(count, cap); }
+			ov_preview_queue.style.gridTemplateColumns = `repeat(${cols}, max-content)`;
+			ov_preview_queue.style.justifyContent = alignMap[ov_align.value] || 'center';
+			ov_preview_queue.style.direction = (ov_direction.value === 'rtl') ? 'rtl' : 'ltr';
+			ov_preview_queue.innerHTML = '';
+			for (let i=0;i<count;i++){
+				const chip = document.createElement('div');
+				chip.className = 'chip';
+				chip.textContent = labels[i];
+				ov_preview_queue.appendChild(chip);
+			}
+		}
+
+		['input','change'].forEach(evt=>{
+			[ov_fade_in,ov_fade_out,ov_chip_bg,ov_chip_fg,ov_bg,ov_gap,ov_pad_v,ov_pad_h,ov_radius,ov_font_px,ov_font_w,ov_cols,ov_rows,ov_align,ov_direction].forEach(el=>{
+				el.addEventListener(evt, updatePreview);
+			});
+		});
+
+		async function loadOverlayConfig(){
+			try{
+				const res = await fetch('/api/overlay-config');
+				const c = await res.json();
+				ov_fade_in.value = c.fade_in_ms ?? 120;
+				ov_fade_out.value = c.fade_out_ms ?? 120;
+				const isTrans = (typeof c.background === 'string') && (c.background.toLowerCase() === 'transparent' || c.background.includes('rgba') && c.background.endsWith(',0)') || c.background === '#00000000');
+				ov_bg_trans.checked = !!isTrans;
+				ov_bg.disabled = !!isTrans; ov_bg_pickBtn.disabled = !!isTrans;
+				ov_bg.value = (!isTrans && c.background && c.background.startsWith('#')) ? c.background : '#000000';
+				ov_chip_bg.value = (c.chip_bg && c.chip_bg.startsWith('#')) ? c.chip_bg : '#000000';
+				ov_chip_fg.value = (c.chip_fg && c.chip_fg.startsWith('#')) ? c.chip_fg : '#ffffff';
+				ov_gap.value = c.chip_gap ?? 8;
+				ov_pad_v.value = c.chip_pad_v ?? 10;
+				ov_pad_h.value = c.chip_pad_h ?? 14;
+				ov_radius.value = c.chip_radius ?? 10;
+				ov_font_px.value = c.chip_font_px ?? 24;
+				ov_font_w.value = c.chip_font_weight ?? 700;
+				ov_cols.value = c.cols ?? 8;
+				ov_rows.value = c.rows ?? 1;
+				ov_align.value = (c.align || 'center');
+				ov_direction.value = (c.direction || 'ltr');
+				setPickBtn(ov_bg_pickBtn, ov_bg.value);
+				setPickBtn(ov_chip_bg_pickBtn, ov_chip_bg.value);
+				setPickBtn(ov_chip_fg_pickBtn, ov_chip_fg.value);
+				updatePreview();
+			}catch(e){}
+		}
+
+		async function saveOverlayConfig(){
+			const payload = {
+				fade_in_ms: Number(ov_fade_in.value),
+				fade_out_ms: Number(ov_fade_out.value),
+				background: (ov_bg_trans.checked ? 'rgba(0,0,0,0)' : ov_bg.value),
+				chip_bg: ov_chip_bg.value,
+				chip_fg: ov_chip_fg.value,
+				chip_gap: Number(ov_gap.value),
+				chip_pad_v: Number(ov_pad_v.value),
+				chip_pad_h: Number(ov_pad_h.value),
+				chip_radius: Number(ov_radius.value),
+				chip_font_px: Number(ov_font_px.value),
+				chip_font_weight: Number(ov_font_w.value),
+				cols: Number(ov_cols.value),
+				rows: Number(ov_rows.value),
+				align: ov_align.value,
+				direction: ov_direction.value
+			};
+			try{
+				await fetch('/api/overlay-config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+				closeModalOverlay();
+			}catch(e){}
+		}
+
+		async function refreshTarget(){
+			try {
+				const res = await fetch('/api/target');
+				const j = await res.json();
+				modeEl.value = j.mode || 'process'; // 기본값: 프로세스
+				valuePick.value = j.value || '';
+				savedValue = j.value || '';
+				
+				if (j.mode === 'disabled') {
+					currentStatus = currentLanguage === 'ko' ? '비활성화' : 'Disabled';
+				} else if (j.mode === 'all') {
+					currentStatus = currentLanguage === 'ko' ? '모든 창 활성화' : 'All Windows Active';
+				} else if (j.value) {
+					currentStatus = currentLanguage === 'ko' ? '활성화' : 'Active';
+				} else {
+					currentStatus = currentLanguage === 'ko' ? '설정 안됨' : 'Not Configured';
+				}
+				
+				refreshPickerForMode();
+				updateDebugInfo();
+			} catch (e) {
+				// If server is not available, try to restore from localStorage (Portable mode)
+				try {
+					const lastMode = localStorage.getItem('last_mode');
+					const lastValue = localStorage.getItem('last_value');
+					if (lastMode) {
+						modeEl.value = lastMode;
+						savedValue = lastValue || '';
+						
+						// Auto-apply if we have saved settings
+						if (lastMode !== 'disabled' && lastValue) {
+							await doApply(lastMode, lastValue);
+						}
+					}
+				} catch(localErr) {
+					// If localStorage fails, use defaults
+					modeEl.value = 'disabled';
+					savedValue = '';
+				}
+				
+				refreshPickerForMode();
+				updateDebugInfo();
+			}
+		}
+
+		async function apply(){
+			const m = modeEl.value;
+			if (m === 'all') { openModalAll(); return; }
+			await doApply(m, valuePick.value || null);
+		}
+
+		async function doApply(mode, value){
+			statusEl.textContent = currentLanguage === 'ko' ? '저장 중...' : 'Saving...';
+			updateDebugInfo();
+			try{
+				await fetch('/api/target', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, value }) });
+				statusEl.textContent = currentLanguage === 'ko' ? '적용됨' : 'Applied';
+				savedValue = value || '';
+				
+				// Save to localStorage for portable
+				try {
+					localStorage.setItem('last_mode', mode);
+					localStorage.setItem('last_value', value || '');
+				} catch(e) {}
+				
+				// 적용 후 상태 업데이트
+				if (mode === 'disabled') {
+					currentStatus = currentLanguage === 'ko' ? '비활성화' : 'Disabled';
+				} else if (mode === 'all') {
+					currentStatus = currentLanguage === 'ko' ? '모든 창 활성화' : 'All Windows Active';
+				} else if (value) {
+					currentStatus = currentLanguage === 'ko' ? '활성화' : 'Active';
+				} else {
+					currentStatus = currentLanguage === 'ko' ? '설정 안됨' : 'Not Configured';
+				}
+				
+				updateDebugInfo();
+			}catch(e){ 
+				statusEl.textContent = currentLanguage === 'ko' ? '오류' : 'Error'; 
+				updateDebugInfo();
+			}
+		}
+
+		function setSort(newKey){
+			if (sortKey === newKey){ sortDir = (sortDir === 'asc') ? 'desc' : 'asc'; }
+			else { sortKey = newKey; sortDir = 'asc'; }
+			updateHeaderArrows();
+			// Re-render
+			fillTable();
+			refreshPickerForMode();
+		}
+
+		function updateHeaderArrows(){
+			Object.keys(arrowMap).forEach(k => { 
+				if (arrowMap[k] && typeof arrowMap[k].textContent !== 'undefined') {
+					arrowMap[k].textContent = ''; 
+				}
+			});
+			const arr = arrowMap[sortKey];
+			if (arr && typeof arr.textContent !== 'undefined') {
+				arr.textContent = (sortDir === 'asc') ? '▲' : '▼';
+			}
+		}
+
+		function sortWindows(list){
+			const dir = (sortDir === 'asc') ? 1 : -1;
+			const copy = Array.from(list || []);
+			copy.sort((a,b)=>{
+				let av = a?.[sortKey] ?? '';
+				let bv = b?.[sortKey] ?? '';
+				if (sortKey === 'hwnd'){
+					const an = Number(av)||0, bn = Number(bv)||0;
+					if (an === bn) return 0;
+					return an < bn ? -dir : dir;
+				}
+				av = String(av);
+				bv = String(bv);
+				const cmp = av.localeCompare(bv);
+				return cmp * dir;
+			});
+			return copy;
+		}
+
+		function fillTable(){
+			const sorted = sortWindows(lastWindows);
+			if (winTableBody){
+				winTableBody.innerHTML = sorted.map(w => `
+					<tr data-title="${w.title||''}" data-process="${w.process||''}" data-hwnd="${w.hwnd||''}" data-class="${w.class||''}" class="window-row">
+						<td title="${w.title||''}">${w.title||''}</td>
+						<td title="${w.process||''}">${w.process||''}</td>
+						<td title="${w.hwnd||''}">${w.hwnd||''}</td>
+						<td title="${w.class||''}">${w.class||''}</td>
+					</tr>
+				`).join('');
+				
+				// Attach row click handlers for auto-target selection
+				winTableBody.querySelectorAll('tr.window-row').forEach(tr => {
+					tr.style.cursor = 'pointer';
+					tr.addEventListener('click', async () => {
+						let currentMode = modeEl.value;
+						
+						// If no mode selected, default to process
+						if (!currentMode || currentMode === '') {
+							modeEl.value = 'process';
+							currentMode = 'process';
+						}
+						
+						if (currentMode === 'disabled' || currentMode === 'all') {
+							return; // Do nothing for disabled or all modes
+						}
+						
+						// Get value based on current mode
+						let targetValue = '';
+						if (currentMode === 'title') targetValue = tr.getAttribute('data-title');
+						else if (currentMode === 'process') targetValue = tr.getAttribute('data-process');
+						else if (currentMode === 'hwnd') targetValue = tr.getAttribute('data-hwnd');
+						else if (currentMode === 'class') targetValue = tr.getAttribute('data-class');
+						
+						if (!targetValue) return;
+						
+						// Auto-apply the selected value
+						valuePick.value = targetValue;
+						await doApply(currentMode, targetValue);
+						
+						// Save to localStorage for portable
+						try {
+							localStorage.setItem('last_mode', currentMode);
+							localStorage.setItem('last_value', targetValue);
+						} catch(e) {}
+					});
+				});
+			}
+		}
+
+		async function loadWindows(){
+			try{
+				const res = await fetch('/api/windows');
+				const list = await res.json();
+				lastWindows = Array.isArray(list) ? list : [];
+				fillTable();
+				
+				if (!valuePick.matches(':focus') && document.activeElement !== valuePick) {
+					refreshPickerForMode();
+				}
+			}catch(e){
+				lastWindows = [];
+				if (winTableBody){ winTableBody.innerHTML = ''; }
+				
+				if (!valuePick.matches(':focus') && document.activeElement !== valuePick) {
+					refreshPickerForMode();
+				}
+			}
+		}
+
+		function refreshPickerForMode(){
+			const m = modeEl.value;
+			
+			let values = [];
+			if (m === 'title') values = lastWindows.map(w => w.title).filter(Boolean);
+			if (m === 'process') values = lastWindows.map(w => w.process).filter(Boolean);
+			if (m === 'class') values = lastWindows.map(w => w.class).filter(Boolean);
+			if (m === 'hwnd') values = lastWindows.map(w => w.hwnd).filter(Boolean);
+			const uniq = Array.from(new Set(values));
+			if (m === 'hwnd') uniq.sort((a,b)=> ((Number(a)||0) - (Number(b)||0)) * (sortDir==='asc'?1:-1));
+			else uniq.sort((a,b)=> String(a||'').localeCompare(String(b||'')) * (sortDir==='asc'?1:-1));
+			
+			const selectText = currentLanguage === 'ko' ? '선택...' : 'Select...';
+			valuePick.innerHTML = `<option value="">${selectText}</option>` + uniq.map(v => `<option value="${String(v)}">${String(v)}</option>`).join('');
+			
+			// 항상 저장된 값만 표시 (사용자가 선택한 값 무시)
+			if (savedValue && uniq.includes(savedValue)) {
+				valuePick.value = savedValue;
+			} else {
+				valuePick.value = '';
+			}
+			
+			updateDebugInfo();
+		}
+
+		async function loadConfig(){
+			// Port configuration is now handled in the launcher
+			// This function is kept for future use if needed
+		}
+
+		async function loadForeground(){
+			try{
+				const res = await fetch('/api/foreground');
+				const j = await res.json();
+				fginfoEl.textContent = `HWND=${j.hwnd||''} | TITLE=${j.title||''} | PROCESS=${j.process_name||''} | CLASS=${j.class||''}`;
+			}catch(e){
+				fginfoEl.textContent = currentLanguage === 'ko' ? '읽기 실패' : 'Read Failed';
+			}
+		}
+
+		document.getElementById('apply').addEventListener('click', apply);
+		// document.getElementById('savePort').addEventListener('click', savePort); // Removed savePort
+		// valuePick.addEventListener('change', ()=>{ updateDebugInfo(); }); // 사용자가 선택한 값은 저장 전까지 무시
+		modeEl.addEventListener('change', ()=> { 
+			refreshPickerForMode(); 
+			updateDebugInfo();
+		});
+		openOverlayCfg.addEventListener('click', async ()=>{ await loadOverlayConfig(); openModalOverlay(); });
+		closeOverlay.addEventListener('click', ()=> closeModalOverlay());
+		saveOverlay.addEventListener('click', saveOverlayConfig);
+
+		cancelAll.addEventListener('click', ()=>{ closeModalAll(); });
+		saveAll.addEventListener('click', async ()=>{
+			await doApply('all', null);
+			closeModalAll();
+		});
+
+		hookColorPair(ov_bg, ov_bg_pickBtn, ov_bg_picker);
+		hookColorPair(ov_chip_bg, ov_chip_bg_pickBtn, ov_chip_bg_picker);
+		hookColorPair(ov_chip_fg, ov_chip_fg_pickBtn, ov_chip_fg_picker);
+		ov_bg_trans.addEventListener('change', ()=> { ov_bg.disabled = ov_bg_trans.checked; ov_bg_pickBtn.disabled = ov_bg_trans.checked; updatePreview(); });
+
+		// 언어 설정 먼저 로드 (다른 것보다 우선)
+		await loadLanguageSettings();
+		console.log('✓ Language loaded:', currentLanguage);
+		
+		await Promise.all([refreshTarget(), loadWindows(), loadConfig(), loadForeground()]);
+		updateHeaderArrows();
+		Object.values(headerMap).forEach(th => {
+			if (!th) return;
+			safeAddEventListener(th, 'click', ()=> setSort(th.dataset.key));
+		});
+		updateDebugInfo();
+		setInterval(loadWindows, 3000);
+		setInterval(loadForeground, 1000);
+		setInterval(loadLanguageSettings, 5000); // 주기적으로 언어 설정 갱신
+	})();
+	</script>
+</body>
+</html>

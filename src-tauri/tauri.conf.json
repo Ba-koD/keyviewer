@@ -1,0 +1,58 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "KeyQueueViewer",
+  "version": "1.0.4",
+  "identifier": "com.keyviewer",
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "KeyQueueViewer",
+        "width": 520,
+        "height": 550,
+        "resizable": true,
+        "minWidth": 520,
+        "minHeight": 550,
+        "fullscreen": false,
+        "decorations": true,
+        "alwaysOnTop": false,
+        "visible": true,
+        "center": true,
+        "transparent": false,
+        "skipTaskbar": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis", "app", "dmg", "deb", "appimage"],
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "resources": ["../ui/*"],
+    "externalBin": [],
+    "copyright": "Copyright (c) 2025 KeyViewer Team",
+    "category": "Utility",
+    "shortDescription": "Key Input Monitoring Tool",
+    "longDescription": "A cross-platform key input monitoring tool with web interface for OBS and streaming.",
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    },
+    "linux": {
+      "deb": {
+        "depends": []
+      }
+    }
+  }
+}
+

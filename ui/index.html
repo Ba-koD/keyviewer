@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KeyQueueViewer</title>
+    <link rel="stylesheet" href="launcher.css">
+</head>
+<body>
+    <div class="container">
+        <h1 data-i18n="app_title">KeyQueueViewer</h1>
+
+        <!-- Settings Section -->
+        <div class="section">
+            <div class="section-title" data-i18n="settings">Settings</div>
+            
+            <div class="form-row">
+                <label for="language" data-i18n="language">언어:</label>
+                <select id="language">
+                    <option value="ko">한국어</option>
+                    <option value="en">English</option>
+                </select>
+            </div>
+
+            <div class="form-row">
+                <label for="port" data-i18n="port">포트:</label>
+                <input type="number" id="port" value="8000" min="1024" max="65535">
+                <button id="port-save" data-i18n="port_save">포트 저장</button>
+            </div>
+        </div>
+
+        <!-- Server Status Section -->
+        <div class="section">
+            <div class="section-title" data-i18n="server_status">Server status:</div>
+            
+            <div class="status">
+                <span class="status-text" id="status-text" data-i18n="server_stopped">서버가 중지되었습니다</span>
+                <div class="status-indicator" id="status-indicator"></div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-primary" id="btn-start" data-i18n="start_server">서버 시작</button>
+                <button class="btn btn-danger" id="btn-stop" disabled data-i18n="stop_server">서버 중지</button>
+            </div>
+        </div>
+
+        <!-- Options Section -->
+        <div class="section">
+            <div class="checkbox-row">
+                <input type="checkbox" id="run-on-boot">
+                <label for="run-on-boot" data-i18n="console_toggle">콘솔 토글</label>
+            </div>
+
+            <div class="checkbox-row">
+                <input type="checkbox" id="run-on-startup">
+                <label for="run-on-startup" data-i18n="run_on_startup">Windows 시작 시 실행</label>
+            </div>
+        </div>
+
+        <!-- Action Buttons Section -->
+        <div class="section">
+            <div class="button-group">
+                <button class="btn-secondary" id="btn-control" disabled data-i18n="web_control">웹 제어</button>
+                <button class="btn-secondary" id="btn-overlay" disabled data-i18n="overlay">오버레이</button>
+            </div>
+        </div>
+
+        <div class="button-group" style="margin-top: 8px;">
+            <button class="btn-secondary" id="btn-minimize" data-i18n="minimize_to_tray">트레이로 최소화</button>
+        </div>
+
+        <!-- Info Box -->
+        <div class="info-box">
+            <p data-i18n="info_1">1. 원하는 지원할 시작하세요</p>
+            <p data-i18n="info_2">2. 시작하면 열면, 대상 창을 설정하세요</p>
+            <p data-i18n="info_3">3. OBS 스트림칭 소 소비지서 오버레이를 띄워요</p>
+            <p><span data-i18n="info_4">4. URL은 다음으로</span> : <a href="#" class="url-link" id="overlay-url">http://localhost:8000/overlay</a></p>
+        </div>
+    </div>
+
+    <script>
+        // Direct IPC for Tauri 2.0
+        async function invoke(cmd, args = {}) {
+            if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
+                return window.__TAURI__.core.invoke(cmd, args);
+            }
+            throw new Error('Tauri API not available');
+        }
+
+        // Tauri API wrapper with retry logic  
+        function waitForTauri(callback, maxAttempts = 50) {
+            let attempts = 0;
+            const checkTauri = () => {
+                attempts++;
+                console.log(`Checking Tauri API... Attempt ${attempts}`);
+                
+                if (window.__TAURI__) {
+                    console.log('✓ Tauri API loaded successfully!');
+                    callback();
+                } else if (attempts < maxAttempts) {
+                    setTimeout(checkTauri, 100);
+                } else {
+                    console.error('✗ Failed to load Tauri API after ' + maxAttempts + ' attempts');
+                    document.body.innerHTML = '<div style="padding: 20px;"><h2 style="color: red;">Error: Tauri API Failed to Load</h2><p>Please restart the application.</p><p>If the problem persists, please reinstall the application.</p></div>';
+                }
+            };
+            checkTauri();
+        }
+        
+        // Wait for both DOM and Tauri
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                waitForTauri(initApp);
+            });
+        } else {
+            waitForTauri(initApp);
+        }
+        
+        function initApp() {
+        console.log('Initializing app...');
+        
+        // Use direct invoke if __TAURI__ not available
+        if (!window.invoke) {
+            window.invoke = async (cmd, args = {}) => {
+                return window.__TAURI_INVOKE__(cmd, args);
+            };
+        }
+        
+        let serverRunning = false;
+        let currentPort = 8000;
+        let currentLanguage = 'ko';
+
+        // Translations
+        const translations = {
+            ko: {
+                app_title: 'KeyQueueViewer',
+                settings: 'Settings',
+                language: '언어:',
+                port: '포트:',
+                port_save: '포트 저장',
+                server_status: 'Server status:',
+                server_running: '서버가 실행 중입니다',
+                server_stopped: '서버가 중지되었습니다',
+                start_server: '서버 시작',
+                stop_server: '서버 중지',
+                console_toggle: '콘솔 토글',
+                run_on_startup: 'Windows 시작 시 실행',
+                web_control: '웹 제어',
+                overlay: '오버레이',
+                minimize_to_tray: '트레이로 최소화',
+                info_1: '1. 원하는 지원할 시작하세요',
+                info_2: '2. 시작하면 열면, 대상 창을 설정하세요',
+                info_3: '3. OBS 스트림칭 소 소비지서 오버레이를 띄워요',
+                info_4: '4. URL은 다음으로'
+            },
+            en: {
+                app_title: 'Key Queue Viewer',
+                settings: 'Settings',
+                language: 'Language:',
+                port: 'Port:',
+                port_save: 'Save Port',
+                server_status: 'Server status:',
+                server_running: 'Server is running',
+                server_stopped: 'Server is stopped',
+                start_server: 'Start Server',
+                stop_server: 'Stop Server',
+                console_toggle: 'Console Toggle',
+                run_on_startup: 'Run on Windows startup',
+                web_control: 'Web Control',
+                overlay: 'Overlay',
+                minimize_to_tray: 'Minimize to Tray',
+                info_1: '1. Start the server you want',
+                info_2: '2. Once started, set the target window',
+                info_3: '3. Display the overlay in OBS streaming software',
+                info_4: '4. URL is as follows'
+            }
+        };
+
+        // UI Elements
+        const btnStart = document.getElementById('btn-start');
+        const btnStop = document.getElementById('btn-stop');
+        const btnControl = document.getElementById('btn-control');
+        const btnOverlay = document.getElementById('btn-overlay');
+        const btnMinimize = document.getElementById('btn-minimize');
+        const btnPortSave = document.getElementById('port-save');
+        const statusText = document.getElementById('status-text');
+        const statusIndicator = document.getElementById('status-indicator');
+        const portInput = document.getElementById('port');
+        const languageSelect = document.getElementById('language');
+        const runOnStartup = document.getElementById('run-on-startup');
+        const overlayUrl = document.getElementById('overlay-url');
+
+        // Apply translations
+        function applyTranslations(lang) {
+            const t = translations[lang];
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (t[key]) {
+                    el.textContent = t[key];
+                }
+            });
+            
+            // Update status text based on current state
+            if (serverRunning) {
+                statusText.textContent = t.server_running;
+            } else {
+                statusText.textContent = t.server_stopped;
+            }
+        }
+
+        // Update UI based on server status
+        function updateUI() {
+            const t = translations[currentLanguage];
+            
+            if (serverRunning) {
+                statusText.textContent = t.server_running;
+                statusIndicator.classList.add('running');
+                btnStart.disabled = true;
+                btnStop.disabled = false;
+                btnControl.disabled = false;
+                btnOverlay.disabled = false;
+                portInput.disabled = true;
+                btnPortSave.disabled = true;
+            } else {
+                statusText.textContent = t.server_stopped;
+                statusIndicator.classList.remove('running');
+                btnStart.disabled = false;
+                btnStop.disabled = true;
+                btnControl.disabled = true;
+                btnOverlay.disabled = true;
+                portInput.disabled = false;
+                btnPortSave.disabled = false;
+            }
+            overlayUrl.textContent = `http://localhost:${currentPort}/overlay`;
+            overlayUrl.href = `http://localhost:${currentPort}/overlay`;
+        }
+
+        // Load settings from backend
+        async function loadSettings() {
+            try {
+                const settings = await invoke('get_launcher_settings');
+                console.log('Loaded settings:', settings);
+                
+                portInput.value = settings.port || 8000;
+                currentPort = settings.port || 8000;
+                currentLanguage = settings.language || 'ko';
+                languageSelect.value = currentLanguage;
+                runOnStartup.checked = settings.run_on_startup || false;
+                
+                // Apply language
+                applyTranslations(currentLanguage);
+                
+                // Check if server is already running
+                const status = await invoke('get_server_status');
+                console.log('Server status:', status);
+                serverRunning = status.running;
+                updateUI();
+            } catch (error) {
+                console.error('Failed to load settings:', error);
+                // Set defaults on error
+                serverRunning = false;
+                updateUI();
+            }
+        }
+
+        // Save port setting
+        btnPortSave.addEventListener('click', async () => {
+            const port = parseInt(portInput.value);
+            if (port < 1024 || port > 65535) {
+                alert('Port must be between 1024-65535.');
+                return;
+            }
+            
+            try {
+                await invoke('save_port_setting', { port });
+                currentPort = port;
+                updateUI();
+                alert('Port saved successfully!');
+            } catch (error) {
+                console.error('Failed to save port:', error);
+                alert('Failed to save port: ' + error);
+            }
+        });
+
+        // Start server
+        btnStart.addEventListener('click', async () => {
+            console.log('Starting server on port:', currentPort);
+            try {
+                await invoke('start_server', { port: currentPort });
+                serverRunning = true;
+                updateUI();
+                console.log('Server started successfully');
+            } catch (error) {
+                console.error('Failed to start server:', error);
+                alert('Failed to start server: ' + error);
+            }
+        });
+
+        // Stop server
+        btnStop.addEventListener('click', async () => {
+            console.log('Stopping server');
+            try {
+                await invoke('stop_server');
+                serverRunning = false;
+                updateUI();
+                console.log('Server stopped successfully');
+            } catch (error) {
+                console.error('Failed to stop server:', error);
+                alert('Failed to stop server: ' + error);
+            }
+        });
+
+        // Open control page
+        btnControl.addEventListener('click', () => {
+            console.log('Opening control page');
+            invoke('open_url', { url: `http://localhost:${currentPort}/control` });
+        });
+
+        // Open overlay page
+        btnOverlay.addEventListener('click', () => {
+            console.log('Opening overlay page');
+            invoke('open_url', { url: `http://localhost:${currentPort}/overlay` });
+        });
+
+        // Minimize to tray
+        btnMinimize.addEventListener('click', async () => {
+            try {
+                await invoke('minimize_to_tray');
+            } catch (error) {
+                console.error('Failed to minimize to tray:', error);
+            }
+        });
+
+        // Language change
+        languageSelect.addEventListener('change', async (e) => {
+            currentLanguage = e.target.value;
+            try {
+                await invoke('save_language_setting', { language: currentLanguage });
+                applyTranslations(currentLanguage);
+            } catch (error) {
+                console.error('Failed to save language:', error);
+            }
+        });
+
+        // Run on startup change
+        runOnStartup.addEventListener('change', async (e) => {
+            try {
+                await invoke('set_run_on_startup', { enabled: e.target.checked });
+            } catch (error) {
+                alert('Failed to set startup option: ' + error);
+                e.target.checked = !e.target.checked;
+            }
+        });
+
+        // Overlay URL click
+        overlayUrl.addEventListener('click', (e) => {
+            e.preventDefault();
+            invoke('open_url', { url: overlayUrl.href });
+        });
+
+        // Initialize
+        console.log('Initializing launcher...');
+        loadSettings();
+        } // end of initApp
+    </script>
+</body>
+</html>

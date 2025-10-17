@@ -1,5 +1,5 @@
 # Python bytecode & cache
-__pycache__/*
+__pycache__/
 *.py[cod]
 *.pyo
 *.pyd
@@ -10,10 +10,20 @@ __pycache__/*
 venv/
 env/
 
-# Build artifacts (PyInstaller)
+# Build artifacts & distribution
 build/
 dist/
 *.spec
+
+# Rust/Cargo
+src-tauri/target/
+src-tauri/gen/
+*.rs.bk
+Cargo.lock
+
+# Tauri build artifacts
+src-tauri/target/
+src-tauri/gen/
 
 # Logs & caches
 *.log
@@ -25,13 +35,36 @@ dist/
 .DS_Store
 Thumbs.db
 Desktop.ini
+*.swp
+*.swo
+*~
 
 # IDE/editor
 .vscode/
 .idea/
 *.iml
+*.code-workspace
 
-# Executables & binaries (keep builds out of git)
+# Executables & binaries
 *.exe
 *.dll
 *.pdb
+*.msi
+*.dmg
+*.deb
+*.AppImage
+*.app
+
+# Backup files
+*.backup
+*.bak
+*.tmp
+
+# Node modules (if any)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Environment files
+.env
+.env.local

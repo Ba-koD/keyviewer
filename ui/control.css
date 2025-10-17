@@ -1,0 +1,53 @@
+﻿
+		:root{
+			--bg:#0b0c10; --panel:#12141a; --panel2:#181b22; --text:#eaeef5; --muted:#9aa4b2; --primary:#4f8cff; --border:#232734;
+		}
+		html,body{margin:0; font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial; background:var(--bg); color:var(--text)}
+		.container{max-width:1000px; margin:24px auto; padding:0 16px}
+		.h1{font-size:22px; font-weight:700; margin-bottom:12px}
+		.panel{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:16px}
+		.row{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+		label{color:var(--muted)}
+		input, select, button{background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px 10px}
+		button{cursor:pointer}
+		button.primary{background:var(--primary); border-color:var(--primary)}
+		table{width:100%; border-collapse:collapse; table-layout:fixed}
+		th,td{border-bottom:1px solid var(--border); padding:8px 6px; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+		th.sortable{cursor:pointer; user-select:none}
+		th .arrow{font-size:11px; color:var(--muted); margin-left:4px}
+		.help{color:var(--muted); line-height:1.6}
+		.badge{display:inline-block; background:#2a3040; color:#9ec1ff; border:1px solid var(--border); border-radius:6px; padding:2px 6px; font-size:12px}
+		.right{margin-left:auto}
+		/* Modal */
+		.modal-backdrop{position:fixed; inset:0; background:rgba(0,0,0,0.65); display:none; align-items:center; justify-content:center; z-index:999}
+		.modal{width:560px; max-width:calc(100% - 32px); background:#141821; border:1px solid #2a2f3a; border-radius:12px; padding:18px}
+		.modal h3{margin:4px 0 12px; font-size:22px}
+		.modal .actions{display:flex; gap:10px; justify-content:space-between; margin-top:14px}
+		.modal .actions .spacer{flex:1}
+		.modal .form-row{display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap}
+		.modal .form-row > label{width:140px}
+		.modal .form-row > .field{flex:1; min-width:160px}
+		.danger{background:#ff5b5b; border-color:#ff5b5b}
+		.modal button:disabled{opacity:0.5; filter:grayscale(30%); cursor:not-allowed}
+
+		/* Color picker field */
+		.color-field{display:flex; gap:8px; align-items:center}
+		.color-field input[type="text"]{flex:1}
+		button.pick{width:36px; height:36px; border:1px solid var(--border); border-radius:6px}
+		input.picker-hidden{position:absolute; left:-9999px; width:0; height:0; opacity:0}
+
+		/* Overlay preview inside modal */
+		.overlay-preview{margin-top:12px; border:1px dashed #2a2f3a; border-radius:10px; padding:12px; background:#0f131b}
+		.overlay-preview .queue{display:grid; grid-auto-rows:max-content; gap:var(--chip-gap, 8px)}
+		.overlay-preview .chip{
+			background: var(--chip-bg, rgba(0,0,0,0.6));
+			color: var(--chip-fg, #fff);
+			padding: var(--chip-pad-v, 10px) var(--chip-pad-h, 14px);
+			border-radius: var(--chip-radius, 10px);
+			font-size: var(--chip-font, 24px);
+			font-weight: var(--chip-font-weight, 700);
+			min-width:44px; text-align:center; user-select:none;
+			transition: transform var(--fade-in, 120ms) ease, opacity var(--fade-in, 120ms) ease;
+		}
+		.overlay-preview .chip.hide{opacity:0; transform: translateY(8px); transition: transform var(--fade-out, 120ms) ease, opacity var(--fade-out, 120ms) ease}
+	
