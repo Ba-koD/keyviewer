@@ -1,0 +1,24 @@
+# Docker Compose for local Tauri build testing
+# This simulates GitHub Actions build environment locally
+version: '3.8'
+
+services:
+  # Linux build environment (Ubuntu 22.04)
+  linux-build:
+    build:
+      context: .
+      dockerfile: Dockerfile.linux
+    image: keyviewer-linux-build
+    container_name: keyviewer-linux-test
+    volumes:
+      - .:/app
+      - linux-cargo-cache:/root/.cargo/registry
+      - linux-target-cache:/app/src-tauri/target
+    working_dir: /app
+    command: bash -c "cargo tauri build"
+
+volumes:
+  # Cache volumes for faster rebuilds
+  linux-cargo-cache:
+  linux-target-cache:
+

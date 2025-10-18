@@ -166,6 +166,11 @@ fn set_run_on_startup(enabled: bool) -> Result<(), String> {
     settings::set_windows_startup(enabled)
 }
 
+#[tauri::command]
+fn reset_settings() -> Result<(), String> {
+    settings::reset_all_settings()
+}
+
 fn main() {
     // Prevent multiple instances
     let app_name = if is_portable() {
@@ -183,11 +188,38 @@ fn main() {
     // Keep instance alive
     std::mem::forget(instance);
 
-    // Create application state with language from settings
+    // Create application state with settings from registry
     let mut initial_state = AppState::new();
     let settings = LauncherSettings::load();
     initial_state.language = settings.language.clone();
     println!("Initial language: {}", initial_state.language);
+    
+    // Load target config from registry
+    let (target_mode, target_value) = settings::load_target_config();
+    initial_state.target_config.mode = target_mode;
+    initial_state.target_config.value = target_value;
+    println!("Loaded target config: mode={}, value={:?}", initial_state.target_config.mode, initial_state.target_config.value);
+    
+    // Load overlay config from registry
+    let (fade_in_ms, fade_out_ms, chip_bg, chip_fg, chip_gap, chip_pad_v, chip_pad_h,
+         chip_radius, chip_font_px, chip_font_weight, background, cols, rows, align, direction) 
+        = settings::load_overlay_config();
+    initial_state.app_config.overlay.fade_in_ms = fade_in_ms;
+    initial_state.app_config.overlay.fade_out_ms = fade_out_ms;
+    initial_state.app_config.overlay.chip_bg = chip_bg;
+    initial_state.app_config.overlay.chip_fg = chip_fg;
+    initial_state.app_config.overlay.chip_gap = chip_gap;
+    initial_state.app_config.overlay.chip_pad_v = chip_pad_v;
+    initial_state.app_config.overlay.chip_pad_h = chip_pad_h;
+    initial_state.app_config.overlay.chip_radius = chip_radius;
+    initial_state.app_config.overlay.chip_font_px = chip_font_px;
+    initial_state.app_config.overlay.chip_font_weight = chip_font_weight;
+    initial_state.app_config.overlay.background = background;
+    initial_state.app_config.overlay.cols = cols;
+    initial_state.app_config.overlay.rows = rows;
+    initial_state.app_config.overlay.align = align;
+    initial_state.app_config.overlay.direction = direction;
+    println!("Loaded overlay config from registry");
     
     let app_state = Arc::new(RwLock::new(initial_state));
 
@@ -300,6 +332,7 @@ fn main() {
             open_url,
             minimize_to_tray,
             set_run_on_startup,
+            reset_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

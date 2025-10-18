@@ -624,14 +624,22 @@
 					tr.addEventListener('click', async () => {
 						let currentMode = modeEl.value;
 						
+						// If mode is disabled, automatically change to process mode
+						if (currentMode === 'disabled') {
+							modeEl.value = 'process';
+							currentMode = 'process';
+							refreshPickerForMode(); // Update picker options for process mode
+						}
+						
 						// If no mode selected, default to process
 						if (!currentMode || currentMode === '') {
 							modeEl.value = 'process';
 							currentMode = 'process';
 						}
 						
-						if (currentMode === 'disabled' || currentMode === 'all') {
-							return; // Do nothing for disabled or all modes
+						// Skip for "all" mode
+						if (currentMode === 'all') {
+							return; // Do nothing for all mode
 						}
 						
 						// Get value based on current mode

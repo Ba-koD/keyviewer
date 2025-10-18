@@ -67,6 +67,7 @@
 
         <div class="button-group" style="margin-top: 8px;">
             <button class="btn-secondary" id="btn-minimize" data-i18n="minimize_to_tray">트레이로 최소화</button>
+            <button class="btn-secondary" id="btn-reset-settings" data-i18n="reset_settings">설정 초기화</button>
         </div>
 
         <!-- Info Box -->
@@ -148,6 +149,7 @@
                 web_control: '웹 제어',
                 overlay: '오버레이',
                 minimize_to_tray: '트레이로 최소화',
+                reset_settings: '설정 초기화',
                 info_1: '1. 원하는 지원할 시작하세요',
                 info_2: '2. 시작하면 열면, 대상 창을 설정하세요',
                 info_3: '3. OBS 스트림칭 소 소비지서 오버레이를 띄워요',
@@ -169,6 +171,7 @@
                 web_control: 'Web Control',
                 overlay: 'Overlay',
                 minimize_to_tray: 'Minimize to Tray',
+                reset_settings: 'Reset Settings',
                 info_1: '1. Start the server you want',
                 info_2: '2. Once started, set the target window',
                 info_3: '3. Display the overlay in OBS streaming software',
@@ -183,6 +186,7 @@
         const btnOverlay = document.getElementById('btn-overlay');
         const btnMinimize = document.getElementById('btn-minimize');
         const btnPortSave = document.getElementById('port-save');
+        const btnResetSettings = document.getElementById('btn-reset-settings');
         const statusText = document.getElementById('status-text');
         const statusIndicator = document.getElementById('status-indicator');
         const portInput = document.getElementById('port');
@@ -263,11 +267,14 @@
             }
         }
 
-        // Save port setting
+        // Save port setting (saved to Windows Registry)
         btnPortSave.addEventListener('click', async () => {
             const port = parseInt(portInput.value);
             if (port < 1024 || port > 65535) {
-                alert('Port must be between 1024-65535.');
+                const msg = currentLanguage === 'ko' 
+                    ? '포트는 1024-65535 사이여야 합니다.' 
+                    : 'Port must be between 1024-65535.';
+                alert(msg);
                 return;
             }
             
@@ -275,10 +282,16 @@
                 await invoke('save_port_setting', { port });
                 currentPort = port;
                 updateUI();
-                alert('Port saved successfully!');
+                const msg = currentLanguage === 'ko' 
+                    ? '포트가 저장되었습니다!' 
+                    : 'Port saved!';
+                alert(msg);
             } catch (error) {
                 console.error('Failed to save port:', error);
-                alert('Failed to save port: ' + error);
+                const msg = currentLanguage === 'ko' 
+                    ? '포트 저장 실패: ' + error 
+                    : 'Failed to save port: ' + error;
+                alert(msg);
             }
         });
 
@@ -292,7 +305,9 @@
                 console.log('Server started successfully');
             } catch (error) {
                 console.error('Failed to start server:', error);
-                alert('Failed to start server: ' + error);
+                // Display detailed error message (includes port conflict info)
+                const errorMsg = String(error);
+                alert(errorMsg);
             }
         });
 
@@ -331,7 +346,7 @@
             }
         });
 
-        // Language change
+        // Language change (saved to Windows Registry)
         languageSelect.addEventListener('change', async (e) => {
             currentLanguage = e.target.value;
             try {
@@ -342,13 +357,41 @@
             }
         });
 
-        // Run on startup change
+        // Run on startup change (saved to Windows Registry)
         runOnStartup.addEventListener('change', async (e) => {
             try {
                 await invoke('set_run_on_startup', { enabled: e.target.checked });
             } catch (error) {
                 alert('Failed to set startup option: ' + error);
                 e.target.checked = !e.target.checked;
+            }
+        });
+
+        // Reset settings button
+        btnResetSettings.addEventListener('click', async () => {
+            const t = translations[currentLanguage];
+            const confirmMsg = currentLanguage === 'ko' 
+                ? '모든 설정을 초기화하시겠습니까?\n(포트, 언어, 자동 시작, 대상 창, 오버레이 설정)\n앱이 종료됩니다.'
+                : 'Reset all settings?\n(Port, Language, Auto-start, Target window, Overlay config)\nThe app will close.';
+            
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+            
+            try {
+                await invoke('reset_settings');
+                const successMsg = currentLanguage === 'ko' 
+                    ? '설정이 초기화되었습니다. 앱을 종료합니다.'
+                    : 'Settings reset successfully. Closing app.';
+                alert(successMsg);
+                // Close the app
+                window.close();
+            } catch (error) {
+                console.error('Failed to reset settings:', error);
+                const errorMsg = currentLanguage === 'ko' 
+                    ? '설정 초기화 실패: ' + error
+                    : 'Failed to reset settings: ' + error;
+                alert(errorMsg);
             }
         });
 

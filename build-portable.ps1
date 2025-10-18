@@ -29,18 +29,15 @@ if (Test-Path $PORTABLE_DIR) {
 }
 New-Item -ItemType Directory -Path $PORTABLE_DIR -Force | Out-Null
 
-# Copy executable
-Write-Host "3. Copying files..." -ForegroundColor Yellow
+# Copy executable (UI files are already embedded in the exe)
+Write-Host "3. Copying executable..." -ForegroundColor Yellow
 Copy-Item "src-tauri\target\release\keyviewer.exe" "$PORTABLE_DIR\KBQV-Portable-$VERSION.exe"
-
-# Copy UI files
-Copy-Item -Path "ui" -Destination "$PORTABLE_DIR\ui" -Recurse
 
 # Create README for portable
 $README_CONTENT = @"
 # KeyViewer Portable v$VERSION
 
-This is the portable version of KeyViewer.
+This is the portable version of KeyViewer - a single executable with all UI files embedded.
 
 ## How to Use
 
@@ -50,16 +47,26 @@ This is the portable version of KeyViewer.
 4. Click "Start Server"
 5. Use the web control panel or overlay
 
+## Features
+
+- ✅ Single executable - no installation required
+- ✅ All UI files embedded - no external dependencies
+- ✅ Portable - run from any location
+- ✅ No registry changes
+- ✅ Minimal antivirus false positives (built with Rust/Tauri)
+
 ## Requirements
 
-- Windows 10/11
+- Windows 10/11 (64-bit)
 - No installation required
-- All files must be kept in the same folder
+- Can be run from USB drive or any folder
 
-## Files
+## Technical Details
 
-- KBQV-Portable-$VERSION.exe: Main executable
-- ui/: UI files (required)
+- Built with Tauri 2.0 and Rust
+- All assets embedded in executable
+- File size: ~8-10 MB
+- No Python or Node.js runtime required
 
 For more information, visit: https://github.com/rudgh46/keyviewer
 "@

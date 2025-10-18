@@ -1,13 +1,14 @@
 use crate::state::{AppState, TargetConfig};
 use crate::window_info;
 use axum::{
+    body::Body,
     extract::{
         ws::{Message, WebSocket},
         State as AxumState, WebSocketUpgrade,
     },
     http::{header, StatusCode},
-    response::{Html, IntoResponse, Json},
-    routing::{get, post},
+    response::{IntoResponse, Json, Response},
+    routing::get,
     Router,
 };
 use parking_lot::RwLock;
@@ -17,7 +18,14 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 use tower_http::cors::{Any, CorsLayer};
-use tower_http::services::ServeDir;
+
+// Embed UI files at compile time
+const OVERLAY_HTML: &str = include_str!("../../ui/overlay.html");
+const OVERLAY_CSS: &str = include_str!("../../ui/overlay.css");
+const CONTROL_HTML: &str = include_str!("../../ui/control.html");
+const CONTROL_CSS: &str = include_str!("../../ui/control.css");
+const LAUNCHER_CSS: &str = include_str!("../../ui/launcher.css");
+const FAVICON: &[u8] = include_bytes!("../../ui/favicon.ico");
 
 type SharedState = Arc<RwLock<AppState>>;
 
@@ -40,7 +48,26 @@ impl ServerController {
     pub fn start(&mut self, state: SharedState, port: u16) -> Result<(), String> {
         let mut running = self.running.lock();
         if *running {
-            return Err("Server is already running".to_string());
+            return Err("서버가 이미 실행 중입니다".to_string());
+        }
+
+        // Check if port is available before starting
+        let addr = SocketAddr::from(([127, 0, 0, 1], port));
+        match std::net::TcpListener::bind(addr) {
+            Ok(_) => {
+                // Port is available, proceed
+            }
+            Err(e) => {
+                // Port is in use or other bind error
+                let error_msg = if e.kind() == std::io::ErrorKind::AddrInUse {
+                    format!("포트 {}가 이미 사용 중입니다. 다른 프로그램이 해당 포트를 사용하고 있는지 확인해주세요.", port)
+                } else if e.kind() == std::io::ErrorKind::PermissionDenied {
+                    format!("포트 {}에 대한 접근 권한이 없습니다. 관리자 권한으로 실행하거나 1024 이상의 포트를 사용해주세요.", port)
+                } else {
+                    format!("포트 {}를 바인드할 수 없습니다: {}", port, e)
+                };
+                return Err(error_msg);
+            }
         }
 
         let running_clone = self.running.clone();
@@ -73,7 +100,7 @@ impl ServerController {
     pub fn stop(&mut self) -> Result<(), String> {
         let mut running = self.running.lock();
         if !*running {
-            return Err("Server is not running".to_string());
+            return Err("서버가 실행 중이 아닙니다".to_string());
         }
 
         if let Some(handle) = self.handle.take() {
@@ -100,19 +127,24 @@ fn create_router(state: SharedState) -> Router {
     Router::new()
         .route("/", get(root_redirect))
         .route("/overlay", get(get_overlay))
+        .route("/overlay.html", get(get_overlay))
         .route("/control", get(get_control))
+        .route("/control.html", get(get_control))
+        .route("/static/overlay.css", get(get_overlay_css))
+        .route("/static/control.css", get(get_control_css))
+        .route("/static/launcher.css", get(get_launcher_css))
+        .route("/static/favicon.ico", get(get_favicon))
         .route("/ws", get(websocket_handler))
         .route("/api/windows", get(api_windows))
         .route("/api/foreground", get(api_foreground))
         .route("/api/target", get(api_get_target))
-        .route("/api/target", post(api_set_target))
+        .route("/api/target", axum::routing::post(api_set_target))
         .route("/api/config", get(api_get_config))
-        .route("/api/config", post(api_set_config))
+        .route("/api/config", axum::routing::post(api_set_config))
         .route("/api/overlay-config", get(api_get_overlay_config))
-        .route("/api/overlay-config", post(api_set_overlay_config))
+        .route("/api/overlay-config", axum::routing::post(api_set_overlay_config))
         .route("/api/launcher-language", get(api_get_launcher_language))
-        .route("/api/focus", post(api_focus_window))
-        .nest_service("/static", ServeDir::new("ui"))
+        .route("/api/focus", axum::routing::post(api_focus_window))
         .layer(cors)
         .with_state(state)
 }
@@ -121,40 +153,67 @@ async fn root_redirect() -> impl IntoResponse {
     (StatusCode::FOUND, [(header::LOCATION, "/control")])
 }
 
+// Serve embedded HTML files with no-cache headers for OBS browser source
 async fn get_overlay() -> impl IntoResponse {
-    // Try multiple possible paths for the overlay HTML file
-    let possible_paths = vec![
-        "../ui/overlay.html",
-        "ui/overlay.html",
-        "../../ui/overlay.html",
-        "../../../ui/overlay.html",
-    ];
-    
-    for path in possible_paths {
-        if let Ok(content) = tokio::fs::read_to_string(path).await {
-            return Html(content).into_response();
-        }
-    }
-    
-    (StatusCode::NOT_FOUND, "Overlay not found").into_response()
+    Response::builder()
+        .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+        .header(header::PRAGMA, "no-cache")
+        .header(header::EXPIRES, "0")
+        .body(Body::from(OVERLAY_HTML))
+        .unwrap()
 }
 
 async fn get_control() -> impl IntoResponse {
-    // Try multiple possible paths for the UI files
-    let possible_paths = vec![
-        "../ui/control.html",
-        "ui/control.html",
-        "../../ui/control.html",
-        "../../../ui/control.html",
-    ];
-    
-    for path in possible_paths {
-        if let Ok(content) = tokio::fs::read_to_string(path).await {
-            return Html(content).into_response();
-        }
-    }
-    
-    (StatusCode::NOT_FOUND, "Control not found").into_response()
+    Response::builder()
+        .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+        .header(header::PRAGMA, "no-cache")
+        .header(header::EXPIRES, "0")
+        .body(Body::from(CONTROL_HTML))
+        .unwrap()
+}
+
+// Serve embedded CSS files with no-cache headers for OBS browser source
+async fn get_overlay_css() -> impl IntoResponse {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "text/css; charset=utf-8")
+        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+        .header(header::PRAGMA, "no-cache")
+        .header(header::EXPIRES, "0")
+        .body(Body::from(OVERLAY_CSS))
+        .unwrap()
+}
+
+async fn get_control_css() -> impl IntoResponse {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "text/css; charset=utf-8")
+        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+        .header(header::PRAGMA, "no-cache")
+        .header(header::EXPIRES, "0")
+        .body(Body::from(CONTROL_CSS))
+        .unwrap()
+}
+
+async fn get_launcher_css() -> impl IntoResponse {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "text/css; charset=utf-8")
+        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+        .header(header::PRAGMA, "no-cache")
+        .header(header::EXPIRES, "0")
+        .body(Body::from(LAUNCHER_CSS))
+        .unwrap()
+}
+
+// Serve embedded favicon with no-cache headers
+async fn get_favicon() -> impl IntoResponse {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "image/x-icon")
+        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+        .header(header::PRAGMA, "no-cache")
+        .header(header::EXPIRES, "0")
+        .body(Body::from(FAVICON.to_vec()))
+        .unwrap()
 }
 
 async fn websocket_handler(ws: WebSocketUpgrade, AxumState(state): AxumState<SharedState>) -> impl IntoResponse {
@@ -230,6 +289,13 @@ async fn api_set_target(
     let mut state_lock = state.write();
     state_lock.target_config = payload.clone();
     state_lock.clear_keys();
+    
+    // Save to registry
+    let _ = crate::settings::save_target_config(
+        &payload.mode,
+        payload.value.as_deref(),
+    );
+    
     Json(json!({
         "mode": payload.mode,
         "value": payload.value,
@@ -322,6 +388,25 @@ async fn api_set_overlay_config(
     if let Some(v) = payload.get("direction").and_then(|x| x.as_str()) {
         overlay.direction = v.to_string();
     }
+
+    // Save overlay config to registry
+    let _ = crate::settings::save_overlay_config(
+        overlay.fade_in_ms,
+        overlay.fade_out_ms,
+        &overlay.chip_bg,
+        &overlay.chip_fg,
+        overlay.chip_gap,
+        overlay.chip_pad_v,
+        overlay.chip_pad_h,
+        overlay.chip_radius,
+        overlay.chip_font_px,
+        overlay.chip_font_weight,
+        &overlay.background,
+        overlay.cols,
+        overlay.rows,
+        &overlay.align,
+        &overlay.direction,
+    );
 
     Json(json!({ "ok": true }))
 }
