@@ -253,3 +253,12 @@ cargo build
 
 **문의사항**: [GitHub Issues](https://github.com/YOUR_USERNAME/keyviewer/issues)
 
+
+
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\docker-test.ps1 -Platform linux
+
+Unblock-File .\docker-test.ps1
+.\docker-test.ps1 -Platform linux
+
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned

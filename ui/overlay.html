@@ -47,9 +47,29 @@
 			transition: transform var(--fade-in) ease, opacity var(--fade-in) ease;
 		}
 		.chip.hide { opacity: 0; transform: translateY(8px); transition: transform var(--fade-out) ease, opacity var(--fade-out) ease; }
+
+		/* Lightweight inline config panel (debug/use when needed) */
+		.cfg-panel { position: fixed; top: 10px; left: 10px; z-index: 10000; pointer-events: auto; background: rgba(20,22,30,0.88); color: #eaeef5; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 10px; font-family: ui-sans-serif, system-ui, Segoe UI, Roboto, Arial; display: none; min-width: 260px; }
+		.cfg-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+		.cfg-row label { font-size: 12px; opacity: 0.9; width: 82px; }
+		.cfg-row input[type="text"] { flex: 1; min-width: 120px; background: #12141a; color: #eaeef5; border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 6px 8px; font-size: 12px; }
+		.cfg-row input[type="color"] { width: 36px; height: 28px; border: 1px solid rgba(255,255,255,0.22); border-radius: 4px; padding: 0; background: transparent; }
+		.cfg-actions { display: flex; gap: 8px; justify-content: flex-end; }
+		.cfg-btn { border: 1px solid rgba(255,255,255,0.2); background: #1a1e29; color: #eaeef5; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+		.cfg-hint { font-size: 11px; opacity: 0.75; margin-top: 4px; }
 	</style>
 </head>
 <body>
+	<!-- Inline config panel (appears when pressing 'c' or using ?config=1) -->
+	<div id="cfgPanel" class="cfg-panel">
+		<div class="cfg-row"><label>Background</label><input id="cfg_bg_hex" type="text" placeholder="#00000000" /><input id="cfg_bg" type="color" /></div>
+		<div class="cfg-row"><label>Chip BG</label><input id="cfg_chip_bg_hex" type="text" placeholder="#000000" /><input id="cfg_chip_bg" type="color" /></div>
+		<div class="cfg-row"><label>Text</label><input id="cfg_chip_fg_hex" type="text" placeholder="#ffffff" /><input id="cfg_chip_fg" type="color" /></div>
+		<div class="cfg-actions">
+			<button id="cfg_close" class="cfg-btn">Close (C)</button>
+		</div>
+		<div class="cfg-hint">Tip: Values save instantly. Transparent background uses rgba(0,0,0,0).</div>
+	</div>
 	<div id="root">
 		<div class="container">
 			<div class="queue-wrap"><div class="queue" id="queue"></div></div>
@@ -74,11 +94,32 @@
 			if (typeof cfg.rows === 'number') root.style.setProperty('--rows', String(cfg.rows));
 			const alignMap = { left: 'start', center: 'center', right: 'end' };
 			root.style.setProperty('--align', alignMap[cfg.align] || 'center');
+			// Debug: log computed alignment for troubleshooting in OBS Browser
+			try {
+				const computedRoot = getComputedStyle(root);
+				console.debug('[overlay] alignment applied', {
+					requestedAlign: cfg.align,
+					gridJustifyContent: computedRoot.getPropertyValue('--align').trim()
+				});
+			} catch (e) {
+				console.debug('[overlay] debug align log failed');
+			}
 		}
 
-		async function initConfig(){ try{ const res = await fetch('/api/overlay-config'); applyOverlayConfig(await res.json()); }catch(e){} }
+		async function initConfig(){
+			try{
+				const buster = Date.now();
+				const res = await fetch('/api/overlay-config?cb=' + buster, { cache: 'no-store' });
+				applyOverlayConfig(await res.json());
+			}catch(e){}
+		}
 
 		function placeChips(keys){
+			// Avoid unnecessary DOM rebuild if same keys
+			try {
+				const current = Array.from(queueEl.children).map(c => c.textContent || '');
+				if (current.length === keys.length && current.every((v,i)=> v === keys[i])) return;
+			} catch(e){}
 			queueEl.innerHTML = '';
 			const cols = Number(overlayCfg?.cols ?? 8); const rows = Number(overlayCfg?.rows ?? 1);
 			let toShow = keys;
@@ -87,13 +128,106 @@
 			toShow.forEach(k => { const chip = document.createElement('div'); chip.className = 'chip'; chip.dataset.key = k; chip.textContent = k; queueEl.appendChild(chip); });
 		}
 
+		// --- Inline config panel (color pickers + hex) ---
+		function isValidHex(h){ return /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8}|[0-9a-fA-F]{3})$/.test(h); }
+		function hexTo6(h){
+			// Normalize 3/6/8-digit hex to 6-digit without alpha for <input type="color">
+			if (!h || !h.startsWith('#')) return '#000000';
+			let v = h.slice(1);
+			if (v.length === 3) v = v.split('').map(c=>c+c).join('');
+			if (v.length === 8) v = v.slice(0,6);
+			if (v.length < 6) v = (v + '000000').slice(0,6);
+			return '#' + v;
+		}
+		function applyAndSaveColors(next){
+			if (!overlayCfg) return;
+			const root = document.documentElement;
+			if (typeof next.background === 'string') {
+				// Allow transparent keyword or rgba(0,0,0,0)
+				const bgVal = next.background.trim().toLowerCase() === 'transparent' ? 'rgba(0,0,0,0)' : next.background;
+				root.style.setProperty('--bg', bgVal);
+				overlayCfg.background = bgVal;
+			}
+			if (typeof next.chip_bg === 'string') { root.style.setProperty('--chip-bg', next.chip_bg); overlayCfg.chip_bg = next.chip_bg; }
+			if (typeof next.chip_fg === 'string') { root.style.setProperty('--chip-fg', next.chip_fg); overlayCfg.chip_fg = next.chip_fg; }
+			// Persist full config so OBS reload is consistent
+			const payload = Object.assign({}, overlayCfg);
+			fetch('/api/overlay-config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }).catch(()=>{});
+		}
+
+		function setupConfigPanel(){
+			const panel = document.getElementById('cfgPanel');
+			const bgHex = document.getElementById('cfg_bg_hex');
+			const bgPick = document.getElementById('cfg_bg');
+			const chipBgHex = document.getElementById('cfg_chip_bg_hex');
+			const chipBgPick = document.getElementById('cfg_chip_bg');
+			const chipFgHex = document.getElementById('cfg_chip_fg_hex');
+			const chipFgPick = document.getElementById('cfg_chip_fg');
+			const closeBtn = document.getElementById('cfg_close');
+
+			function syncFromCfg(){
+				if (!overlayCfg) return;
+				bgHex.value = overlayCfg.background || 'rgba(0,0,0,0)';
+				bgPick.value = hexTo6(bgHex.value.startsWith('#') ? bgHex.value : '#000000');
+				chipBgHex.value = overlayCfg.chip_bg || '#000000';
+				chipBgPick.value = hexTo6(chipBgHex.value || '#000000');
+				chipFgHex.value = overlayCfg.chip_fg || '#ffffff';
+				chipFgPick.value = hexTo6(chipFgHex.value || '#ffffff');
+			}
+
+			let saveTimer = null;
+			function scheduleSave(next){
+				if (saveTimer) clearTimeout(saveTimer);
+				saveTimer = setTimeout(()=> applyAndSaveColors(next), 200);
+			}
+
+			bgHex.addEventListener('input', ()=>{
+				const v = bgHex.value.trim();
+				if (v.toLowerCase() === 'transparent' || v.startsWith('rgba')) {
+					bgPick.value = '#000000';
+					scheduleSave({ background: v });
+				} else if (isValidHex(v)) {
+					bgPick.value = hexTo6(v);
+					scheduleSave({ background: v });
+				}
+			});
+			bgPick.addEventListener('input', ()=>{
+				bgHex.value = bgPick.value;
+				scheduleSave({ background: bgHex.value });
+			});
+
+			chipBgHex.addEventListener('input', ()=>{
+				const v = chipBgHex.value.trim();
+				if (isValidHex(v)) { chipBgPick.value = hexTo6(v); scheduleSave({ chip_bg: v }); }
+			});
+			chipBgPick.addEventListener('input', ()=>{
+				chipBgHex.value = chipBgPick.value;
+				scheduleSave({ chip_bg: chipBgHex.value });
+			});
+
+			chipFgHex.addEventListener('input', ()=>{
+				const v = chipFgHex.value.trim();
+				if (isValidHex(v)) { chipFgPick.value = hexTo6(v); scheduleSave({ chip_fg: v }); }
+			});
+			chipFgPick.addEventListener('input', ()=>{
+				chipFgHex.value = chipFgPick.value;
+				scheduleSave({ chip_fg: chipFgHex.value });
+			});
+
+			closeBtn.addEventListener('click', ()=>{ panel.style.display = 'none'; });
+			document.addEventListener('keydown', (ev)=>{ if (ev.key === 'c' || ev.key === 'C') { panel.style.display = (panel.style.display === 'none' || !panel.style.display) ? 'block' : 'none'; if (panel.style.display === 'block') syncFromCfg(); } });
+
+			const usp = new URLSearchParams(location.search);
+			if (usp.get('config') === '1') { panel.style.display = 'block'; syncFromCfg(); }
+		}
+
 		function connect(){
 			const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws'; ws = new WebSocket(url);
 			ws.onmessage = (ev) => { try { const data = JSON.parse(ev.data); if (data.type === 'config' && data.overlay){ applyOverlayConfig(data.overlay); return; } if (Array.isArray(data.keys)) { lastKeys = data.keys; placeChips(lastKeys); } } catch(e){} };
 			ws.onclose = () => { setTimeout(connect, 1000); };
 		}
 
-		initConfig(); connect();
+		initConfig().then(()=> setupConfigPanel()); connect();
 	})();
 	</script>
 </body>

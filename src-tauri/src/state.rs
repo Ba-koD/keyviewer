@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
+use tokio::sync::watch;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TargetConfig {
@@ -87,6 +89,12 @@ pub struct AppState {
     pub app_config: AppConfig,
     // Language setting
     pub language: String,
+    // Server alive flag to terminate active websocket loops on stop
+    pub server_alive: bool,
+    // Outgoing key updates for immediate WS pushes
+    pub event_tx: Option<watch::Sender<Vec<String>>>,
+    // Cache buster to invalidate OBS/browser cache on start/config change
+    pub cache_buster: u64,
 }
 
 impl AppState {
@@ -97,25 +105,40 @@ impl AppState {
             target_config: TargetConfig::default(),
             app_config: AppConfig::default(),
             language: "ko".to_string(), // 기본값을 한국어로
+            server_alive: false,
+            event_tx: None,
+            cache_buster: 0,
         }
+    }
+
+    pub fn set_event_tx(&mut self, tx: watch::Sender<Vec<String>>) {
+        self.event_tx = Some(tx);
     }
 
     pub fn add_key(&mut self, key_code: u32, label: String) {
         if !self.key_labels.contains_key(&key_code) {
             self.key_labels.insert(key_code, label.clone());
             self.pressed_keys.push_back(label);
+            if let Some(tx) = &self.event_tx { let _ = tx.send(self.get_keys()); }
         }
     }
 
     pub fn remove_key(&mut self, key_code: u32) {
         if let Some(label) = self.key_labels.remove(&key_code) {
             self.pressed_keys.retain(|k| k != &label);
+            if let Some(tx) = &self.event_tx { let _ = tx.send(self.get_keys()); }
         }
     }
 
     pub fn clear_keys(&mut self) {
         self.pressed_keys.clear();
         self.key_labels.clear();
+        if let Some(tx) = &self.event_tx { let _ = tx.send(self.get_keys()); }
+    }
+
+    pub fn bump_cache_buster(&mut self) {
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
+        self.cache_buster = now.as_millis() as u64;
     }
 
     pub fn get_keys(&self) -> Vec<String> {

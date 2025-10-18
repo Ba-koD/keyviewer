@@ -1,6 +1,5 @@
 # Docker Compose for local Tauri build testing
 # Simulates GitHub Actions build environments locally
-version: '3.8'
 
 services:
   # Linux build environment (Ubuntu 22.04 - matches GitHub Actions)
@@ -17,7 +16,7 @@ services:
     working_dir: /app
     environment:
       - RUST_BACKTRACE=1
-    command: bash -c "echo 'Linux Build Environment Ready' && bash"
+    # No default command; we pass bash -lc via `docker compose run`
 
   # macOS cross-compile environment (for testing compilation only)
   macos-check:
@@ -32,7 +31,7 @@ services:
     working_dir: /app
     environment:
       - RUST_BACKTRACE=1
-    command: bash -c "echo 'macOS Check Environment Ready' && bash"
+    # No default command; we pass bash -lc via `docker compose run`
 
 volumes:
   # Cache volumes for faster rebuilds

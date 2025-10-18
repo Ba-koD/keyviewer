@@ -35,7 +35,8 @@
     "active": true,
     "targets": ["msi", "nsis", "app", "dmg", "deb", "appimage"],
     "icon": [
-      "icons/icon.ico"
+      "icons/icon.ico",
+      "icons/icon.png"
     ],
     "resources": ["../ui/*"],
     "externalBin": [],

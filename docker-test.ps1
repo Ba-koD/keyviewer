@@ -155,22 +155,10 @@ function Test-LinuxBuild {
     
     $startTime = Get-Date
     
-    # Run build matching GitHub Actions workflow
-    docker compose run --rm linux-build bash -c @"
-set -e
-echo '========================================' 
-echo '  Simulating GitHub Actions Linux Build'
-echo '========================================'
-echo ''
-echo 'Environment Info:'
-rustc --version
-cargo --version
-cargo tauri --version
-echo ''
-echo 'Building Tauri app...'
-cd /app/src-tauri
-cargo tauri build --verbose
-"@
+    # Run build matching GitHub Actions workflow (bash -lc with one command string)
+    # Use mounted script to avoid arg-length and quoting issues
+    $scriptPath = "/app/scripts/ci-linux-build.sh"
+    docker compose run --rm linux-build bash -lc "chmod +x $scriptPath && $scriptPath"
     
     $buildSuccess = $LASTEXITCODE -eq 0
     $duration = (Get-Date) - $startTime

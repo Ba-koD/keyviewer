@@ -78,7 +78,15 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libx11-dev libxdo-dev libxcb1-dev
+        sudo apt-get install -y \
+          libgtk-3-dev \
+          libwebkit2gtk-4.1-dev \
+          libayatana-appindicator3-dev \
+          librsvg2-dev \
+          patchelf \
+          libx11-dev \
+          libxdo-dev \
+          libxcb1-dev 
 
     - name: Rust cache
       uses: swatinem/rust-cache@v2
@@ -86,10 +94,18 @@ jobs:
         workspaces: './src-tauri -> target'
 
     - name: Install Tauri CLI
-      run: cargo install tauri-cli --version "^2.0.0"
+      run: cargo install tauri-cli --version "^2.0.0" --locked
+
+    - name: Ensure icon.png
+      run: |
+        if [ ! -f "src-tauri/icons/icon.png" ]; then
+          sudo apt-get update && sudo apt-get install -y imagemagick
+          convert -size 256x256 xc:blue -fill white -gravity center -pointsize 48 -annotate +0+0 "KV" src-tauri/icons/icon.png
+        fi
 
     - name: Build Linux
-      run: cargo tauri build
+      working-directory: src-tauri
+      run: cargo tauri build --verbose
 
     - name: Upload AppImage artifact
       if: success()

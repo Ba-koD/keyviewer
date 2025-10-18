@@ -16,6 +16,7 @@ use serde_json::json;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::watch;
 use tokio::time::sleep;
 use tower_http::cors::{Any, CorsLayer};
 
@@ -34,6 +35,7 @@ pub struct ServerController {
     runtime: tokio::runtime::Runtime,
     handle: Option<tokio::task::AbortHandle>,
     running: Arc<parking_lot::Mutex<bool>>,
+    state_ref: Option<SharedState>,
 }
 
 impl ServerController {
@@ -42,6 +44,7 @@ impl ServerController {
             runtime: tokio::runtime::Runtime::new().unwrap(),
             handle: None,
             running: Arc::new(parking_lot::Mutex::new(false)),
+            state_ref: None,
         }
     }
 
@@ -71,8 +74,22 @@ impl ServerController {
         }
 
         let running_clone = self.running.clone();
+        // Keep a reference for stop()
+        self.state_ref = Some(state.clone());
         let handle = self.runtime.spawn(async move {
-            let app = create_router(state);
+            // Mark server alive in shared state and bump cache buster
+            {
+                let mut s = state.write();
+                s.server_alive = true;
+                s.bump_cache_buster();
+            }
+            // Initialize watch channel for immediate key updates
+            {
+                let (tx, _rx) = watch::channel::<Vec<String>>(Vec::new());
+                let mut s = state.write();
+                s.set_event_tx(tx);
+            }
+            let app = create_router(state.clone());
             let addr = SocketAddr::from(([127, 0, 0, 1], port));
             
             println!("Server listening on http://{}", addr);
@@ -89,6 +106,11 @@ impl ServerController {
                 }
             }
 
+            // Mark server stopped
+            {
+                let mut s = state.write();
+                s.server_alive = false;
+            }
             *running_clone.lock() = false;
         });
 
@@ -101,6 +123,14 @@ impl ServerController {
         let mut running = self.running.lock();
         if !*running {
             return Err("서버가 실행 중이 아닙니다".to_string());
+        }
+
+        // Flip server_alive and poke watchers to wake waiting tasks
+        if let Some(st) = &self.state_ref {
+            let mut s = st.write();
+            s.server_alive = false;
+            s.clear_keys();
+            if let Some(tx) = &s.event_tx { let _ = tx.send(Vec::new()); }
         }
 
         if let Some(handle) = self.handle.take() {
@@ -157,7 +187,7 @@ async fn root_redirect() -> impl IntoResponse {
 async fn get_overlay() -> impl IntoResponse {
     Response::builder()
         .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
-        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate, max-age=0")
         .header(header::PRAGMA, "no-cache")
         .header(header::EXPIRES, "0")
         .body(Body::from(OVERLAY_HTML))
@@ -167,7 +197,7 @@ async fn get_overlay() -> impl IntoResponse {
 async fn get_control() -> impl IntoResponse {
     Response::builder()
         .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
-        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate, max-age=0")
         .header(header::PRAGMA, "no-cache")
         .header(header::EXPIRES, "0")
         .body(Body::from(CONTROL_HTML))
@@ -178,7 +208,7 @@ async fn get_control() -> impl IntoResponse {
 async fn get_overlay_css() -> impl IntoResponse {
     Response::builder()
         .header(header::CONTENT_TYPE, "text/css; charset=utf-8")
-        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate, max-age=0")
         .header(header::PRAGMA, "no-cache")
         .header(header::EXPIRES, "0")
         .body(Body::from(OVERLAY_CSS))
@@ -188,7 +218,7 @@ async fn get_overlay_css() -> impl IntoResponse {
 async fn get_control_css() -> impl IntoResponse {
     Response::builder()
         .header(header::CONTENT_TYPE, "text/css; charset=utf-8")
-        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate, max-age=0")
         .header(header::PRAGMA, "no-cache")
         .header(header::EXPIRES, "0")
         .body(Body::from(CONTROL_CSS))
@@ -198,7 +228,7 @@ async fn get_control_css() -> impl IntoResponse {
 async fn get_launcher_css() -> impl IntoResponse {
     Response::builder()
         .header(header::CONTENT_TYPE, "text/css; charset=utf-8")
-        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate, max-age=0")
         .header(header::PRAGMA, "no-cache")
         .header(header::EXPIRES, "0")
         .body(Body::from(LAUNCHER_CSS))
@@ -227,27 +257,42 @@ async fn handle_socket(mut socket: WebSocket, state: SharedState) {
         state_lock.get_keys()
     };
     let initial_msg = json!({ "keys": keys });
-    if socket
-        .send(Message::Text(initial_msg.to_string()))
-        .await
-        .is_err()
-    {
+    if socket.send(Message::Text(initial_msg.to_string())).await.is_err() {
         return;
     }
 
-    // Keep connection alive and send updates
+    // Keep connection alive and send updates but exit if server is stopping
+    // Subscribe to immediate updates
+    let mut rx_opt: Option<watch::Receiver<Vec<String>>> = {
+        let s = state.read();
+        s.event_tx.as_ref().map(|tx| tx.subscribe())
+    };
+
+    let mut last_sent = String::new();
     loop {
-        sleep(Duration::from_millis(100)).await;
+        // Prefer event-driven; fall back to small sleep if no channel yet
+        if let Some(rx) = rx_opt.as_mut() {
+            let _ = rx.changed().await; // wake on change
+        } else {
+            sleep(Duration::from_millis(15)).await;
+        }
 
-        let keys = {
-            let state_lock = state.read();
-            state_lock.get_keys()
+        let (alive, keys) = {
+            let s = state.read();
+            (s.server_alive, s.get_keys())
         };
-        let msg = json!({ "keys": keys });
 
-        if socket.send(Message::Text(msg.to_string())).await.is_err() {
+        if !alive {
+            // Inform client and close
+            let _ = socket.send(Message::Text(json!({"type":"shutdown"}).to_string())).await;
+            let _ = socket.send(Message::Close(None)).await;
             break;
         }
+
+        let msg_str = json!({ "keys": keys }).to_string();
+        if msg_str == last_sent { continue; }
+        last_sent = msg_str.clone();
+        if socket.send(Message::Text(msg_str)).await.is_err() { break; }
     }
 }
 

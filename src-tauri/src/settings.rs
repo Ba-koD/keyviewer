@@ -122,7 +122,11 @@ pub fn save_target_config(mode: &str, value: Option<&str>) -> Result<(), String>
     }
     
     #[cfg(not(target_os = "windows"))]
-    Ok(())
+    {
+        // Consume parameters to avoid unused warnings on non-Windows builds
+        let _ = (mode, value);
+        Ok(())
+    }
 }
 
 pub fn load_target_config() -> (String, Option<String>) {
@@ -186,7 +190,14 @@ pub fn save_overlay_config(
     }
     
     #[cfg(not(target_os = "windows"))]
-    Ok(())
+    {
+        // Consume parameters to avoid unused warnings on non-Windows builds
+        let _ = (
+            fade_in_ms, fade_out_ms, chip_bg, chip_fg, chip_gap, chip_pad_v, chip_pad_h,
+            chip_radius, chip_font_px, chip_font_weight, background, cols, rows, align, direction
+        );
+        Ok(())
+    }
 }
 
 pub fn load_overlay_config() -> (u32, u32, String, String, u32, u32, u32, u32, u32, u32, String, u32, u32, String, String) {

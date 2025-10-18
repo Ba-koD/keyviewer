@@ -5,7 +5,6 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<title>Key Viewer Control</title>
 	<link rel="icon" href="/static/favicon.ico" type="image/x-icon" />
-	<link rel="stylesheet" href="/static/control.css">
 	<style>
 		:root{
 			--bg:#0b0c10; --panel:#12141a; --panel2:#181b22; --text:#eaeef5; --muted:#9aa4b2; --primary:#4f8cff; --border:#232734;
@@ -43,16 +42,6 @@
 		.color-field input[type="text"]{flex:1}
 		button.pick{width:36px; height:36px; border:1px solid var(--border); border-radius:6px}
 		input.picker-hidden{position:absolute; left:-9999px; width:0; height:0; opacity:0}
-
-		/* Custom color palette popover */
-		.color-popover{position:fixed; z-index:999999; background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:10px; box-shadow:0 6px 24px rgba(0,0,0,0.35); width:220px}
-		.color-popover .swatches{display:grid; grid-template-columns:repeat(8, 1fr); gap:6px; margin-bottom:8px}
-		.color-popover .swatch{width:22px; height:22px; border-radius:4px; border:1px solid rgba(255,255,255,0.18); cursor:pointer}
-		.color-popover .row{display:flex; align-items:center; gap:6px; margin-bottom:8px}
-		.color-popover input[type="text"]{flex:1; background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:12px}
-		.color-popover input[type="color"]{width:36px; height:28px; border:1px solid var(--border); border-radius:4px; background:transparent}
-		.color-popover .actions{display:flex; gap:6px; justify-content:flex-end}
-		.color-popover .btn{border:1px solid var(--border); background:var(--panel2); color:var(--text); border-radius:6px; padding:6px 10px; font-size:12px; cursor:pointer}
 
 		/* Overlay preview inside modal */
 		.overlay-preview{margin-top:12px; border:1px dashed #2a2f3a; border-radius:10px; padding:12px; background:#0f131b}
@@ -98,7 +87,7 @@
 				<select id="mode">
 					<option value="disabled" data-text-ko="사용 안 함" data-text-en="Disabled">사용 안 함</option>
 					<option value="title" data-text-ko="제목(포함)" data-text-en="Title (Contains)">제목(포함)</option>
-					<option value="process" selected data-text-ko="프로세스(정확)" data-text-en="Process (Exact)">프로세스(정확)</option>
+					<option value="process" data-text-ko="프로세스(정확)" data-text-en="Process (Exact)">프로세스(정확)</option>
 					<option value="hwnd" data-text-ko="윈도우 핸들(HWND)" data-text-en="Window Handle (HWND)">윈도우 핸들(HWND)</option>
 					<option value="class" data-text-ko="클래스 명(정확)" data-text-en="Class Name (Exact)">클래스 명(정확)</option>
 					<option value="all" data-text-ko="모든 창" data-text-en="All Windows">모든 창</option>
@@ -125,7 +114,7 @@
 
 		<div class="panel">
 			<div class="row" style="margin-bottom:8px">
-				<div class="help" id="openWindowsLabel" data-text-ko="현재 열려있는 창 (선택하면 적용됨)" data-text-en="Currently Open Windows (Click to apply)">현재 열려있는 창 (선택하면 적용됨)</div>
+				<div class="help" id="openWindowsLabel" data-text-ko="현재 열려있는 창" data-text-en="Currently Open Windows">현재 열려있는 창</div>
 			</div>
 			<table>
 				<colgroup>
@@ -261,7 +250,7 @@
 		const debugStatus = document.getElementById('debugStatus');
 
 		let savedValue = '';
-		let currentLanguage = 'ko'; // 기본값을 한국어로 설정
+		let currentLanguage = 'en';
 		let currentStatus = ''; // 현재 작동 상태 저장
 
 		async function loadLanguageSettings() {
@@ -270,17 +259,10 @@
 				if (response.ok) {
 					const data = await response.json();
 					currentLanguage = data.language || 'ko';
-					console.log('✓ Language loaded:', currentLanguage);
-					updateUILanguage();
-				} else {
-					console.warn('Failed to load language, using default: ko');
-					currentLanguage = 'ko';
 					updateUILanguage();
 				}
 			} catch (e) {
-				console.error('Error loading language:', e);
-				currentLanguage = 'ko'; // 에러 시에도 한국어를 기본으로
-				updateUILanguage();
+				currentLanguage = 'en';
 			}
 		}
 
@@ -376,51 +358,23 @@
 
 		function isValidHex(h){ return /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/.test(h); }
 		function setPickBtn(btn, val){ if (isValidHex(val)) { btn.style.background = val; } }
-        function hookColorPair(textEl, pickBtn, picker){
-            pickBtn.addEventListener('click', (ev)=> {
-                // Try native picker first
-                try { if (picker.showPicker) { picker.showPicker(); return; } } catch(_){ }
-
-                // Show custom palette popover near the button
-                const rect = pickBtn.getBoundingClientRect();
-                const pop = document.createElement('div');
-                pop.className = 'color-popover';
-                pop.style.left = Math.round(rect.left) + 'px';
-                pop.style.top = Math.round(rect.bottom + 6) + 'px';
-
-                // Preset swatches (Material-ish)
-                const presets = ['#000000','#111111','#222222','#444444','#666666','#888888','#bbbbbb','#ffffff',
-                                 '#ff0000','#ff6b6b','#ffa94d','#ffd43b','#94d82d','#38d9a9','#4dabf7','#845ef7'];
-                const sw = document.createElement('div'); sw.className = 'swatches';
-                presets.forEach(c => { const d = document.createElement('div'); d.className = 'swatch'; d.style.background = c; d.title = c; d.addEventListener('click', ()=> { textEl.value = c; setPickBtn(pickBtn, c); updatePreview(); remove(); }); sw.appendChild(d); });
-
-                // Hex + native input row
-                const row = document.createElement('div'); row.className = 'row';
-                const hex = document.createElement('input'); hex.type = 'text'; hex.placeholder = '#rrggbb'; hex.value = textEl.value || '#000000';
-                const native = document.createElement('input'); native.type = 'color'; native.value = (textEl.value && /^#([0-9a-fA-F]{6})$/.test(textEl.value)) ? textEl.value : '#000000';
-                hex.addEventListener('input', ()=> { if (/^#([0-9a-fA-F]{6})$/.test(hex.value)) { native.value = hex.value; } });
-                native.addEventListener('input', ()=> { hex.value = native.value; });
-
-                // Actions
-                const actions = document.createElement('div'); actions.className = 'actions';
-                const btnOk = document.createElement('button'); btnOk.className = 'btn'; btnOk.textContent = 'OK';
-                const btnCancel = document.createElement('button'); btnCancel.className = 'btn'; btnCancel.textContent = 'Cancel';
-                btnOk.addEventListener('click', ()=> { if (/^#([0-9a-fA-F]{6})$/.test(hex.value)) { textEl.value = hex.value; setPickBtn(pickBtn, hex.value); updatePreview(); } remove(); });
-                btnCancel.addEventListener('click', remove);
-
-                actions.appendChild(btnCancel); actions.appendChild(btnOk);
-                row.appendChild(hex); row.appendChild(native);
-                pop.appendChild(sw); pop.appendChild(row); pop.appendChild(actions);
-                document.body.appendChild(pop);
-
-                // Close when clicking outside
-                function onDoc(e){ if (!pop.contains(e.target) && e.target !== pickBtn) remove(); }
-                function remove(){ document.removeEventListener('mousedown', onDoc, true); try { document.body.removeChild(pop); } catch(_){} }
-                setTimeout(()=> document.addEventListener('mousedown', onDoc, true), 0);
-            });
-            picker.addEventListener('input', ()=> { textEl.value = picker.value; setPickBtn(pickBtn, textEl.value); updatePreview(); });
-            textEl.addEventListener('input', ()=> { setPickBtn(pickBtn, textEl.value); updatePreview(); });
-        }
+		function hookColorPair(textEl, pickBtn, picker){
+			pickBtn.addEventListener('click', ()=> {
+				try{
+					if (picker.showPicker) { picker.showPicker(); return; }
+				}catch(e){}
+				// Fallback: temporarily move near button and click
+				const rect = pickBtn.getBoundingClientRect();
+				picker.style.position = 'fixed';
+				picker.style.left = (rect.left + 10) + 'px';
+				picker.style.top = (rect.top + 10) + 'px';
+				picker.style.width = '1px'; picker.style.height = '1px'; picker.style.opacity = '0.001';
+				document.body.appendChild(picker);
+				picker.click();
+			});
+			picker.addEventListener('input', ()=> { textEl.value = picker.value; setPickBtn(pickBtn, textEl.value); updatePreview(); });
+			textEl.addEventListener('input', ()=> { setPickBtn(pickBtn, textEl.value); updatePreview(); });
+		}
 
 		function updatePreview(){
 			const root = ov_preview;
@@ -522,48 +476,24 @@
 		}
 
 		async function refreshTarget(){
-			try {
-				const res = await fetch('/api/target');
-				const j = await res.json();
-				modeEl.value = j.mode || 'process'; // 기본값: 프로세스
-				valuePick.value = j.value || '';
-				savedValue = j.value || '';
-				
-				if (j.mode === 'disabled') {
-					currentStatus = currentLanguage === 'ko' ? '비활성화' : 'Disabled';
-				} else if (j.mode === 'all') {
-					currentStatus = currentLanguage === 'ko' ? '모든 창 활성화' : 'All Windows Active';
-				} else if (j.value) {
-					currentStatus = currentLanguage === 'ko' ? '활성화' : 'Active';
-				} else {
-					currentStatus = currentLanguage === 'ko' ? '설정 안됨' : 'Not Configured';
-				}
-				
-				refreshPickerForMode();
-				updateDebugInfo();
-			} catch (e) {
-				// If server is not available, try to restore from localStorage (Portable mode)
-				try {
-					const lastMode = localStorage.getItem('last_mode');
-					const lastValue = localStorage.getItem('last_value');
-					if (lastMode) {
-						modeEl.value = lastMode;
-						savedValue = lastValue || '';
-						
-						// Auto-apply if we have saved settings
-						if (lastMode !== 'disabled' && lastValue) {
-							await doApply(lastMode, lastValue);
-						}
-					}
-				} catch(localErr) {
-					// If localStorage fails, use defaults
-					modeEl.value = 'disabled';
-					savedValue = '';
-				}
-				
-				refreshPickerForMode();
-				updateDebugInfo();
+			const res = await fetch('/api/target');
+			const j = await res.json();
+			modeEl.value = j.mode || 'disabled';
+			valuePick.value = j.value || '';
+			savedValue = j.value || '';
+			
+			if (j.mode === 'disabled') {
+				currentStatus = currentLanguage === 'ko' ? '비활성화' : 'Disabled';
+			} else if (j.mode === 'all') {
+				currentStatus = currentLanguage === 'ko' ? '모든 창 활성화' : 'All Windows Active';
+			} else if (j.value) {
+				currentStatus = currentLanguage === 'ko' ? '활성화' : 'Active';
+			} else {
+				currentStatus = currentLanguage === 'ko' ? '설정 안됨' : 'Not Configured';
 			}
+			
+			refreshPickerForMode();
+			updateDebugInfo();
 		}
 
 		async function apply(){
@@ -579,12 +509,6 @@
 				await fetch('/api/target', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, value }) });
 				statusEl.textContent = currentLanguage === 'ko' ? '적용됨' : 'Applied';
 				savedValue = value || '';
-				
-				// Save to localStorage for portable
-				try {
-					localStorage.setItem('last_mode', mode);
-					localStorage.setItem('last_value', value || '');
-				} catch(e) {}
 				
 				// 적용 후 상태 업데이트
 				if (mode === 'disabled') {
@@ -648,56 +572,21 @@
 			const sorted = sortWindows(lastWindows);
 			if (winTableBody){
 				winTableBody.innerHTML = sorted.map(w => `
-					<tr data-title="${w.title||''}" data-process="${w.process||''}" data-hwnd="${w.hwnd||''}" data-class="${w.class||''}" class="window-row">
-						<td title="${w.title||''}">${w.title||''}</td>
+					<tr data-hwnd="${w.hwnd||''}">
+						<td class="click-title" title="${w.title||''}">${w.title||''}</td>
 						<td title="${w.process||''}">${w.process||''}</td>
 						<td title="${w.hwnd||''}">${w.hwnd||''}</td>
 						<td title="${w.class||''}">${w.class||''}</td>
 					</tr>
 				`).join('');
-				
-				// Attach row click handlers for auto-target selection
-				winTableBody.querySelectorAll('tr.window-row').forEach(tr => {
-					tr.style.cursor = 'pointer';
-					tr.addEventListener('click', async () => {
-						let currentMode = modeEl.value;
-						
-						// If mode is disabled, automatically change to process mode
-						if (currentMode === 'disabled') {
-							modeEl.value = 'process';
-							currentMode = 'process';
-							refreshPickerForMode(); // Update picker options for process mode
-						}
-						
-						// If no mode selected, default to process
-						if (!currentMode || currentMode === '') {
-							modeEl.value = 'process';
-							currentMode = 'process';
-						}
-						
-						// Skip for "all" mode
-						if (currentMode === 'all') {
-							return; // Do nothing for all mode
-						}
-						
-						// Get value based on current mode
-						let targetValue = '';
-						if (currentMode === 'title') targetValue = tr.getAttribute('data-title');
-						else if (currentMode === 'process') targetValue = tr.getAttribute('data-process');
-						else if (currentMode === 'hwnd') targetValue = tr.getAttribute('data-hwnd');
-						else if (currentMode === 'class') targetValue = tr.getAttribute('data-class');
-						
-						if (!targetValue) return;
-						
-						// Auto-apply the selected value
-						valuePick.value = targetValue;
-						await doApply(currentMode, targetValue);
-						
-						// Save to localStorage for portable
-						try {
-							localStorage.setItem('last_mode', currentMode);
-							localStorage.setItem('last_value', targetValue);
-						} catch(e) {}
+				// attach focus handlers
+				winTableBody.querySelectorAll('td.click-title').forEach(td => {
+					td.style.cursor = 'pointer';
+					td.addEventListener('click', async () => {
+						const tr = td.parentElement;
+						const hwnd = tr?.getAttribute('data-hwnd');
+						if (!hwnd) return;
+						try{ await fetch('/api/focus', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ hwnd }) }); }catch(e){}
 					});
 				});
 			}
@@ -785,10 +674,6 @@
 		hookColorPair(ov_chip_fg, ov_chip_fg_pickBtn, ov_chip_fg_picker);
 		ov_bg_trans.addEventListener('change', ()=> { ov_bg.disabled = ov_bg_trans.checked; ov_bg_pickBtn.disabled = ov_bg_trans.checked; updatePreview(); });
 
-		// 언어 설정 먼저 로드 (다른 것보다 우선)
-		await loadLanguageSettings();
-		console.log('✓ Language loaded:', currentLanguage);
-		
 		await Promise.all([refreshTarget(), loadWindows(), loadConfig(), loadForeground()]);
 		updateHeaderArrows();
 		Object.values(headerMap).forEach(th => {
@@ -798,7 +683,9 @@
 		updateDebugInfo();
 		setInterval(loadWindows, 3000);
 		setInterval(loadForeground, 1000);
-		setInterval(loadLanguageSettings, 5000); // 주기적으로 언어 설정 갱신
+		setInterval(loadLanguageSettings, 5000);
+		loadLanguageSettings();
+		updateUILanguage(); // 페이지 로드 시 즉시 언어 적용
 	})();
 	</script>
 </body>
