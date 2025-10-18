@@ -1,27 +1,34 @@
-# Don't copy build artifacts and caches into Docker
-src-tauri/target/
-src-tauri/gen/
+# Ignore build artifacts and caches
+target/
 dist/
-build/
 node_modules/
 
-# IDE and OS files
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
-
-# Git
+# Ignore Git files
 .git/
 .gitignore
 
-# Logs and temp files
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore logs
 *.log
-*.tmp
-*.bak
-*.backup
 
-# Environment files
-.env
-.env.local
+# Ignore temporary files
+tmp/
+temp/
 
+# Keep source files and configs
+!src-tauri/
+!ui/
+!version.txt
+!Cargo.toml
+!Cargo.lock
+!tauri.conf.json

@@ -10,6 +10,35 @@ $VERSION = $VERSION.Trim()
 Write-Host "Version: $VERSION" -ForegroundColor Yellow
 Write-Host ""
 
+# Check and install Tauri CLI if needed
+Write-Host "0. Checking Tauri CLI..." -ForegroundColor Yellow
+$tauriVersion = cargo tauri --version 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Tauri CLI not found, installing..." -ForegroundColor Yellow
+    cargo install tauri-cli --version "^2.0.0"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Failed to install Tauri CLI!" -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "Tauri CLI installed!" -ForegroundColor Green
+} else {
+    Write-Host "Tauri CLI found: $tauriVersion" -ForegroundColor Green
+}
+Write-Host ""
+
+# Ensure icon.png exists
+Write-Host "0.5. Checking icon.png..." -ForegroundColor Yellow
+if (-not (Test-Path "src-tauri\icons\icon.png")) {
+    Write-Host "icon.png not found, generating..." -ForegroundColor Yellow
+    & .\convert-icon.ps1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Failed to generate icon.png!" -ForegroundColor Red
+        exit 1
+    }
+}
+Write-Host "icon.png ready!" -ForegroundColor Green
+Write-Host ""
+
 # Build Tauri release
 Write-Host "1. Building Tauri release..." -ForegroundColor Yellow
 cd src-tauri

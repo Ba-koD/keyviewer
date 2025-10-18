@@ -1,0 +1,36 @@
+# Dockerfile for cross-compiling to macOS (simulation only)
+# Note: True macOS builds require actual macOS hardware/VM
+# This is for testing macOS-specific Rust code compilation
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    git \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    clang \
+    cmake \
+    file \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust with macOS targets
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Add macOS target (for syntax checking only)
+RUN rustup target add x86_64-apple-darwin aarch64-apple-darwin
+
+# Install Tauri CLI
+RUN cargo install tauri-cli --version "^2.0.0" --locked
+
+WORKDIR /app
+
+# Note: This will only check if the code compiles for macOS target
+# Actual macOS app bundles require macOS system
+CMD ["bash"]
+

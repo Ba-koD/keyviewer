@@ -39,6 +39,17 @@ jobs:
       with:
         workspaces: './src-tauri -> target'
 
+    - name: Install Tauri CLI
+      shell: pwsh
+      run: cargo install tauri-cli --version "^2.0.0"
+
+    - name: Generate icon.png
+      shell: pwsh
+      run: |
+        if (-not (Test-Path "src-tauri\icons\icon.png")) {
+          .\convert-icon.ps1
+        }
+
     - name: Build Windows Portable
       shell: pwsh
       run: |
@@ -51,45 +62,6 @@ jobs:
         name: windows-portable-${{ needs.prepare.outputs.version }}
         path: |
           dist/KBQV-Portable-*.zip
-
-  # Windows Installer Build (MSI/NSIS)
-  build-windows-installer:
-    needs: prepare
-    runs-on: windows-latest
-    continue-on-error: true
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup Rust
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Rust cache
-      uses: swatinem/rust-cache@v2
-      with:
-        workspaces: './src-tauri -> target'
-
-    - name: Install Tauri CLI
-      run: cargo install tauri-cli --version "^2.0.0"
-
-    - name: Build Windows Installers
-      run: cargo tauri build
-
-    - name: Upload MSI artifact
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: windows-msi-${{ needs.prepare.outputs.version }}
-        path: |
-          src-tauri/target/release/bundle/msi/*.msi
-
-    - name: Upload NSIS artifact
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: windows-nsis-${{ needs.prepare.outputs.version }}
-        path: |
-          src-tauri/target/release/bundle/nsis/*-setup.exe
 
   # Linux Build
   build-linux:
@@ -175,7 +147,7 @@ jobs:
           src-tauri/target/release/bundle/macos/*.app
 
   release:
-    needs: [prepare, build-windows-portable, build-windows-installer, build-linux, build-macos]
+    needs: [prepare, build-windows-portable, build-linux, build-macos]
     runs-on: ubuntu-latest
     if: always() && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
     
@@ -207,24 +179,6 @@ jobs:
         else
           checklist="${checklist}- ❌ Windows Portable (Build Failed)\n"
           echo "windows_portable=false" >> $GITHUB_OUTPUT
-        fi
-        
-        # Check Windows MSI
-        if [ -d "./artifacts/windows-msi-${{ needs.prepare.outputs.version }}" ] && [ "$(ls -A ./artifacts/windows-msi-${{ needs.prepare.outputs.version }})" ]; then
-          checklist="${checklist}- ✅ Windows MSI Installer\n"
-          echo "windows_msi=true" >> $GITHUB_OUTPUT
-        else
-          checklist="${checklist}- ❌ Windows MSI Installer (Build Failed)\n"
-          echo "windows_msi=false" >> $GITHUB_OUTPUT
-        fi
-        
-        # Check Windows NSIS
-        if [ -d "./artifacts/windows-nsis-${{ needs.prepare.outputs.version }}" ] && [ "$(ls -A ./artifacts/windows-nsis-${{ needs.prepare.outputs.version }})" ]; then
-          checklist="${checklist}- ✅ Windows NSIS Installer\n"
-          echo "windows_nsis=true" >> $GITHUB_OUTPUT
-        else
-          checklist="${checklist}- ❌ Windows NSIS Installer (Build Failed)\n"
-          echo "windows_nsis=false" >> $GITHUB_OUTPUT
         fi
         
         # Check Linux AppImage
@@ -317,14 +271,6 @@ jobs:
           cp -r ./artifacts/windows-portable-${{ needs.prepare.outputs.version }}/* ./release-files/ || true
         fi
         
-        if [ -d "./artifacts/windows-msi-${{ needs.prepare.outputs.version }}" ]; then
-          cp -r ./artifacts/windows-msi-${{ needs.prepare.outputs.version }}/* ./release-files/ || true
-        fi
-        
-        if [ -d "./artifacts/windows-nsis-${{ needs.prepare.outputs.version }}" ]; then
-          cp -r ./artifacts/windows-nsis-${{ needs.prepare.outputs.version }}/* ./release-files/ || true
-        fi
-        
         if [ -d "./artifacts/linux-appimage-${{ needs.prepare.outputs.version }}" ]; then
           cp -r ./artifacts/linux-appimage-${{ needs.prepare.outputs.version }}/* ./release-files/ || true
         fi
@@ -377,8 +323,6 @@ jobs:
           
           #### Windows
           - **Portable**: `KBQV-Portable-*.zip` - No installation required, just extract and run
-          - **MSI Installer**: `KeyQueueViewer_*_x64_en-US.msi` - Standard Windows installer
-          - **NSIS Installer**: `KeyQueueViewer_*_x64-setup.exe` - Alternative installer
           
           #### Linux
           - **AppImage**: `*.AppImage` - Universal Linux package
@@ -394,11 +338,6 @@ jobs:
           1. Download `KBQV-Portable-*.zip`
           2. Extract to any folder
           3. Run `KBQV-Portable-*.exe`
-          
-          **Windows Installer (MSI/NSIS):**
-          1. Download installer file
-          2. Run the installer
-          3. Follow installation wizard
           
           **Linux AppImage:**
           1. Download `*.AppImage`

@@ -1,11 +1,11 @@
 # Dockerfile for building Tauri app on Linux
-# This allows local testing without GitHub Actions
+# Simulates GitHub Actions ubuntu-latest environment
 FROM ubuntu:22.04
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies
+# Install system dependencies (matching GitHub Actions)
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
@@ -19,21 +19,31 @@ RUN apt-get update && apt-get install -y \
     librsvg2-dev \
     patchelf \
     libx11-dev \
+    libxdo-dev \
+    libxcb1-dev \
+    file \
+    imagemagick \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Rust
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+# Install Rust (matching GitHub Actions dtolnay/rust-toolchain@stable)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Install Tauri CLI
-RUN cargo install tauri-cli
+# Verify Rust installation
+RUN rustc --version && cargo --version
+
+# Install Tauri CLI (matching GitHub Actions version)
+RUN cargo install tauri-cli --version "^2.0.0" --locked
+
+# Verify Tauri CLI installation
+RUN cargo tauri --version
 
 # Set working directory
 WORKDIR /app
 
-# Copy project files
-COPY . .
+# Debug: Print environment info when container starts
+RUN echo "Build environment ready: Ubuntu 22.04 + Rust + Tauri CLI"
 
-# Build command will be provided at runtime
+# Default command
 CMD ["bash"]
 

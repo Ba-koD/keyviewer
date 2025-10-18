@@ -1,24 +1,42 @@
 # Docker Compose for local Tauri build testing
-# This simulates GitHub Actions build environment locally
+# Simulates GitHub Actions build environments locally
 version: '3.8'
 
 services:
-  # Linux build environment (Ubuntu 22.04)
+  # Linux build environment (Ubuntu 22.04 - matches GitHub Actions)
   linux-build:
     build:
       context: .
       dockerfile: Dockerfile.linux
-    image: keyviewer-linux-build
-    container_name: keyviewer-linux-test
+    image: keyviewer-linux-build:latest
+    container_name: keyviewer-linux-build
     volumes:
       - .:/app
       - linux-cargo-cache:/root/.cargo/registry
       - linux-target-cache:/app/src-tauri/target
     working_dir: /app
-    command: bash -c "cargo tauri build"
+    environment:
+      - RUST_BACKTRACE=1
+    command: bash -c "echo 'Linux Build Environment Ready' && bash"
+
+  # macOS cross-compile environment (for testing compilation only)
+  macos-check:
+    build:
+      context: .
+      dockerfile: Dockerfile.macos-cross
+    image: keyviewer-macos-cross:latest
+    container_name: keyviewer-macos-check
+    volumes:
+      - .:/app
+      - macos-cargo-cache:/root/.cargo/registry
+    working_dir: /app
+    environment:
+      - RUST_BACKTRACE=1
+    command: bash -c "echo 'macOS Check Environment Ready' && bash"
 
 volumes:
   # Cache volumes for faster rebuilds
   linux-cargo-cache:
   linux-target-cache:
+  macos-cargo-cache:
 
