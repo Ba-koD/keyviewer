@@ -70,3 +70,5 @@ yarn.lock
 # Environment files
 .env
 .env.local
+# Local environment files (do not commit)
+.env

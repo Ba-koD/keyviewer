@@ -7,9 +7,17 @@ mod settings;
 mod state;
 mod window_info;
 
+// macOS accessibility trust check to avoid crash when global key hook is denied
+#[cfg(target_os = "macos")]
+#[link(name = "ApplicationServices", kind = "framework")]
+extern "C" {
+    fn AXIsProcessTrusted() -> bool;
+}
+
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::process::Command; // For macOS AppleScript prompt
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, State, Wry};
@@ -172,21 +180,30 @@ fn reset_settings() -> Result<(), String> {
 }
 
 fn main() {
-    // Prevent multiple instances
+    // Prevent multiple instances (with safe error handling for macOS)
     let app_name = if is_portable() {
         "keyviewer-portable"
     } else {
         "keyviewer"
     };
     
-    let instance = single_instance::SingleInstance::new(app_name).unwrap();
-    if !instance.is_single() {
-        eprintln!("Another instance is already running!");
-        std::process::exit(1);
+    // Try to create single instance lock, but don't panic if it fails (e.g. on macOS with permission issues)
+    match single_instance::SingleInstance::new(app_name) {
+        Ok(instance) => {
+            if !instance.is_single() {
+                eprintln!("Another instance is already running!");
+                std::process::exit(1);
+            }
+            // Keep instance alive
+            std::mem::forget(instance);
+            println!("Single instance lock acquired successfully");
+        }
+        Err(e) => {
+            // Log the error but continue - single instance check is not critical for functionality
+            eprintln!("Warning: Failed to create single instance lock (continuing anyway): {}", e);
+            println!("Note: Multiple instances may be able to run simultaneously");
+        }
     }
-    
-    // Keep instance alive
-    std::mem::forget(instance);
 
     // Create application state with settings from registry
     let mut initial_state = AppState::new();
@@ -199,6 +216,16 @@ fn main() {
     initial_state.target_config.mode = target_mode;
     initial_state.target_config.value = target_value;
     println!("Loaded target config: mode={}, value={:?}", initial_state.target_config.mode, initial_state.target_config.value);
+    
+    // Important debug info for macOS
+    #[cfg(target_os = "macos")]
+    {
+        println!("\n=== macOS Debug Info ===");
+        println!("Target Mode: {}", initial_state.target_config.mode);
+        println!("Target Value: {:?}", initial_state.target_config.value);
+        println!("NOTE: If you change target settings, you may need to restart the app!");
+        println!("======================\n");
+    }
     
     // Load overlay config from registry
     let (fade_in_ms, fade_out_ms, chip_bg, chip_fg, chip_gap, chip_pad_v, chip_pad_h,
@@ -226,11 +253,83 @@ fn main() {
     // Create server controller
     let server_controller = Arc::new(Mutex::new(ServerController::new()));
 
-    // Start keyboard hook in background
-    let state_clone = app_state.clone();
-    std::thread::spawn(move || {
-        keyboard::start_keyboard_hook(state_clone);
-    });
+    // Start keyboard hook in background (with permission check on macOS)
+    #[cfg(target_os = "macos")]
+    {
+        let disable_hook_env = std::env::var("KV_DISABLE_HOOK").unwrap_or_default();
+        let disable_hook = disable_hook_env == "1" || disable_hook_env.eq_ignore_ascii_case("true");
+
+        if disable_hook {
+            eprintln!("KV_DISABLE_HOOK=1 set. Keyboard hook disabled on macOS.");
+        } else {
+            // Check Accessibility permission (this is the main one we can verify programmatically)
+            let accessibility_granted = unsafe { AXIsProcessTrusted() };
+            eprintln!("[macOS Permissions] Accessibility: {}", if accessibility_granted { "✓ Granted" } else { "✗ Missing" });
+            
+            if accessibility_granted {
+                eprintln!("Accessibility permission granted. Starting keyboard hook on macOS.");
+                eprintln!("NOTE: If window titles are empty, enable Screen Recording permission!");
+                eprintln!("System Settings > Privacy & Security > Screen Recording > KeyQueueViewer");
+                
+                let state_clone = app_state.clone();
+                std::thread::spawn(move || {
+                    keyboard::start_keyboard_hook(state_clone);
+                });
+            } else {
+                // Accessibility permission missing - show setup guide
+                eprintln!("Accessibility permission missing - showing permission setup guide...");
+                
+                // Step 1: Accessibility
+                let result = Command::new("osascript").args([
+                    "-e",
+                    r#"display dialog "Step 1/3: Accessibility Permission\n\nRequired for keyboard capture.\n\nClick 'Next' to open System Settings.\nEnable 'KeyQueueViewer' in Accessibility.\n\nIMPORTANT: After enabling, you MUST QUIT (Cmd+Q) and restart the app!" with title "Permission Setup" buttons {"Cancel", "Next"} default button "Next""#,
+                ]).output();
+                
+                if result.is_ok() && result.as_ref().unwrap().status.success() {
+                    let _ = open::that("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility");
+                    std::thread::sleep(std::time::Duration::from_millis(1500));
+                    
+                    // Step 2: Input Monitoring
+                    let result = Command::new("osascript").args([
+                        "-e",
+                        r#"display dialog "Step 2/3: Input Monitoring Permission\n\nRequired for key event detection.\n\nClick 'Next' to open System Settings.\nEnable 'KeyQueueViewer' in Input Monitoring.\n\nRemember to QUIT and restart after enabling!" with title "Permission Setup" buttons {"Cancel", "Next"} default button "Next""#,
+                    ]).output();
+                    
+                    if result.is_ok() && result.as_ref().unwrap().status.success() {
+                        let _ = open::that("x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent");
+                        std::thread::sleep(std::time::Duration::from_millis(1500));
+                        
+                        // Step 3: Screen Recording
+                        let result = Command::new("osascript").args([
+                            "-e",
+                            r#"display dialog "Step 3/3: Screen Recording Permission\n\nRequired to read window titles from other apps.\n\nWITHOUT this permission, you will NOT see window titles!\n\nClick 'Open Settings' to enable it." with title "Permission Setup" buttons {"Skip", "Open Settings"} default button "Open Settings""#,
+                        ]).output();
+                        
+                        if result.is_ok() && result.as_ref().unwrap().status.success() {
+                            let _ = open::that("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture");
+                            std::thread::sleep(std::time::Duration::from_millis(500));
+                        }
+                    }
+                }
+                
+                // Final dialog with clear instructions
+                let _ = Command::new("osascript").args([
+                    "-e",
+                    r#"display dialog "Setup Complete!\n\nNow you MUST:\n\n1. Make sure ALL THREE permissions are enabled:\n   ✓ Accessibility\n   ✓ Input Monitoring\n   ✓ Screen Recording\n\n2. QUIT this app (press Cmd+Q or use menu)\n\n3. Start the app again\n\nPermissions will NOT work until you restart!" with title "RESTART REQUIRED" buttons {"OK"} default button "OK" with icon caution"#,
+                ]).output();
+                
+                eprintln!("Permissions setup dialog shown. Waiting for user to enable permissions and restart...");
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let state_clone = app_state.clone();
+        std::thread::spawn(move || {
+            keyboard::start_keyboard_hook(state_clone);
+        });
+    }
 
     // Create app handle
     let app_handle = AppHandle {

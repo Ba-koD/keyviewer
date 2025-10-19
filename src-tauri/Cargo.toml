@@ -44,6 +44,7 @@ windows = { version = "0.58", features = [
 cocoa = "0.25"
 core-foundation = "0.10"
 core-graphics = "0.24"
+objc = "0.2"
 
 # Linux-specific dependencies
 [target.'cfg(target_os = "linux")'.dependencies]

@@ -144,7 +144,17 @@ jobs:
       run: cargo install tauri-cli --version "^2.0.0"
 
     - name: Build macOS
-      run: cargo tauri build
+      run: |
+        cargo tauri build
+        mkdir -p dist/macos
+        cp -f src-tauri/target/release/bundle/dmg/*.dmg dist/macos/ || true
+        # Copy .app bundle as zip to keep structure in a single file
+        if compgen -G "src-tauri/target/release/bundle/macos/*.app" > /dev/null; then
+          for app in src-tauri/target/release/bundle/macos/*.app; do
+            name=$(basename "$app")
+            zip -rq "dist/macos/${name%.app}.zip" "$app"
+          done
+        fi
 
     - name: Upload DMG artifact
       if: success()
@@ -161,6 +171,14 @@ jobs:
         name: macos-app-${{ needs.prepare.outputs.version }}
         path: |
           src-tauri/target/release/bundle/macos/*.app
+
+    - name: Upload dist macos bundle
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: macos-dist-${{ needs.prepare.outputs.version }}
+        path: |
+          dist/macos/*
 
   release:
     needs: [prepare, build-windows-portable, build-linux, build-macos]
@@ -322,7 +340,6 @@ jobs:
           - ✅ 파일 크기 5~10배 감소 (약 10MB 이하)
           - ✅ 더 빠른 성능과 낮은 메모리 사용량
           - ✅ 네이티브 시스템 통합
-          - ✅ OBS 브라우저 소스 캐싱 문제 해결 (no-cache 헤더 추가)
           - ✅ 설정 초기화 기능 추가
           - ✅ Windows 레지스트리 기반 설정 저장
           
