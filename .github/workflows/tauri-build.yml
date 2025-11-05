@@ -55,11 +55,19 @@ jobs:
       run: |
         .\build-portable.ps1
 
-    - name: Upload artifacts
+    - name: Upload EXE artifact (standalone)
       if: success()
       uses: actions/upload-artifact@v4
       with:
-        name: windows-portable-${{ needs.prepare.outputs.version }}
+        name: windows-portable-exe-${{ needs.prepare.outputs.version }}
+        path: |
+          dist/KBQV-Portable-*.exe
+    
+    - name: Upload ZIP artifact (with README)
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-portable-zip-${{ needs.prepare.outputs.version }}
         path: |
           dist/KBQV-Portable-*.zip
 
@@ -206,8 +214,8 @@ jobs:
         # Initialize checklist
         checklist=""
         
-        # Check Windows Portable
-        if [ -d "./artifacts/windows-portable-${{ needs.prepare.outputs.version }}" ] && [ "$(ls -A ./artifacts/windows-portable-${{ needs.prepare.outputs.version }})" ]; then
+        # Check Windows Portable EXE
+        if [ -d "./artifacts/windows-portable-exe-${{ needs.prepare.outputs.version }}" ] && [ "$(ls -A ./artifacts/windows-portable-exe-${{ needs.prepare.outputs.version }})" ]; then
           checklist="${checklist}- ✅ Windows Portable\n"
           echo "windows_portable=true" >> $GITHUB_OUTPUT
         else
@@ -301,8 +309,14 @@ jobs:
         mkdir -p ./release-files
         
         # Copy only successful builds
-        if [ -d "./artifacts/windows-portable-${{ needs.prepare.outputs.version }}" ]; then
-          cp -r ./artifacts/windows-portable-${{ needs.prepare.outputs.version }}/* ./release-files/ || true
+        # Windows Portable - EXE only (primary download)
+        if [ -d "./artifacts/windows-portable-exe-${{ needs.prepare.outputs.version }}" ]; then
+          cp -r ./artifacts/windows-portable-exe-${{ needs.prepare.outputs.version }}/* ./release-files/ || true
+        fi
+        
+        # Windows Portable - ZIP with README (optional)
+        if [ -d "./artifacts/windows-portable-zip-${{ needs.prepare.outputs.version }}" ]; then
+          cp -r ./artifacts/windows-portable-zip-${{ needs.prepare.outputs.version }}/* ./release-files/ || true
         fi
         
         if [ -d "./artifacts/linux-appimage-${{ needs.prepare.outputs.version }}" ]; then
@@ -330,74 +344,53 @@ jobs:
         tag_name: v${{ needs.prepare.outputs.version }}
         name: KeyQueueViewer v${{ needs.prepare.outputs.version }}
         body: |
-          ## KeyQueueViewer v${{ needs.prepare.outputs.version }}
+          ## English
           
-          ### 🎉 Tauri로 완전히 재작성되었습니다!
+          **Built with Rust + Tauri 2.0** - Lightweight (~10MB), fast, and secure keyboard overlay viewer for streaming.
           
-          **주요 개선사항:**
-          - ✅ Rust + Tauri 기반으로 재작성 (PyInstaller → Tauri)
-          - ✅ 바이러스 오탐 대폭 감소
-          - ✅ 파일 크기 5~10배 감소 (약 10MB 이하)
-          - ✅ 더 빠른 성능과 낮은 메모리 사용량
-          - ✅ 네이티브 시스템 통합
-          - ✅ 설정 초기화 기능 추가
-          - ✅ Windows 레지스트리 기반 설정 저장
+          ### Downloads
+          - **Windows**: `KBQV-Portable-*.exe` (Recommended - no extraction needed)
+          - **Linux**: `*.AppImage` or `*.deb`
+          - **macOS**: `*.dmg`
           
-          ### 📝 Latest Changes
-          **Commit Message**: ${{ github.event.head_commit.message }}
-          **Commit**: ${{ github.sha }}
-          **Branch**: ${{ github.ref_name }}
+          ### Windows Users
+          Administrator privileges are required for keyboard capture. Click "Yes" when UAC prompt appears.
           
-          ### 📦 Build Status
+          ### Quick Start
+          1. Download and run the executable
+          2. Click "Start Server"
+          3. Add Browser Source in OBS with the provided URL
+          4. Configure overlay settings as needed
           
+          ---
+          
+          ## 한국어
+          
+          **Rust + Tauri 2.0 기반** - 가볍고 (~10MB) 빠른 스트리밍용 키보드 오버레이 뷰어
+          
+          ### 다운로드
+          - **Windows**: `KBQV-Portable-*.exe` (권장 - 압축 해제 불필요)
+          - **Linux**: `*.AppImage` 또는 `*.deb`
+          - **macOS**: `*.dmg`
+          
+          ### Windows 사용자 필독
+          키보드 캡처를 위해 관리자 권한이 필요합니다. UAC 창에서 "예"를 클릭하세요.
+          
+          ### 빠른 시작
+          1. 실행 파일 다운로드 및 실행
+          2. "서버 시작" 클릭
+          3. OBS에서 브라우저 소스 추가 후 제공된 URL 입력
+          4. 필요시 오버레이 설정 조정
+          
+          ---
+          
+          ### Build Status
           ${{ steps.check_builds.outputs.checklist }}
           
-          ### 📥 Downloads
+          ### Latest Changes
+          ${{ github.event.head_commit.message }}
           
-          #### Windows
-          - **Portable**: `KBQV-Portable-*.zip` - No installation required, just extract and run
-          
-          #### Linux
-          - **AppImage**: `*.AppImage` - Universal Linux package
-          - **Debian Package**: `*.deb` - For Debian/Ubuntu based distributions
-          
-          #### macOS
-          - **DMG**: `*.dmg` - macOS disk image installer
-          - **App Bundle**: `*.app` - macOS application bundle
-          
-          ### 🚀 Installation
-          
-          **Windows Portable:**
-          1. Download `KBQV-Portable-*.zip`
-          2. Extract to any folder
-          3. Run `KBQV-Portable-*.exe`
-          
-          **Linux AppImage:**
-          1. Download `*.AppImage`
-          2. Make it executable: `chmod +x *.AppImage`
-          3. Run: `./KeyQueueViewer*.AppImage`
-          
-          **Linux Deb:**
-          1. Download `*.deb`
-          2. Install: `sudo dpkg -i *.deb`
-          
-          **macOS:**
-          1. Download `*.dmg`
-          2. Open DMG file
-          3. Drag app to Applications folder
-          
-          ### 📋 Notes
-          - Built with Tauri 2.0 for optimal performance
-          - No Python runtime required
-          - Significantly reduced false positive detection from antivirus software
-          - Cross-platform support (Windows, Linux, macOS)
-          - Only successfully built packages are included in this release
-          
-          ### 🔗 Links
-          - **Repository**: https://github.com/${{ github.repository }}
-          - **Issues**: https://github.com/${{ github.repository }}/issues
-          
-          ### 📝 Changelog
+          ### Changelog
           ${{ steps.changelog.outputs.full_changelog }}
         files: |
           ./release-files/*

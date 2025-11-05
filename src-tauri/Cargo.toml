@@ -4,7 +4,7 @@ version = "1.0.4"
 description = "Key Input Monitoring Tool with Web Interface"
 authors = ["KeyViewer Team"]
 license = "MIT"
-repository = "https://github.com/rudgh46/keyviewer"
+repository = "https://github.com/Ba-koD/keyviewer"
 edition = "2021"
 
 # Prevent console window on Windows in release builds

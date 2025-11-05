@@ -52,12 +52,12 @@ impl Default for OverlayConfig {
             chip_radius: 10,
             chip_font_px: 24,
             chip_font_weight: 700,
-            background: "rgba(0,0,0,0.0)".to_string(),
+            background: "rgba(0,0,0,0)".to_string(), // Transparent background by default
             cols: 8,
             rows: 1,
             single_line: false,
             single_line_scale: 90,
-            align: "center".to_string(),
+            align: "left".to_string(), // Left alignment by default
             direction: "ltr".to_string(),
         }
     }

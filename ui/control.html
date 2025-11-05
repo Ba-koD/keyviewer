@@ -28,9 +28,13 @@
 		.right{margin-left:auto}
 		/* Modal */
 		.modal-backdrop{position:fixed; inset:0; background:rgba(0,0,0,0.65); display:none; align-items:center; justify-content:center; z-index:999}
-		.modal{width:560px; max-width:calc(100% - 32px); background:#141821; border:1px solid #2a2f3a; border-radius:12px; padding:18px}
-		.modal h3{margin:4px 0 12px; font-size:22px}
-		.modal .actions{display:flex; gap:10px; justify-content:space-between; margin-top:14px}
+		.modal{width:560px; max-width:calc(100% - 32px); max-height:calc(100vh - 80px); background:#141821; border:1px solid #2a2f3a; border-radius:12px; padding:0; overflow:hidden; display:flex; flex-direction:column}
+		.modal-header{padding:18px 18px 12px; border-bottom:1px solid #2a2f3a}
+		.modal-header h3{margin:0; font-size:22px}
+		.modal-content{flex:1; overflow-y:auto; padding:18px; scrollbar-width:none; -ms-overflow-style:none}
+		.modal-content::-webkit-scrollbar{display:none}
+		.modal-footer{padding:14px 18px; border-top:1px solid #2a2f3a}
+		.modal .actions{display:flex; gap:10px; justify-content:space-between; margin:0}
 		.modal .actions .spacer{flex:1}
 		.modal .form-row{display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap}
 		.modal .form-row > label{width:140px}
@@ -149,46 +153,57 @@
 
 	<div class="modal-backdrop" id="modalAll">
 		<div class="modal">
-			<h3 id="warningTitle" data-text-ko="주의!" data-text-en="Warning!">주의!</h3>
-			<p style="font-size:18px; line-height:1.5" id="warningMessage" data-text-ko="해당 기능을 이용하면 비밀번호 입력에서 오버레이가 작동해 문제가 생길 수 있습니다!" data-text-en="Using this feature may cause overlay to work during password input, which could cause problems!">해당 기능을 이용하면 비밀번호 입력에서 오버레이가 작동해 문제가 생길 수 있습니다!</p>
-			<div class="actions">
-				<button id="saveAll" class="danger" disabled data-text-ko="활성화" data-text-en="Activate">활성화</button>
-				<span class="spacer"></span>
-				<button id="cancelAll" data-text-ko="취소" data-text-en="Cancel">취소</button>
+			<div class="modal-header">
+				<h3 id="warningTitle" data-text-ko="주의!" data-text-en="Warning!">주의!</h3>
+			</div>
+			<div class="modal-content">
+				<p style="font-size:18px; line-height:1.5" id="warningMessage" data-text-ko="해당 기능을 이용하면 비밀번호 입력에서 오버레이가 작동해 문제가 생길 수 있습니다!" data-text-en="Using this feature may cause overlay to work during password input, which could cause problems!">해당 기능을 이용하면 비밀번호 입력에서 오버레이가 작동해 문제가 생길 수 있습니다!</p>
+			</div>
+			<div class="modal-footer">
+				<div class="actions">
+					<button id="saveAll" class="danger" disabled data-text-ko="활성화" data-text-en="Activate">활성화</button>
+					<span class="spacer"></span>
+					<button id="cancelAll" data-text-ko="취소" data-text-en="Cancel">취소</button>
+				</div>
 			</div>
 		</div>
 	</div>
 
 	<div class="modal-backdrop" id="modalOverlay">
 		<div class="modal">
-			<h3 id="overlaySettingsTitle" data-text-ko="오버레이 설정" data-text-en="Overlay Settings">오버레이 설정</h3>
-			<div class="form-row"><label id="fadeInLabel" data-text-ko="Fade In(ms)" data-text-en="Fade In(ms)">Fade In(ms)</label><input id="ov_fade_in" class="field" type="number" min="0" step="10"/></div>
-			<div class="form-row"><label id="fadeOutLabel" data-text-ko="Fade Out(ms)" data-text-en="Fade Out(ms)">Fade Out(ms)</label><input id="ov_fade_out" class="field" type="number" min="0" step="10"/></div>
-			<div class="form-row"><label id="bgColorLabel" data-text-ko="배경색(전체)" data-text-en="Background Color (Overall)">배경색(전체)</label><div class="field color-field"><input id="ov_bg" type="text" placeholder="#000000"/><button id="ov_bg_pick" class="pick" title="색 선택" data-title-ko="색 선택" data-title-en="Color Picker"></button><input id="ov_bg_picker" type="color" class="picker-hidden"/></div></div>
-			<div class="form-row"><label id="transparentBgLabel" data-text-ko="투명 배경" data-text-en="Transparent Background">투명 배경</label><input id="ov_bg_trans" type="checkbox"/> <span class="help" id="transparentBgHelp" data-text-ko="체크하면 배경이 완전 투명" data-text-en="Check to make background completely transparent">체크하면 배경이 완전 투명</span></div>
-			<div class="form-row"><label id="chipBgLabel" data-text-ko="칩 배경색" data-text-en="Chip Background Color">칩 배경색</label><div class="field color-field"><input id="ov_chip_bg" type="text" placeholder="#000000"/><button id="ov_chip_bg_pick" class="pick" title="색 선택" data-title-ko="색 선택" data-title-en="Color Picker"></button><input id="ov_chip_bg_picker" type="color" class="picker-hidden"/></div></div>
-			<div class="form-row"><label id="textColorLabel" data-text-ko="텍스트 색" data-text-en="Text Color">텍스트 색</label><div class="field color-field"><input id="ov_chip_fg" type="text" placeholder="#ffffff"/><button id="ov_chip_fg_pick" class="pick" title="색 선택" data-title-ko="색 선택" data-title-en="Color Picker"></button><input id="ov_chip_fg_picker" type="color" class="picker-hidden"/></div></div>
-			<div class="form-row"><label id="chipGapLabel" data-text-ko="칩 간격(px)" data-text-en="Chip Gap(px)">칩 간격(px)</label><input id="ov_gap" class="field" type="number" min="0" step="1"/></div>
-			<div class="form-row"><label id="padVLabel" data-text-ko="세로 패딩(px)" data-text-en="Vertical Padding(px)">세로 패딩(px)</label><input id="ov_pad_v" class="field" type="number" min="0" step="1"/></div>
-			<div class="form-row"><label id="padHLabel" data-text-ko="가로 패딩(px)" data-text-en="Horizontal Padding(px)">가로 패딩(px)</label><input id="ov_pad_h" class="field" type="number" min="0" step="1"/></div>
-			<div class="form-row"><label id="radiusLabel" data-text-ko="모서리(px)" data-text-en="Corner Radius(px)">모서리(px)</label><input id="ov_radius" class="field" type="number" min="0" step="1"/></div>
-			<div class="form-row"><label id="fontSizeLabel" data-text-ko="폰트(px)" data-text-en="Font Size(px)">폰트(px)</label><input id="ov_font_px" class="field" type="number" min="8" step="1"/></div>
-			<div class="form-row"><label id="fontWeightLabel" data-text-ko="폰트 두께" data-text-en="Font Weight">폰트 두께</label><input id="ov_font_w" class="field" type="number" min="100" step="50"/></div>
-			<div class="form-row"><label id="colsLabel" data-text-ko="열(Cols)" data-text-en="Columns(Cols)">열(Cols)</label><input id="ov_cols" class="field" type="number" min="1" step="1"/></div>
-			<div class="form-row"><label id="rowsLabel" data-text-ko="행(Rows)" data-text-en="Rows">행(Rows)</label><input id="ov_rows" class="field" type="number" min="0" step="1"/></div>
-			<div class="help" id="rowsHelp" data-text-ko="행(Rows)에 0을 입력하면 제한 없이 여러 줄로 자동 감쌉니다." data-text-en="Enter 0 in Rows to automatically wrap to multiple lines without limit.">행(Rows)에 0을 입력하면 제한 없이 여러 줄로 자동 감쌉니다.</div>
-			<div class="form-row"><label id="alignLabel" data-text-ko="정렬" data-text-en="Alignment">정렬</label><select id="ov_align" class="field"><option value="left" data-text-ko="좌측" data-text-en="Left">좌측</option><option value="center" selected data-text-ko="중앙" data-text-en="Center">중앙</option><option value="right" data-text-ko="우측" data-text-en="Right">우측</option></select></div>
-			<div class="form-row"><label id="directionLabel" data-text-ko="쌓이는 방향" data-text-en="Stacking Direction">쌓이는 방향</label><select id="ov_direction" class="field"><option value="ltr" selected data-text-ko="왼→오 (LTR)" data-text-en="Left→Right (LTR)">왼→오 (LTR)</option><option value="rtl" data-text-ko="오→왼 (RTL)" data-text-en="Right→Left (RTL)">오→왼 (RTL)</option></select></div>
-
-			<div class="overlay-preview" id="ov_preview">
-				<div class="help" style="margin-bottom:8px" id="previewLabel" data-text-ko="미리보기" data-text-en="Preview">미리보기</div>
-				<div class="queue" id="ov_preview_queue"></div>
+			<div class="modal-header">
+				<h3 id="overlaySettingsTitle" data-text-ko="오버레이 설정" data-text-en="Overlay Settings">오버레이 설정</h3>
 			</div>
+			<div class="modal-content">
+				<div class="form-row"><label id="fadeInLabel" data-text-ko="Fade In(ms)" data-text-en="Fade In(ms)">Fade In(ms)</label><input id="ov_fade_in" class="field" type="number" min="0" step="10"/></div>
+				<div class="form-row"><label id="fadeOutLabel" data-text-ko="Fade Out(ms)" data-text-en="Fade Out(ms)">Fade Out(ms)</label><input id="ov_fade_out" class="field" type="number" min="0" step="10"/></div>
+				<div class="form-row"><label id="bgColorLabel" data-text-ko="배경색(전체)" data-text-en="Background Color (Overall)">배경색(전체)</label><div class="field color-field"><input id="ov_bg" type="text" placeholder="#000000"/><button id="ov_bg_pick" class="pick" title="색 선택" data-title-ko="색 선택" data-title-en="Color Picker"></button><input id="ov_bg_picker" type="color" class="picker-hidden"/></div></div>
+				<div class="form-row"><label id="transparentBgLabel" data-text-ko="투명 배경" data-text-en="Transparent Background">투명 배경</label><input id="ov_bg_trans" type="checkbox"/> <span class="help" id="transparentBgHelp" data-text-ko="체크하면 배경이 완전 투명" data-text-en="Check to make background completely transparent">체크하면 배경이 완전 투명</span></div>
+				<div class="form-row"><label id="chipBgLabel" data-text-ko="칩 배경색" data-text-en="Chip Background Color">칩 배경색</label><div class="field color-field"><input id="ov_chip_bg" type="text" placeholder="#000000"/><button id="ov_chip_bg_pick" class="pick" title="색 선택" data-title-ko="색 선택" data-title-en="Color Picker"></button><input id="ov_chip_bg_picker" type="color" class="picker-hidden"/></div></div>
+				<div class="form-row"><label id="textColorLabel" data-text-ko="텍스트 색" data-text-en="Text Color">텍스트 색</label><div class="field color-field"><input id="ov_chip_fg" type="text" placeholder="#ffffff"/><button id="ov_chip_fg_pick" class="pick" title="색 선택" data-title-ko="색 선택" data-title-en="Color Picker"></button><input id="ov_chip_fg_picker" type="color" class="picker-hidden"/></div></div>
+				<div class="form-row"><label id="chipGapLabel" data-text-ko="칩 간격(px)" data-text-en="Chip Gap(px)">칩 간격(px)</label><input id="ov_gap" class="field" type="number" min="0" step="1"/></div>
+				<div class="form-row"><label id="padVLabel" data-text-ko="세로 패딩(px)" data-text-en="Vertical Padding(px)">세로 패딩(px)</label><input id="ov_pad_v" class="field" type="number" min="0" step="1"/></div>
+				<div class="form-row"><label id="padHLabel" data-text-ko="가로 패딩(px)" data-text-en="Horizontal Padding(px)">가로 패딩(px)</label><input id="ov_pad_h" class="field" type="number" min="0" step="1"/></div>
+				<div class="form-row"><label id="radiusLabel" data-text-ko="모서리(px)" data-text-en="Corner Radius(px)">모서리(px)</label><input id="ov_radius" class="field" type="number" min="0" step="1"/></div>
+				<div class="form-row"><label id="fontSizeLabel" data-text-ko="폰트(px)" data-text-en="Font Size(px)">폰트(px)</label><input id="ov_font_px" class="field" type="number" min="8" step="1"/></div>
+				<div class="form-row"><label id="fontWeightLabel" data-text-ko="폰트 두께" data-text-en="Font Weight">폰트 두께</label><input id="ov_font_w" class="field" type="number" min="100" step="50"/></div>
+				<div class="form-row"><label id="colsLabel" data-text-ko="열(Cols)" data-text-en="Columns(Cols)">열(Cols)</label><input id="ov_cols" class="field" type="number" min="1" step="1"/></div>
+				<div class="form-row"><label id="rowsLabel" data-text-ko="행(Rows)" data-text-en="Rows">행(Rows)</label><input id="ov_rows" class="field" type="number" min="0" step="1"/></div>
+				<div class="help" id="rowsHelp" data-text-ko="행(Rows)에 0을 입력하면 제한 없이 여러 줄로 자동 감쌉니다." data-text-en="Enter 0 in Rows to automatically wrap to multiple lines without limit.">행(Rows)에 0을 입력하면 제한 없이 여러 줄로 자동 감쌉니다.</div>
+				<div class="form-row"><label id="alignLabel" data-text-ko="정렬" data-text-en="Alignment">정렬</label><select id="ov_align" class="field"><option value="left" selected data-text-ko="좌측" data-text-en="Left">좌측</option><option value="center" data-text-ko="중앙" data-text-en="Center">중앙</option><option value="right" data-text-ko="우측" data-text-en="Right">우측</option></select></div>
+				<div class="form-row"><label id="directionLabel" data-text-ko="쌓이는 방향" data-text-en="Stacking Direction">쌓이는 방향</label><select id="ov_direction" class="field"><option value="ltr" selected data-text-ko="왼→오 (LTR)" data-text-en="Left→Right (LTR)">왼→오 (LTR)</option><option value="rtl" data-text-ko="오→왼 (RTL)" data-text-en="Right→Left (RTL)">오→왼 (RTL)</option></select></div>
 
-			<div class="actions">
-				<button id="saveOverlay" class="primary" data-text-ko="저장" data-text-en="Save">저장</button>
-				<span class="spacer"></span>
-				<button id="closeOverlay" data-text-ko="닫기" data-text-en="Close">닫기</button>
+				<div class="overlay-preview" id="ov_preview">
+					<div class="help" style="margin-bottom:8px" id="previewLabel" data-text-ko="미리보기" data-text-en="Preview">미리보기</div>
+					<div class="queue" id="ov_preview_queue"></div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<div class="actions">
+					<button id="saveOverlay" class="primary" data-text-ko="저장" data-text-en="Save">저장</button>
+					<span class="spacer"></span>
+					<button id="closeOverlay" data-text-ko="닫기" data-text-en="Close">닫기</button>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -442,7 +457,7 @@
 			root.style.setProperty('--rows', String(rowsVal));
 			root.style.setProperty('--single-scale', '1');
 			const alignMap = { left: 'left', center: 'center', right: 'right' };
-			root.style.setProperty('--align', alignMap[ov_align.value] || 'center');
+			root.style.setProperty('--align', alignMap[ov_align.value] || 'left');
 			root.style.setProperty('--dir', (ov_direction.value === 'rtl') ? 'rtl' : 'ltr');
 
 			// Rebuild preview chips: always Q,W,E,R but obey capacity when rows>0
@@ -451,7 +466,7 @@
 			let count = labels.length;
 			if (rows > 0) { const cap = Math.max(1, cols * rows); count = Math.min(count, cap); }
 			ov_preview_queue.style.gridTemplateColumns = `repeat(${cols}, max-content)`;
-			ov_preview_queue.style.justifyContent = alignMap[ov_align.value] || 'center';
+			ov_preview_queue.style.justifyContent = alignMap[ov_align.value] || 'left';
 			ov_preview_queue.style.direction = (ov_direction.value === 'rtl') ? 'rtl' : 'ltr';
 			ov_preview_queue.innerHTML = '';
 			for (let i=0;i<count;i++){
@@ -474,7 +489,13 @@
 				const c = await res.json();
 				ov_fade_in.value = c.fade_in_ms ?? 120;
 				ov_fade_out.value = c.fade_out_ms ?? 120;
-				const isTrans = (typeof c.background === 'string') && (c.background.toLowerCase() === 'transparent' || c.background.includes('rgba') && c.background.endsWith(',0)') || c.background === '#00000000');
+				// Check if background is transparent (rgba(0,0,0,0), transparent, or #00000000)
+				const isTrans = (typeof c.background === 'string') && (
+					c.background.toLowerCase() === 'transparent' || 
+					c.background === 'rgba(0,0,0,0)' ||
+					c.background === 'rgba(0, 0, 0, 0)' ||
+					c.background === '#00000000'
+				);
 				ov_bg_trans.checked = !!isTrans;
 				ov_bg.disabled = !!isTrans; ov_bg_pickBtn.disabled = !!isTrans;
 				ov_bg.value = (!isTrans && c.background && c.background.startsWith('#')) ? c.background : '#000000';
@@ -488,7 +509,7 @@
 				ov_font_w.value = c.chip_font_weight ?? 700;
 				ov_cols.value = c.cols ?? 8;
 				ov_rows.value = c.rows ?? 1;
-				ov_align.value = (c.align || 'center');
+				ov_align.value = (c.align || 'left'); // Default to left
 				ov_direction.value = (c.direction || 'ltr');
 				setPickBtn(ov_bg_pickBtn, ov_bg.value);
 				setPickBtn(ov_chip_bg_pickBtn, ov_chip_bg.value);

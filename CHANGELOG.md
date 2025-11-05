@@ -91,5 +91,5 @@
 
 ---
 
-**전체 변경사항**: [GitHub Releases](https://github.com/YOUR_USERNAME/keyviewer/releases)
+**전체 변경사항**: [GitHub Releases](https://github.com/Ba-koD/keyviewer/releases)
 

@@ -9,7 +9,32 @@ body {
     background: white;
     padding: 15px;
     user-select: none;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
+    height: 100vh;
+}
+
+.container {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+/* Custom Scrollbar */
+body::-webkit-scrollbar {
+    width: 8px;
+}
+
+body::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+body::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+body::-webkit-scrollbar-thumb:hover {
+    background: #555;
 }
 
 h1 {
@@ -184,15 +209,15 @@ h1 {
 .info-box {
     background: #e7f3ff;
     border-left: 3px solid #007bff;
-    padding: 8px;
+    padding: 10px;
     border-radius: 3px;
     margin-top: 10px;
 }
 
 .info-box p {
     font-size: 12px;
-    line-height: 1.5;
-    margin-bottom: 3px;
+    line-height: 1.6;
+    margin-bottom: 4px;
     color: #333;
 }
 
@@ -204,8 +229,91 @@ h1 {
     color: #007bff;
     text-decoration: none;
     font-weight: bold;
+    word-break: break-all;
 }
 
 .url-link:hover {
     text-decoration: underline;
+}
+
+/* Responsive Design */
+@media (max-height: 650px) {
+    body {
+        padding: 10px;
+    }
+    
+    h1 {
+        font-size: 15px;
+        margin-bottom: 10px;
+        padding-bottom: 6px;
+    }
+    
+    .section {
+        margin-bottom: 8px;
+    }
+    
+    .section-title {
+        font-size: 12px;
+        margin-bottom: 6px;
+    }
+    
+    .form-row,
+    .button-group,
+    .checkbox-row {
+        margin-bottom: 6px;
+    }
+    
+    .info-box {
+        padding: 8px;
+        margin-top: 8px;
+    }
+    
+    .info-box p {
+        font-size: 11px;
+        line-height: 1.5;
+        margin-bottom: 3px;
+    }
+}
+
+@media (max-width: 480px) {
+    body {
+        padding: 10px;
+    }
+    
+    h1 {
+        font-size: 14px;
+    }
+    
+    .form-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .form-row label {
+        width: 100%;
+        margin-bottom: 4px;
+    }
+    
+    .form-row button {
+        margin-left: 0;
+        margin-top: 6px;
+    }
+    
+    .button-group {
+        flex-direction: column;
+    }
+    
+    .btn, .btn-secondary {
+        width: 100%;
+    }
+    
+    .info-box p {
+        font-size: 11px;
+    }
+}
+
+@media (min-width: 600px) {
+    .container {
+        padding: 0 10px;
+    }
 }

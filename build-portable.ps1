@@ -62,48 +62,85 @@ New-Item -ItemType Directory -Path $PORTABLE_DIR -Force | Out-Null
 Write-Host "3. Copying executable..." -ForegroundColor Yellow
 Copy-Item "src-tauri\target\release\keyviewer.exe" "$PORTABLE_DIR\KBQV-Portable-$VERSION.exe"
 
+# Add administrator manifest to executable
+Write-Host "4. Adding administrator manifest..." -ForegroundColor Yellow
+$mtPath = "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\mt.exe"
+$mtExe = Get-ChildItem -Path $mtPath -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+
+if ($mtExe) {
+    Write-Host "Found mt.exe at: $mtExe" -ForegroundColor Green
+    & $mtExe -manifest "src-tauri\app.manifest" -outputresource:"$PORTABLE_DIR\KBQV-Portable-$VERSION.exe;#1"
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Administrator manifest added successfully!" -ForegroundColor Green
+    } else {
+        Write-Host "Warning: Failed to add manifest (error code: $LASTEXITCODE)" -ForegroundColor Yellow
+        Write-Host "The app will still work, but won't automatically request admin privileges" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "Warning: mt.exe not found. Skipping manifest embedding." -ForegroundColor Yellow
+    Write-Host "The app will still work, but you'll need to run it as administrator manually." -ForegroundColor Yellow
+    Write-Host "To enable auto-admin prompt, install Windows SDK: https://developer.microsoft.com/windows/downloads/windows-sdk/" -ForegroundColor Cyan
+}
+
 # Create README for portable
+Write-Host "5. Creating README..." -ForegroundColor Yellow
 $README_CONTENT = @"
-# KeyViewer Portable v$VERSION
+KeyViewer Portable v$VERSION
+========================================
 
 This is the portable version of KeyViewer - a single executable with all UI files embedded.
 
-## How to Use
-
-1. Run KBQV-Portable-$VERSION.exe
+HOW TO USE
+----------
+1. Run KBQV-Portable-$VERSION.exe (Administrator privileges will be requested)
 2. The GUI launcher will open
 3. Configure port and language
 4. Click "Start Server"
 5. Use the web control panel or overlay
 
-## Features
+FEATURES
+--------
+- Single executable - no installation required
+- All UI files embedded - no external dependencies
+- Portable - run from any location
+- No registry changes (except user settings)
+- Minimal antivirus false positives (built with Rust/Tauri)
 
-- ✅ Single executable - no installation required
-- ✅ All UI files embedded - no external dependencies
-- ✅ Portable - run from any location
-- ✅ No registry changes
-- ✅ Minimal antivirus false positives (built with Rust/Tauri)
-
-## Requirements
-
+REQUIREMENTS
+------------
 - Windows 10/11 (64-bit)
+- Administrator privileges (required for keyboard hook to work properly)
 - No installation required
 - Can be run from USB drive or any folder
 
-## Technical Details
+IMPORTANT NOTES
+---------------
+ADMINISTRATOR PRIVILEGES REQUIRED:
+This program requests administrator privileges to properly capture keyboard 
+input across all applications. This is necessary for the global keyboard 
+hook functionality.
 
+When you run the program, Windows will show a UAC (User Account Control) 
+prompt asking for permission. Click "Yes" to allow the program to run.
+
+TECHNICAL DETAILS
+-----------------
 - Built with Tauri 2.0 and Rust
 - All assets embedded in executable
 - File size: ~8-10 MB
 - No Python or Node.js runtime required
 
-For more information, visit: https://github.com/rudgh46/keyviewer
+For more information, visit: https://github.com/Ba-koD/keyviewer
 "@
 
-$README_CONTENT | Out-File -FilePath "$PORTABLE_DIR\README.txt" -Encoding UTF8
+$README_CONTENT | Out-File -FilePath "$PORTABLE_DIR\README.txt" -Encoding ASCII
 
-# Create ZIP
-Write-Host "4. Creating ZIP archive..." -ForegroundColor Yellow
+# Copy EXE to dist root for easy download
+Write-Host "6. Copying EXE to dist root..." -ForegroundColor Yellow
+Copy-Item "$PORTABLE_DIR\KBQV-Portable-$VERSION.exe" "dist\KBQV-Portable-$VERSION.exe" -Force
+
+# Create ZIP (optional, includes README)
+Write-Host "7. Creating ZIP archive (with README)..." -ForegroundColor Yellow
 $ZIP_NAME = "KBQV-Portable-$VERSION.zip"
 if (Test-Path "dist\$ZIP_NAME") {
     Remove-Item "dist\$ZIP_NAME" -Force
@@ -115,7 +152,8 @@ Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "  Build Complete!" -ForegroundColor Green
 Write-Host "========================================`n" -ForegroundColor Cyan
 
-Write-Host "Portable package created:" -ForegroundColor Yellow
-Write-Host "  dist\$ZIP_NAME" -ForegroundColor White
+Write-Host "Portable files created:" -ForegroundColor Yellow
+Write-Host "  EXE only: dist\KBQV-Portable-$VERSION.exe" -ForegroundColor White
+Write-Host "  ZIP with README: dist\$ZIP_NAME" -ForegroundColor White
 Write-Host ""
 

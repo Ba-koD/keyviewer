@@ -13,12 +13,10 @@
 
 ## 📦 다운로드
 
-[**Releases**](https://github.com/YOUR_USERNAME/keyviewer/releases)에서 최신 버전 다운로드
+[**Releases**](https://github.com/Ba-koD/keyviewer/releases)에서 최신 버전 다운로드
 
 ### Windows
 - `KBQV-Portable-*.zip` - 설치 불필요 (권장)
-- `KeyQueueViewer_*_x64_en-US.msi` - MSI 설치 프로그램
-- `KeyQueueViewer_*_x64-setup.exe` - NSIS 설치 프로그램
 
 ### macOS
 - `KeyQueueViewer_*_x64.dmg` - Intel Mac
@@ -30,10 +28,14 @@
 
 ## 🚀 빠른 시작
 
-1. 앱 실행 → 포트 설정 → **서버 시작**
-2. 브라우저에서 `http://localhost:8000/control` 접속
-3. 타겟 창 설정 (모드 선택 후 창 클릭)
-4. OBS에서 Browser Source 추가: `http://localhost:8000/overlay`
+1. 앱 실행 (⚠️ **Windows: 관리자 권한 필요** - UAC 창이 뜨면 '예' 클릭)
+2. 포트 설정 → **서버 시작**
+3. 브라우저에서 `http://localhost:8000/control` 접속
+4. 타겟 창 설정 (모드 선택 후 창 클릭)
+5. OBS에서 Browser Source 추가: `http://localhost:8000/overlay`
+
+### ⚠️ 관리자 권한이 필요한 이유
+전역 키보드 후킹(모든 프로그램의 키 입력 감지)을 위해 관리자 권한이 필요합니다. 권한이 없으면 일부 프로그램에서 키 입력이 감지되지 않을 수 있습니다.
 
 ## 📚 문서
 
@@ -69,8 +71,8 @@ cargo tauri build
 
 ## 📞 문의 및 지원
 
-- **버그 리포트**: [Issues](https://github.com/YOUR_USERNAME/keyviewer/issues)
-- **기능 요청**: [Discussions](https://github.com/YOUR_USERNAME/keyviewer/discussions)
+- **버그 리포트**: [Issues](https://github.com/Ba-koD/keyviewer/issues)
+- **기능 요청**: [Discussions](https://github.com/Ba-koD/keyviewer/discussions)
 
 ## 📝 라이선스
 

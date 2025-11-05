@@ -8,7 +8,7 @@
 	<link rel="stylesheet" href="/static/overlay.css">
 	<style>
 		:root {
-			--bg: rgba(0,0,0,0.0);
+			--bg: rgba(0,0,0,0);
 			--chip-bg: rgba(0,0,0,0.6);
 			--chip-fg: #fff;
 			--chip-gap: 8px;
@@ -22,7 +22,7 @@
 			--cols: 8;
 			--rows: 1;
 			--single-scale: 1;
-			--align: center; /* start|center|end (grid physical) */
+			--align: start; /* start|center|end (grid physical) - default to left (start) */
 		}
 		html, body { margin: 0; background: var(--bg); }
 		#root { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
@@ -93,7 +93,7 @@
 			if (typeof cfg.cols === 'number') root.style.setProperty('--cols', String(cfg.cols));
 			if (typeof cfg.rows === 'number') root.style.setProperty('--rows', String(cfg.rows));
 			const alignMap = { left: 'start', center: 'center', right: 'end' };
-			root.style.setProperty('--align', alignMap[cfg.align] || 'center');
+			root.style.setProperty('--align', alignMap[cfg.align] || 'start');
 			// Debug: log computed alignment for troubleshooting in OBS Browser
 			try {
 				const computedRoot = getComputedStyle(root);
