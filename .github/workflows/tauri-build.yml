@@ -5,6 +5,12 @@ on:
     branches: [ master, main ]
   workflow_dispatch:
 
+# Optimize build speed with caching
+# - Rust toolchain and dependencies are cached
+# - Tauri CLI is cached to avoid reinstalling (saves ~3-5 minutes per build)
+# - Linux apt packages are cached
+# - All platform builds run in parallel
+
 jobs:
   # Read version for all jobs
   prepare:
@@ -38,10 +44,19 @@ jobs:
       uses: swatinem/rust-cache@v2
       with:
         workspaces: './src-tauri -> target'
+        cache-on-failure: true
+
+    - name: Cache Tauri CLI
+      id: cache-tauri
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/bin/cargo-tauri.exe
+        key: ${{ runner.os }}-tauri-cli-2.0
 
     - name: Install Tauri CLI
+      if: steps.cache-tauri.outputs.cache-hit != 'true'
       shell: pwsh
-      run: cargo install tauri-cli --version "^2.0.0"
+      run: cargo install tauri-cli --version "^2.0.0" --locked
 
     - name: Generate icon.png
       shell: pwsh
@@ -83,6 +98,13 @@ jobs:
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
 
+    - name: Cache apt packages
+      uses: actions/cache@v4
+      id: cache-apt
+      with:
+        path: /var/cache/apt/archives
+        key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/tauri-build.yml') }}
+
     - name: Install dependencies
       run: |
         sudo apt-get update
@@ -100,8 +122,17 @@ jobs:
       uses: swatinem/rust-cache@v2
       with:
         workspaces: './src-tauri -> target'
+        cache-on-failure: true
+
+    - name: Cache Tauri CLI
+      id: cache-tauri
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/bin/cargo-tauri
+        key: ${{ runner.os }}-tauri-cli-2.0
 
     - name: Install Tauri CLI
+      if: steps.cache-tauri.outputs.cache-hit != 'true'
       run: cargo install tauri-cli --version "^2.0.0" --locked
 
     - name: Ensure icon.png
@@ -147,9 +178,18 @@ jobs:
       uses: swatinem/rust-cache@v2
       with:
         workspaces: './src-tauri -> target'
+        cache-on-failure: true
+
+    - name: Cache Tauri CLI
+      id: cache-tauri
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/bin/cargo-tauri
+        key: ${{ runner.os }}-tauri-cli-2.0
 
     - name: Install Tauri CLI
-      run: cargo install tauri-cli --version "^2.0.0"
+      if: steps.cache-tauri.outputs.cache-hit != 'true'
+      run: cargo install tauri-cli --version "^2.0.0" --locked
 
     - name: Build macOS
       run: |
