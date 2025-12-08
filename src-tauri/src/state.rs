@@ -79,10 +79,12 @@ impl Default for AppConfig {
 }
 
 pub struct AppState {
-    // Pressed keys in order
-    pub pressed_keys: VecDeque<String>,
-    // Map of key code to label for tracking
+    // Map of key code to label for tracking (code -> label)
     pub key_labels: HashMap<u32, String>,
+    // Reference count for each label (multiple keys can have same label, e.g. ShiftLeft/ShiftRight both = "SHIFT")
+    pub label_counts: HashMap<String, u32>,
+    // Order of first press for each unique label (for display order)
+    pub label_order: VecDeque<String>,
     // Target window configuration
     pub target_config: TargetConfig,
     // Application configuration
@@ -100,11 +102,12 @@ pub struct AppState {
 impl AppState {
     pub fn new() -> Self {
         Self {
-            pressed_keys: VecDeque::new(),
             key_labels: HashMap::new(),
+            label_counts: HashMap::new(),
+            label_order: VecDeque::new(),
             target_config: TargetConfig::default(),
             app_config: AppConfig::default(),
-            language: "ko".to_string(), // 기본값을 한국어로
+            language: "ko".to_string(), // Default to Korean
             server_alive: false,
             event_tx: None,
             cache_buster: 0,
@@ -116,24 +119,60 @@ impl AppState {
     }
 
     pub fn add_key(&mut self, key_code: u32, label: String) {
-        if !self.key_labels.contains_key(&key_code) {
-            self.key_labels.insert(key_code, label.clone());
-            self.pressed_keys.push_back(label);
-            if let Some(tx) = &self.event_tx { let _ = tx.send(self.get_keys()); }
+        // Skip if this exact key code is already tracked
+        if self.key_labels.contains_key(&key_code) {
+            return;
+        }
+        
+        // Track this key code -> label mapping
+        self.key_labels.insert(key_code, label.clone());
+        
+        // Increment reference count for this label
+        let count = self.label_counts.entry(label.clone()).or_insert(0);
+        *count += 1;
+        
+        // Only add to display order if this is the first key with this label
+        if *count == 1 {
+            self.label_order.push_back(label);
+        }
+        
+        if let Some(tx) = &self.event_tx { 
+            let _ = tx.send(self.get_keys()); 
         }
     }
 
     pub fn remove_key(&mut self, key_code: u32) {
+        // Get and remove the label for this key code
         if let Some(label) = self.key_labels.remove(&key_code) {
-            self.pressed_keys.retain(|k| k != &label);
-            if let Some(tx) = &self.event_tx { let _ = tx.send(self.get_keys()); }
+            // Decrement reference count
+            if let Some(count) = self.label_counts.get_mut(&label) {
+                *count = count.saturating_sub(1);
+                
+                // Only remove from display when NO keys with this label are pressed
+                if *count == 0 {
+                    self.label_counts.remove(&label);
+                    self.label_order.retain(|l| l != &label);
+                }
+            }
+            
+            if let Some(tx) = &self.event_tx { 
+                let _ = tx.send(self.get_keys()); 
+            }
         }
     }
 
     pub fn clear_keys(&mut self) {
-        self.pressed_keys.clear();
         self.key_labels.clear();
-        if let Some(tx) = &self.event_tx { let _ = tx.send(self.get_keys()); }
+        self.label_counts.clear();
+        self.label_order.clear();
+        if let Some(tx) = &self.event_tx { 
+            let _ = tx.send(self.get_keys()); 
+        }
+    }
+
+    // Check if a key code is currently tracked
+    pub fn is_key_pressed(&self, key_code: u32) -> bool {
+        self.key_labels.contains_key(&key_code)
     }
 
     pub fn bump_cache_buster(&mut self) {
@@ -142,7 +181,7 @@ impl AppState {
     }
 
     pub fn get_keys(&self) -> Vec<String> {
-        self.pressed_keys.iter().cloned().collect()
+        self.label_order.iter().cloned().collect()
     }
 }
 
