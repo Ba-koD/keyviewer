@@ -17,7 +17,6 @@ extern "C" {
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use std::process::Command; // For macOS AppleScript prompt
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, State, Wry};
@@ -48,7 +47,101 @@ struct ServerStatus {
     running: bool,
 }
 
+// macOS permission status
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct MacOSPermissions {
+    accessibility: bool,
+    input_monitoring: bool,
+    screen_recording: bool,
+}
+
+// macOS Screen Recording permission check
+#[cfg(target_os = "macos")]
+#[link(name = "CoreGraphics", kind = "framework")]
+extern "C" {
+    fn CGPreflightScreenCaptureAccess() -> bool;
+}
+
 // Tauri Commands
+#[tauri::command]
+fn check_macos_permissions() -> MacOSPermissions {
+    #[cfg(target_os = "macos")]
+    {
+        let accessibility = unsafe { AXIsProcessTrusted() };
+        
+        // Check Input Monitoring by trying to create event tap
+        let input_monitoring = {
+            use core_graphics::event::{CGEventTap, CGEventTapLocation, CGEventTapPlacement, CGEventTapOptions, CGEventType};
+            CGEventTap::new(
+                CGEventTapLocation::Session,
+                CGEventTapPlacement::HeadInsertEventTap,
+                CGEventTapOptions::ListenOnly,
+                vec![CGEventType::KeyDown],
+                |_, _, _| None,
+            ).is_ok()
+        };
+        
+        // Check Screen Recording permission
+        let screen_recording = unsafe { CGPreflightScreenCaptureAccess() };
+        
+        MacOSPermissions { accessibility, input_monitoring, screen_recording }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        MacOSPermissions { accessibility: true, input_monitoring: true, screen_recording: true }
+    }
+}
+
+#[tauri::command]
+fn open_macos_permission_settings(permission_type: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        // Trigger API call to register app in System Settings
+        match permission_type.as_str() {
+            "accessibility" => {
+                // AXIsProcessTrusted triggers registration
+                unsafe { AXIsProcessTrusted(); }
+            },
+            "input_monitoring" => {
+                // CGEventTap triggers Input Monitoring registration
+                use core_graphics::event::{CGEventTap, CGEventTapLocation, CGEventTapPlacement, CGEventTapOptions, CGEventType};
+                let _ = CGEventTap::new(
+                    CGEventTapLocation::Session,
+                    CGEventTapPlacement::HeadInsertEventTap,
+                    CGEventTapOptions::ListenOnly,
+                    vec![CGEventType::KeyDown],
+                    |_, _, _| None,
+                );
+            },
+            "screen_recording" => {
+                // CGWindowListCopyWindowInfo triggers Screen Recording registration
+                use core_graphics::window::{kCGWindowListOptionOnScreenOnly, kCGNullWindowID};
+                unsafe {
+                    core_graphics::window::CGWindowListCopyWindowInfo(
+                        kCGWindowListOptionOnScreenOnly,
+                        kCGNullWindowID,
+                    );
+                }
+            },
+            _ => return Err("Unknown permission type".to_string()),
+        };
+        
+        // Open System Settings
+        let url = match permission_type.as_str() {
+            "accessibility" => "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+            "input_monitoring" => "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
+            "screen_recording" => "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+            _ => return Err("Unknown permission type".to_string()),
+        };
+        open::that(url).map_err(|e| e.to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = permission_type;
+        Ok(())
+    }
+}
+
 #[tauri::command]
 fn get_launcher_settings() -> LauncherSettings {
     LauncherSettings::load()
@@ -262,94 +355,34 @@ fn main() {
         if disable_hook {
             eprintln!("KV_DISABLE_HOOK=1 set. Keyboard hook disabled on macOS.");
         } else {
-            // Check Accessibility permission (this is the main one we can verify programmatically)
-            let accessibility_granted = unsafe { AXIsProcessTrusted() };
-            eprintln!("[macOS Permissions] Accessibility: {}", if accessibility_granted { "✓ Granted" } else { "✗ Missing" });
+            // Check all permissions
+            let accessibility = unsafe { AXIsProcessTrusted() };
+            let input_monitoring = {
+                use core_graphics::event::{CGEventTap, CGEventTapLocation, CGEventTapPlacement, CGEventTapOptions, CGEventType};
+                CGEventTap::new(
+                    CGEventTapLocation::Session,
+                    CGEventTapPlacement::HeadInsertEventTap,
+                    CGEventTapOptions::ListenOnly,
+                    vec![CGEventType::KeyDown],
+                    |_, _, _| None,
+                ).is_ok()
+            };
+            let screen_recording = unsafe { CGPreflightScreenCaptureAccess() };
             
-            if accessibility_granted {
-                eprintln!("Accessibility permission granted. Starting keyboard hook on macOS.");
-                eprintln!("NOTE: If window titles are empty, enable Screen Recording permission!");
-                eprintln!("System Settings > Privacy & Security > Screen Recording > KeyQueueViewer");
+            eprintln!("[macOS Permissions] Accessibility: {}", if accessibility { "✓" } else { "✗" });
+            eprintln!("[macOS Permissions] Input Monitoring: {}", if input_monitoring { "✓" } else { "✗" });
+            eprintln!("[macOS Permissions] Screen Recording: {}", if screen_recording { "✓" } else { "✗" });
+            
+            if accessibility && input_monitoring && screen_recording {
+                eprintln!("All permissions granted. Starting keyboard hook on macOS.");
                 
                 let state_clone = app_state.clone();
                 std::thread::spawn(move || {
                     keyboard::start_keyboard_hook(state_clone);
                 });
             } else {
-                // Accessibility permission missing - show unified permission setup dialog
-                eprintln!("Accessibility permission missing - showing permission setup guide...");
-                
-                // Show single dialog with buttons for each permission
-                loop {
-                    // Check current permission status
-                    let acc_status = if unsafe { AXIsProcessTrusted() } { "✓" } else { "✗" };
-                    
-                    let dialog_text = format!(
-                        r#"display dialog "🔐 KeyQueueViewer Permission Setup
-
-Required permissions:
-{} Accessibility (keyboard capture)
-✗ Input Monitoring (key events)  
-✗ Screen Recording (window titles)
-
-Click a button to open that setting.
-After enabling ALL permissions, click 'Done & Restart'.
-
-⚠️ App will restart after clicking 'Done & Restart'!" with title "Permission Setup" buttons {{"1. Accessibility", "2. Input Monitor", "3. Screen Record"}} default button "1. Accessibility""#,
-                        acc_status
-                    );
-                    
-                    let result = Command::new("osascript").args(["-e", &dialog_text]).output();
-                    
-                    if let Ok(output) = result {
-                        let stdout = String::from_utf8_lossy(&output.stdout);
-                        
-                        if stdout.contains("1. Accessibility") {
-                            let _ = open::that("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility");
-                        } else if stdout.contains("2. Input Monitor") {
-                            let _ = open::that("x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent");
-                        } else if stdout.contains("3. Screen Record") {
-                            let _ = open::that("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture");
-                        } else {
-                            // Dialog was cancelled
-                            break;
-                        }
-                        
-                        // Wait a bit then show "Done" dialog
-                        std::thread::sleep(std::time::Duration::from_millis(500));
-                        
-                        let done_result = Command::new("osascript").args([
-                            "-e",
-                            r#"display dialog "Did you enable the permission?
-
-Click 'More Settings' to configure another permission.
-Click 'Done & Restart' when ALL permissions are enabled." with title "Permission Setup" buttons {"More Settings", "Done & Restart"} default button "More Settings""#,
-                        ]).output();
-                        
-                        if let Ok(done_output) = done_result {
-                            let done_stdout = String::from_utf8_lossy(&done_output.stdout);
-                            if done_stdout.contains("Done & Restart") {
-                                // Show final message and exit
-                                let _ = Command::new("osascript").args([
-                                    "-e",
-                                    r#"display dialog "Restarting KeyQueueViewer...
-
-The app will now restart to apply permissions." with title "Restarting" buttons {"OK"} default button "OK" giving up after 2"#,
-                                ]).output();
-                                
-                                eprintln!("User requested restart after permission setup.");
-                                break;
-                            }
-                            // Otherwise continue the loop to show permission dialog again
-                        } else {
-                            break;
-                        }
-                    } else {
-                        break;
-                    }
-                }
-                
-                eprintln!("Permission setup dialog closed. Please restart the app if permissions were changed.");
+                // Permission missing - Web UI will redirect to permissions.html
+                eprintln!("Some permissions missing. Web UI will show permission setup page.");
             }
         }
     }
@@ -463,6 +496,8 @@ The app will now restart to apply permissions." with title "Restarting" buttons 
             minimize_to_tray,
             set_run_on_startup,
             reset_settings,
+            check_macos_permissions,
+            open_macos_permission_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
