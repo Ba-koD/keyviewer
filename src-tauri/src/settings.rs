@@ -368,10 +368,10 @@ pub fn load_overlay_config() -> (u32, u32, String, String, u32, u32, u32, u32, u
             let chip_radius = key.get_value("ChipRadius").unwrap_or(10);
             let chip_font_px = key.get_value("ChipFontPx").unwrap_or(24);
             let chip_font_weight = key.get_value("ChipFontWeight").unwrap_or(700);
-            let background = key.get_value("Background").unwrap_or_else(|_| "rgba(0,0,0,0.0)".to_string());
+            let background = key.get_value("Background").unwrap_or_else(|_| "rgba(0,0,0,0)".to_string());
             let cols = key.get_value("Cols").unwrap_or(8);
             let rows = key.get_value("Rows").unwrap_or(1);
-            let align = key.get_value("Align").unwrap_or_else(|_| "center".to_string());
+            let align = key.get_value("Align").unwrap_or_else(|_| "left".to_string());
             let direction = key.get_value("Direction").unwrap_or_else(|_| "ltr".to_string());
             
             (fade_in_ms, fade_out_ms, chip_bg, chip_fg, chip_gap, chip_pad_v, chip_pad_h, 
@@ -379,7 +379,7 @@ pub fn load_overlay_config() -> (u32, u32, String, String, u32, u32, u32, u32, u
         } else {
             // Return default values
             (120, 120, "rgba(0,0,0,0.6)".to_string(), "#ffffff".to_string(), 8, 10, 14, 
-             10, 24, 700, "rgba(0,0,0,0.0)".to_string(), 8, 1, "center".to_string(), "ltr".to_string())
+             10, 24, 700, "rgba(0,0,0,0)".to_string(), 8, 1, "left".to_string(), "ltr".to_string())
         }
     }
     
@@ -395,10 +395,10 @@ pub fn load_overlay_config() -> (u32, u32, String, String, u32, u32, u32, u32, u
         let chip_radius = macos_defaults::get_integer("com.keyviewer.overlay.ChipRadius", 10) as u32;
         let chip_font_px = macos_defaults::get_integer("com.keyviewer.overlay.ChipFontPx", 24) as u32;
         let chip_font_weight = macos_defaults::get_integer("com.keyviewer.overlay.ChipFontWeight", 700) as u32;
-        let background = macos_defaults::get_string("com.keyviewer.overlay.Background", "rgba(0,0,0,0.0)");
+        let background = macos_defaults::get_string("com.keyviewer.overlay.Background", "rgba(0,0,0,0)");
         let cols = macos_defaults::get_integer("com.keyviewer.overlay.Cols", 8) as u32;
         let rows = macos_defaults::get_integer("com.keyviewer.overlay.Rows", 1) as u32;
-        let align = macos_defaults::get_string("com.keyviewer.overlay.Align", "center");
+        let align = macos_defaults::get_string("com.keyviewer.overlay.Align", "left");
         let direction = macos_defaults::get_string("com.keyviewer.overlay.Direction", "ltr");
         
         (fade_in_ms, fade_out_ms, chip_bg, chip_fg, chip_gap, chip_pad_v, chip_pad_h, 
@@ -409,7 +409,7 @@ pub fn load_overlay_config() -> (u32, u32, String, String, u32, u32, u32, u32, u
     {
         // Linux and other platforms: return defaults
         (120, 120, "rgba(0,0,0,0.6)".to_string(), "#ffffff".to_string(), 8, 10, 14, 10, 24, 700, 
-         "rgba(0,0,0,0.0)".to_string(), 8, 1, "center".to_string(), "ltr".to_string())
+         "rgba(0,0,0,0)".to_string(), 8, 1, "left".to_string(), "ltr".to_string())
     }
 }
 
