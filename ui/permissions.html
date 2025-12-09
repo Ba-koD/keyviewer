@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KeyQueueViewer - Permission Setup</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 420px;
+            width: 100%;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .subtitle {
+            color: #888;
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+        
+        .permission-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.2s;
+        }
+        
+        .permission-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .permission-item.granted {
+            border-color: #4ade80;
+            background: rgba(74, 222, 128, 0.1);
+        }
+        
+        .permission-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .permission-icon {
+            font-size: 24px;
+        }
+        
+        .permission-name {
+            font-weight: 500;
+            font-size: 15px;
+        }
+        
+        .permission-desc {
+            font-size: 12px;
+            color: #888;
+            margin-top: 2px;
+        }
+        
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-icon {
+            font-size: 20px;
+        }
+        
+        .status-icon.pending { color: #fbbf24; }
+        .status-icon.granted { color: #4ade80; }
+        
+        .open-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        
+        .open-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .open-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .note {
+            margin-top: 20px;
+            padding: 12px;
+            background: rgba(251, 191, 36, 0.1);
+            border-radius: 8px;
+            font-size: 13px;
+            color: #fbbf24;
+            border: 1px solid rgba(251, 191, 36, 0.2);
+        }
+        
+        .note-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .continue-btn {
+            margin-top: 24px;
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #4ade80, #22c55e);
+            border: none;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        
+        .continue-btn.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        
+        .continue-btn.active:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(74, 222, 128, 0.3);
+        }
+        
+        .checking {
+            font-size: 12px;
+            color: #888;
+            text-align: center;
+            margin-top: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 <span data-i18n="title">Permission Setup</span></h1>
+        <p class="subtitle" data-i18n="subtitle">KeyQueueViewer needs these permissions to work</p>
+        
+        <div class="permission-item" id="perm-accessibility">
+            <div class="permission-info">
+                <span class="permission-icon">⌨️</span>
+                <div>
+                    <div class="permission-name" data-i18n="accessibility">Accessibility</div>
+                    <div class="permission-desc" data-i18n="accessibility_desc">Required for keyboard capture</div>
+                </div>
+            </div>
+            <div class="status">
+                <span class="status-icon pending" id="status-accessibility">⏳</span>
+                <button class="open-btn" data-i18n="open" onclick="openSettings('accessibility')">Open</button>
+            </div>
+        </div>
+        
+        <div class="permission-item" id="perm-input">
+            <div class="permission-info">
+                <span class="permission-icon">🎹</span>
+                <div>
+                    <div class="permission-name" data-i18n="input_monitoring">Input Monitoring</div>
+                    <div class="permission-desc" data-i18n="input_monitoring_desc">For key event detection</div>
+                </div>
+            </div>
+            <div class="status">
+                <span class="status-icon pending" id="status-input">❓</span>
+                <button class="open-btn" data-i18n="open" onclick="openSettings('input_monitoring')">Open</button>
+            </div>
+        </div>
+        
+        <div class="permission-item" id="perm-screen">
+            <div class="permission-info">
+                <span class="permission-icon">🖥️</span>
+                <div>
+                    <div class="permission-name" data-i18n="screen_recording">Screen Recording</div>
+                    <div class="permission-desc" data-i18n="screen_recording_desc">For window title display</div>
+                </div>
+            </div>
+            <div class="status">
+                <span class="status-icon pending" id="status-screen">❓</span>
+                <button class="open-btn" data-i18n="open" onclick="openSettings('screen_recording')">Open</button>
+            </div>
+        </div>
+        
+        <div class="note">
+            <div class="note-title">⚠️ <span data-i18n="note_title">Note</span></div>
+            <span data-i18n="note_text">All 3 permissions are required to use KeyQueueViewer.</span>
+        </div>
+        
+        <button class="continue-btn" id="continueBtn" onclick="continueTo()">
+            <span data-i18n="continue">Continue to KeyQueueViewer</span>
+        </button>
+        
+        <div class="checking" data-i18n="checking">Checking permissions every 2 seconds...</div>
+    </div>
+
+    <script>
+        const { invoke } = window.__TAURI__.core;
+        
+        // Translations
+        const translations = {
+            ko: {
+                title: '권한 설정',
+                subtitle: 'KeyQueueViewer를 사용하려면 다음 권한이 필요합니다',
+                accessibility: '손쉬운 사용',
+                accessibility_desc: '키보드 입력 캡처에 필요',
+                input_monitoring: '입력 모니터링',
+                input_monitoring_desc: '키 이벤트 감지에 필요',
+                screen_recording: '화면 기록',
+                screen_recording_desc: '창 제목 표시에 필요',
+                open: '열기',
+                note_title: '참고',
+                note_text: 'KeyQueueViewer를 사용하려면 3개 권한 모두 필요합니다.',
+                continue: 'KeyQueueViewer로 계속',
+                checking: '2초마다 권한 확인 중...'
+            },
+            en: {
+                title: 'Permission Setup',
+                subtitle: 'KeyQueueViewer needs these permissions to work',
+                accessibility: 'Accessibility',
+                accessibility_desc: 'Required for keyboard capture',
+                input_monitoring: 'Input Monitoring',
+                input_monitoring_desc: 'For key event detection',
+                screen_recording: 'Screen Recording',
+                screen_recording_desc: 'For window title display',
+                open: 'Open',
+                note_title: 'Note',
+                note_text: 'All 3 permissions are required to use KeyQueueViewer.',
+                continue: 'Continue to KeyQueueViewer',
+                checking: 'Checking permissions every 2 seconds...'
+            }
+        };
+        
+        // Detect language (Korean or English)
+        function getLanguage() {
+            const lang = navigator.language || navigator.userLanguage;
+            return lang.startsWith('ko') ? 'ko' : 'en';
+        }
+        
+        // Apply translations
+        function applyTranslations() {
+            const lang = getLanguage();
+            const t = translations[lang];
+            
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (t[key]) {
+                    el.textContent = t[key];
+                }
+            });
+            
+            // Update html lang attribute
+            document.documentElement.lang = lang;
+        }
+        
+        let allGranted = false;
+        
+        async function checkPermissions() {
+            try {
+                const perms = await invoke('check_macos_permissions');
+                console.log('Permissions:', perms);
+                
+                // Update accessibility status
+                updatePermissionUI('accessibility', 'perm-accessibility', perms.accessibility);
+                
+                // Update input monitoring status
+                updatePermissionUI('input', 'perm-input', perms.input_monitoring);
+                
+                // Update screen recording status
+                updatePermissionUI('screen', 'perm-screen', perms.screen_recording);
+                
+                // Check if all permissions granted
+                allGranted = perms.accessibility && perms.input_monitoring && perms.screen_recording;
+                
+                // Update continue button
+                const continueBtn = document.getElementById('continueBtn');
+                if (allGranted) {
+                    continueBtn.classList.add('active');
+                } else {
+                    continueBtn.classList.remove('active');
+                }
+            } catch (e) {
+                console.error('Failed to check permissions:', e);
+            }
+        }
+        
+        function updatePermissionUI(statusId, itemId, granted) {
+            const status = document.getElementById('status-' + statusId);
+            const item = document.getElementById(itemId);
+            
+            if (granted) {
+                status.textContent = '✓';
+                status.className = 'status-icon granted';
+                item.classList.add('granted');
+            } else {
+                status.textContent = '⏳';
+                status.className = 'status-icon pending';
+                item.classList.remove('granted');
+            }
+        }
+        
+        async function openSettings(type) {
+            try {
+                await invoke('open_macos_permission_settings', { permissionType: type });
+            } catch (e) {
+                console.error('Failed to open settings:', e);
+            }
+        }
+        
+        async function continueTo() {
+            if (allGranted) {
+                // Navigate to launcher
+                window.location.href = 'index.html';
+            }
+        }
+        
+        // Apply translations on load
+        applyTranslations();
+        
+        // Check permissions on load and every 2 seconds
+        checkPermissions();
+        setInterval(checkPermissions, 2000);
+    </script>
+</body>
+</html>

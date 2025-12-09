@@ -45,6 +45,8 @@
 			font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
 			min-width: 44px; text-align: center; user-select: none; transform: translateY(0);
 			transition: transform var(--fade-in) ease, opacity var(--fade-in) ease;
+			display: flex; align-items: center; justify-content: center;
+			background-size: cover; background-position: center; background-repeat: no-repeat;
 		}
 		.chip.hide { opacity: 0; transform: translateY(8px); transition: transform var(--fade-out) ease, opacity var(--fade-out) ease; }
 
@@ -80,6 +82,17 @@
 		const queueEl = document.getElementById('queue');
 		const wrapEl = document.querySelector('.queue-wrap');
 		let ws; let lastKeys = []; let overlayCfg = null;
+
+		// Key Image Settings (localStorage based)
+		const STORAGE_KEY_IMAGES = 'kv_key_images';
+		const STORAGE_KEY_HIDE = 'kv_hide_key_text';
+		
+		function getKeyImages() {
+			try { return JSON.parse(localStorage.getItem(STORAGE_KEY_IMAGES) || '{}'); } catch(e) { return {}; }
+		}
+		function getHideKeyText() {
+			try { return JSON.parse(localStorage.getItem(STORAGE_KEY_HIDE) || '{}'); } catch(e) { return {}; }
+		}
 
 		function applyOverlayConfig(cfg){
 			if (!cfg) return; overlayCfg = cfg; const root = document.documentElement;
@@ -117,7 +130,7 @@
 		function placeChips(keys){
 			// Avoid unnecessary DOM rebuild if same keys
 			try {
-				const current = Array.from(queueEl.children).map(c => c.textContent || '');
+				const current = Array.from(queueEl.children).map(c => c.dataset.key || '');
 				if (current.length === keys.length && current.every((v,i)=> v === keys[i])) return;
 			} catch(e){}
 			queueEl.innerHTML = '';
@@ -125,7 +138,34 @@
 			let toShow = keys;
 			if (rows > 0){ const capacity = Math.max(1, cols * rows); toShow = keys.slice(Math.max(0, keys.length - capacity)); }
 			if (overlayCfg?.direction === 'rtl') toShow = Array.from(toShow).reverse();
-			toShow.forEach(k => { const chip = document.createElement('div'); chip.className = 'chip'; chip.dataset.key = k; chip.textContent = k; queueEl.appendChild(chip); });
+			
+			// Get key image settings
+			const keyImages = getKeyImages();
+			const hideKeyText = getHideKeyText();
+			
+			toShow.forEach(k => {
+				const chip = document.createElement('div');
+				chip.className = 'chip';
+				chip.dataset.key = k;
+				
+				// Get image (specific key or default)
+				const img = keyImages[k] || keyImages['default'];
+				// Get hide text setting (specific key or default)
+				const hideText = hideKeyText[k] !== undefined ? hideKeyText[k] : hideKeyText['default'];
+				
+				// Set image as background if exists
+				if (img) {
+					chip.style.backgroundImage = `url(${img})`;
+				}
+				
+				// Always add text to maintain size, use transparent color if hidden
+				chip.textContent = k;
+				if (hideText) {
+					chip.style.color = 'transparent';
+				}
+				
+				queueEl.appendChild(chip);
+			});
 		}
 
 		// --- Inline config panel (color pickers + hex) ---
@@ -226,6 +266,14 @@
 			ws.onmessage = (ev) => { try { const data = JSON.parse(ev.data); if (data.type === 'config' && data.overlay){ applyOverlayConfig(data.overlay); return; } if (Array.isArray(data.keys)) { lastKeys = data.keys; placeChips(lastKeys); } } catch(e){} };
 			ws.onclose = () => { setTimeout(connect, 1000); };
 		}
+
+		// Listen for localStorage changes (from control.html)
+		window.addEventListener('storage', (e) => {
+			if (e.key === STORAGE_KEY_IMAGES || e.key === STORAGE_KEY_HIDE) {
+				// Re-render chips with new settings
+				placeChips(lastKeys);
+			}
+		});
 
 		initConfig().then(()=> setupConfigPanel()); connect();
 	})();

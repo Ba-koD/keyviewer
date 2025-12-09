@@ -11,8 +11,8 @@ echo "macOS Signed Build"
 echo "==================================="
 echo ""
 
-# Check certificate exists
-if ! security find-identity -v -p codesigning | grep -q "$SIGNING_IDENTITY"; then
+# Check certificate exists (without -v to include untrusted self-signed certs)
+if ! security find-identity -p codesigning | grep -q "$SIGNING_IDENTITY"; then
     echo "❌ Certificate '$SIGNING_IDENTITY' not found!"
     echo ""
     echo "Run first: ./scripts/macos-cert-setup.sh <password>"

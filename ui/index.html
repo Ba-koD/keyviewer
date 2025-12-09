@@ -118,7 +118,7 @@
             waitForTauri(initApp);
         }
         
-        function initApp() {
+        async function initApp() {
         console.log('Initializing app...');
         
         // Use direct invoke if __TAURI__ not available
@@ -126,6 +126,23 @@
             window.invoke = async (cmd, args = {}) => {
                 return window.__TAURI_INVOKE__(cmd, args);
             };
+        }
+        
+        // Check macOS permissions - redirect if not all granted
+        try {
+            const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+            if (isMac) {
+                const perms = await window.__TAURI__.core.invoke('check_macos_permissions');
+                console.log('macOS permissions:', perms);
+                const allGranted = perms.accessibility && perms.input_monitoring && perms.screen_recording;
+                if (!allGranted) {
+                    console.log('Not all permissions granted, redirecting to permissions page...');
+                    window.location.href = 'permissions.html';
+                    return;
+                }
+            }
+        } catch (e) {
+            console.log('Permission check failed (may not be macOS):', e);
         }
         
         let serverRunning = false;

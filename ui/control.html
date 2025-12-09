@@ -72,6 +72,15 @@
 			transition: transform var(--fade-in, 120ms) ease, opacity var(--fade-in, 120ms) ease;
 		}
 		.overlay-preview .chip.hide{opacity:0; transform: translateY(8px); transition: transform var(--fade-out, 120ms) ease, opacity var(--fade-out, 120ms) ease}
+
+		/* Image Crop Modal */
+		.crop-container{position:relative; width:100%; max-height:400px; overflow:hidden; background:#000; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:move}
+		.crop-canvas{max-width:100%; max-height:400px}
+		.crop-overlay{position:absolute; top:0; left:0; pointer-events:none}
+		.crop-info{margin-top:10px; font-size:12px; color:var(--muted)}
+		.crop-controls{display:flex; gap:10px; align-items:center; margin-top:12px; flex-wrap:wrap}
+		.crop-controls label{font-size:12px}
+		.crop-controls input[type="range"]{flex:1; min-width:100px}
 	</style>
 </head>
 <body>
@@ -169,6 +178,127 @@
 		</div>
 	</div>
 
+	<!-- Key Image Settings Modal -->
+	<div class="modal-backdrop" id="modalKeyImage">
+		<div class="modal" style="width:700px">
+			<div class="modal-header">
+				<h3 id="keyImageTitle" data-text-ko="키 이미지 설정" data-text-en="Key Image Settings">키 이미지 설정</h3>
+			</div>
+			<div class="modal-content">
+				<!-- Global Settings -->
+				<div style="margin-bottom:16px; padding:12px; background:var(--panel2); border-radius:8px">
+					<div style="font-weight:600; margin-bottom:10px" data-text-ko="🌐 전체 설정" data-text-en="🌐 Global Settings">🌐 전체 설정</div>
+					<div class="form-row">
+						<label data-text-ko="기본 이미지" data-text-en="Default Image">기본 이미지</label>
+						<div class="field" style="display:flex; gap:8px; align-items:center">
+							<input type="file" id="ki_default_img" accept="image/*" style="flex:1"/>
+							<button id="ki_default_clear" class="danger" style="padding:6px 10px; font-size:12px" data-text-ko="삭제" data-text-en="Remove">삭제</button>
+						</div>
+					</div>
+					<div class="form-row">
+						<label data-text-ko="기본 텍스트 숨김" data-text-en="Hide Text by Default">기본 텍스트 숨김</label>
+						<div class="field"><input type="checkbox" id="ki_default_hide"/> <span class="help" data-text-ko="체크하면 모든 키 텍스트 숨김" data-text-en="Check to hide all key text">체크하면 모든 키 텍스트 숨김</span></div>
+					</div>
+					<div id="ki_default_preview" style="margin-top:8px; display:none">
+						<span style="font-size:12px; opacity:0.7" data-text-ko="미리보기:" data-text-en="Preview:">미리보기:</span>
+						<img id="ki_default_preview_img" style="max-height:48px; max-width:100px; border-radius:6px; vertical-align:middle; margin-left:8px"/>
+					</div>
+				</div>
+
+				<!-- Per-Key Settings -->
+				<div style="font-weight:600; margin-bottom:10px" data-text-ko="🎹 개별 키 설정" data-text-en="🎹 Per-Key Settings">🎹 개별 키 설정</div>
+				<div class="form-row">
+					<label data-text-ko="키 선택" data-text-en="Select Key">키 선택</label>
+					<select id="ki_key_select" class="field" style="min-width:120px">
+						<option value="">-- 키 선택 --</option>
+					</select>
+					<button id="ki_add_custom" style="padding:6px 12px" data-text-ko="+ 직접 입력" data-text-en="+ Custom">+ 직접 입력</button>
+				</div>
+				
+				<div id="ki_key_config" style="display:none; margin-top:12px; padding:12px; background:var(--panel2); border-radius:8px">
+					<div style="font-weight:600; margin-bottom:10px"><span data-text-ko="키:" data-text-en="Key:">키:</span> <span id="ki_selected_key" class="badge"></span></div>
+					<div class="form-row">
+						<label data-text-ko="이미지" data-text-en="Image">이미지</label>
+						<div class="field" style="display:flex; gap:8px; align-items:center">
+							<input type="file" id="ki_key_img" accept="image/*" style="flex:1"/>
+							<button id="ki_key_clear" class="danger" style="padding:6px 10px; font-size:12px" data-text-ko="삭제" data-text-en="Remove">삭제</button>
+						</div>
+					</div>
+					<div class="form-row">
+						<label data-text-ko="텍스트 숨김" data-text-en="Hide Text">텍스트 숨김</label>
+						<div class="field"><input type="checkbox" id="ki_key_hide"/> <span class="help" data-text-ko="이 키만 텍스트 숨김" data-text-en="Hide text for this key only">이 키만 텍스트 숨김</span></div>
+					</div>
+					<div id="ki_key_preview" style="margin-top:8px; display:none">
+						<span style="font-size:12px; opacity:0.7" data-text-ko="미리보기:" data-text-en="Preview:">미리보기:</span>
+						<img id="ki_key_preview_img" style="max-height:48px; max-width:100px; border-radius:6px; vertical-align:middle; margin-left:8px"/>
+					</div>
+					<button id="ki_key_save" class="primary" style="margin-top:10px" data-text-ko="이 키 저장" data-text-en="Save This Key">이 키 저장</button>
+				</div>
+
+				<!-- Configured Keys List -->
+				<div style="margin-top:16px">
+					<div style="font-weight:600; margin-bottom:10px" data-text-ko="📋 설정된 키 목록" data-text-en="📋 Configured Keys">📋 설정된 키 목록</div>
+					<div id="ki_configured_list" style="max-height:200px; overflow-y:auto; background:var(--panel2); border-radius:8px; padding:8px">
+						<div class="help" style="text-align:center; padding:20px" data-text-ko="설정된 키가 없습니다" data-text-en="No keys configured">설정된 키가 없습니다</div>
+					</div>
+				</div>
+
+				<!-- Preview -->
+				<div class="overlay-preview" style="margin-top:16px">
+					<div class="help" style="margin-bottom:8px" data-text-ko="실시간 미리보기" data-text-en="Live Preview">실시간 미리보기</div>
+					<div class="queue" id="ki_preview_queue" style="display:grid; grid-template-columns:repeat(4, max-content); gap:8px"></div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<div class="actions">
+					<button id="ki_clear_all" class="danger" data-text-ko="전체 초기화" data-text-en="Clear All">전체 초기화</button>
+					<span class="spacer"></span>
+					<button id="closeKeyImage" data-text-ko="닫기" data-text-en="Close">닫기</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Image Crop Modal -->
+	<div class="modal-backdrop" id="modalCrop" style="z-index:1001">
+		<div class="modal" style="width:600px">
+			<div class="modal-header">
+				<h3 data-text-ko="이미지 자르기" data-text-en="Crop Image">이미지 자르기</h3>
+			</div>
+			<div class="modal-content">
+				<div class="crop-container" id="cropContainer">
+					<canvas id="cropCanvas" class="crop-canvas"></canvas>
+					<canvas id="cropOverlay" class="crop-overlay"></canvas>
+				</div>
+				<div class="crop-info" id="cropInfo" data-text-ko="드래그하여 위치 조정, 휠로 확대/축소" data-text-en="Drag to position, scroll to zoom">드래그하여 위치 조정, 휠로 확대/축소</div>
+				<div class="crop-controls">
+					<label data-text-ko="확대/축소:" data-text-en="Zoom:">확대/축소:</label>
+					<input type="range" id="cropZoom" min="0.5" max="3" step="0.1" value="1"/>
+					<span id="cropZoomValue">100%</span>
+				</div>
+				<div class="crop-controls">
+					<span style="font-size:12px; opacity:0.7" data-text-ko="칩 크기 (오버레이 설정 기준):" data-text-en="Chip size (from overlay settings):">칩 크기 (오버레이 설정 기준):</span>
+					<span id="cropChipSize" class="badge">-- x -- px</span>
+				</div>
+				<div style="margin-top:12px; padding:10px; background:var(--panel2); border-radius:8px">
+					<div style="font-size:12px; opacity:0.7; margin-bottom:8px" data-text-ko="💡 참고: 긴 키(SPACE, ENTER 등)도 같은 이미지가 적용됩니다" data-text-en="💡 Note: Longer keys (SPACE, ENTER, etc.) will use the same image">💡 참고: 긴 키(SPACE, ENTER 등)도 같은 이미지가 적용됩니다</div>
+					<div style="display:flex; gap:8px; flex-wrap:wrap">
+						<div class="badge" style="padding:6px 12px">Q</div>
+						<div class="badge" style="padding:6px 24px">SPACE</div>
+						<div class="badge" style="padding:6px 18px">ENTER</div>
+					</div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<div class="actions">
+					<button id="cropApply" class="primary" data-text-ko="적용" data-text-en="Apply">적용</button>
+					<span class="spacer"></span>
+					<button id="cropCancel" data-text-ko="취소" data-text-en="Cancel">취소</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
 	<div class="modal-backdrop" id="modalOverlay">
 		<div class="modal">
 			<div class="modal-header">
@@ -192,6 +322,13 @@
 				<div class="help" id="rowsHelp" data-text-ko="행(Rows)에 0을 입력하면 제한 없이 여러 줄로 자동 감쌉니다." data-text-en="Enter 0 in Rows to automatically wrap to multiple lines without limit.">행(Rows)에 0을 입력하면 제한 없이 여러 줄로 자동 감쌉니다.</div>
 				<div class="form-row"><label id="alignLabel" data-text-ko="정렬" data-text-en="Alignment">정렬</label><select id="ov_align" class="field"><option value="left" selected data-text-ko="좌측" data-text-en="Left">좌측</option><option value="center" data-text-ko="중앙" data-text-en="Center">중앙</option><option value="right" data-text-ko="우측" data-text-en="Right">우측</option></select></div>
 				<div class="form-row"><label id="directionLabel" data-text-ko="쌓이는 방향" data-text-en="Stacking Direction">쌓이는 방향</label><select id="ov_direction" class="field"><option value="ltr" selected data-text-ko="왼→오 (LTR)" data-text-en="Left→Right (LTR)">왼→오 (LTR)</option><option value="rtl" data-text-ko="오→왼 (RTL)" data-text-en="Right→Left (RTL)">오→왼 (RTL)</option></select></div>
+
+				<div style="margin-top:12px; padding:12px; background:var(--panel2); border-radius:8px">
+					<div class="form-row" style="margin-bottom:0">
+						<label data-text-ko="🖼️ 키 이미지" data-text-en="🖼️ Key Images">🖼️ 키 이미지</label>
+						<button id="ov_open_key_image" class="field" style="flex:none; padding:8px 16px" data-text-ko="키 이미지 설정 열기" data-text-en="Open Key Image Settings">키 이미지 설정 열기</button>
+					</div>
+				</div>
 
 				<div class="overlay-preview" id="ov_preview">
 					<div class="help" style="margin-bottom:8px" id="previewLabel" data-text-ko="미리보기" data-text-en="Preview">미리보기</div>
@@ -231,6 +368,551 @@
 			hwnd: document.getElementById('arrow_hwnd'),
 			class: document.getElementById('arrow_class')
 		};
+
+		// =============================================
+		// Key Image Settings (localStorage based)
+		// =============================================
+		const STORAGE_KEY_IMAGES = 'kv_key_images';
+		const STORAGE_KEY_HIDE = 'kv_hide_key_text';
+
+		// Common key labels for dropdown
+		const COMMON_KEYS = [
+			'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
+			'0','1','2','3','4','5','6','7','8','9',
+			'F1','F2','F3','F4','F5','F6','F7','F8','F9','F10','F11','F12',
+			'ESC','TAB','CAPS','LSHIFT','RSHIFT','LCTRL','RCTRL','LALT','RALT',
+			'LCMD','RCMD','LOPT','ROPT','LWIN','RWIN','LSUPER','RSUPER',
+			'SPACE','ENTER','BACKSPACE','DELETE','INSERT','HOME','END','PAGEUP','PAGEDOWN',
+			'UP','DOWN','LEFT','RIGHT','FN',
+			'NUM0','NUM1','NUM2','NUM3','NUM4','NUM5','NUM6','NUM7','NUM8','NUM9',
+			'NUMLOCK','NUMENTER','NUMADD','NUMSUB','NUMMUL','NUMDIV','NUMDOT',
+			'-','=','[',']','\\',';','\'',',','.','/','`'
+		];
+
+		function getKeyImages() {
+			try { return JSON.parse(localStorage.getItem(STORAGE_KEY_IMAGES) || '{}'); } catch(e) { return {}; }
+		}
+		function setKeyImages(data) {
+			localStorage.setItem(STORAGE_KEY_IMAGES, JSON.stringify(data));
+		}
+		function getHideKeyText() {
+			try { return JSON.parse(localStorage.getItem(STORAGE_KEY_HIDE) || '{}'); } catch(e) { return {}; }
+		}
+		function setHideKeyText(data) {
+			localStorage.setItem(STORAGE_KEY_HIDE, JSON.stringify(data));
+		}
+
+		function fileToBase64(file) {
+			return new Promise((resolve, reject) => {
+				const reader = new FileReader();
+				reader.onload = () => resolve(reader.result);
+				reader.onerror = reject;
+				reader.readAsDataURL(file);
+			});
+		}
+
+		// =============================================
+		// Image Crop Functionality
+		// =============================================
+		const modalCrop = document.getElementById('modalCrop');
+		const cropCanvas = document.getElementById('cropCanvas');
+		const cropOverlay = document.getElementById('cropOverlay');
+		const cropContainer = document.getElementById('cropContainer');
+		const cropZoom = document.getElementById('cropZoom');
+		const cropZoomValue = document.getElementById('cropZoomValue');
+		const cropChipSizeEl = document.getElementById('cropChipSize');
+		const cropApply = document.getElementById('cropApply');
+		const cropCancel = document.getElementById('cropCancel');
+
+		let cropImage = null;
+		let cropState = { x: 0, y: 0, zoom: 1, dragging: false, startX: 0, startY: 0 };
+		let cropCallback = null;
+		let cropTargetKey = null;
+		let cropChipW = 80;
+		let cropChipH = 50;
+
+		async function loadChipSizeFromOverlay() {
+			try {
+				const res = await fetch('/api/overlay-config');
+				const cfg = await res.json();
+				// Calculate chip size from overlay settings
+				const fontPx = cfg.chip_font_px || 24;
+				const padV = cfg.chip_pad_v || 10;
+				const padH = cfg.chip_pad_h || 14;
+				cropChipH = fontPx + (padV * 2);
+				// Add extra width (1.5x) to accommodate longer keys like SPACE
+				cropChipW = Math.max(60, Math.round((fontPx * 2 + (padH * 2)) * 1.5));
+				cropChipSizeEl.textContent = `${cropChipW} x ${cropChipH} px`;
+			} catch (e) {
+				cropChipW = 100;
+				cropChipH = 50;
+				cropChipSizeEl.textContent = `${cropChipW} x ${cropChipH} px`;
+			}
+		}
+
+		async function openCropModal(imageSrc, targetKey, callback) {
+			cropCallback = callback;
+			cropTargetKey = targetKey;
+			cropState = { x: 0, y: 0, zoom: 1, dragging: false, startX: 0, startY: 0 };
+			cropZoom.value = 1;
+			cropZoomValue.textContent = '100%';
+			
+			// Load chip size from overlay settings
+			await loadChipSizeFromOverlay();
+			
+			cropImage = new Image();
+			cropImage.onload = () => {
+				modalCrop.style.display = 'flex';
+				requestAnimationFrame(renderCrop);
+			};
+			cropImage.src = imageSrc;
+		}
+
+		function closeCropModal() {
+			modalCrop.style.display = 'none';
+			cropImage = null;
+			cropCallback = null;
+		}
+
+		function renderCrop() {
+			if (!cropImage) return;
+			
+			const chipW = cropChipW;
+			const chipH = cropChipH;
+			const containerW = cropContainer.clientWidth;
+			const containerH = 400;
+			
+			// Set canvas size
+			cropCanvas.width = containerW;
+			cropCanvas.height = containerH;
+			cropOverlay.width = containerW;
+			cropOverlay.height = containerH;
+			cropOverlay.style.width = containerW + 'px';
+			cropOverlay.style.height = containerH + 'px';
+			
+			const ctx = cropCanvas.getContext('2d');
+			const ovCtx = cropOverlay.getContext('2d');
+			
+			// Clear
+			ctx.fillStyle = '#000';
+			ctx.fillRect(0, 0, containerW, containerH);
+			
+			// Draw image with zoom and offset
+			const imgW = cropImage.width * cropState.zoom;
+			const imgH = cropImage.height * cropState.zoom;
+			const imgX = (containerW - imgW) / 2 + cropState.x;
+			const imgY = (containerH - imgH) / 2 + cropState.y;
+			ctx.drawImage(cropImage, imgX, imgY, imgW, imgH);
+			
+			// Draw overlay (dark outside chip area)
+			ovCtx.clearRect(0, 0, containerW, containerH);
+			ovCtx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+			ovCtx.fillRect(0, 0, containerW, containerH);
+			
+			// Clear chip area (transparent hole)
+			const chipX = (containerW - chipW) / 2;
+			const chipY = (containerH - chipH) / 2;
+			ovCtx.clearRect(chipX, chipY, chipW, chipH);
+			
+			// Draw chip border
+			ovCtx.strokeStyle = '#4f8cff';
+			ovCtx.lineWidth = 2;
+			ovCtx.strokeRect(chipX, chipY, chipW, chipH);
+			
+			// Draw chip corners
+			const cornerSize = 10;
+			ovCtx.strokeStyle = '#fff';
+			ovCtx.lineWidth = 3;
+			// Top-left
+			ovCtx.beginPath(); ovCtx.moveTo(chipX, chipY + cornerSize); ovCtx.lineTo(chipX, chipY); ovCtx.lineTo(chipX + cornerSize, chipY); ovCtx.stroke();
+			// Top-right
+			ovCtx.beginPath(); ovCtx.moveTo(chipX + chipW - cornerSize, chipY); ovCtx.lineTo(chipX + chipW, chipY); ovCtx.lineTo(chipX + chipW, chipY + cornerSize); ovCtx.stroke();
+			// Bottom-left
+			ovCtx.beginPath(); ovCtx.moveTo(chipX, chipY + chipH - cornerSize); ovCtx.lineTo(chipX, chipY + chipH); ovCtx.lineTo(chipX + cornerSize, chipY + chipH); ovCtx.stroke();
+			// Bottom-right
+			ovCtx.beginPath(); ovCtx.moveTo(chipX + chipW - cornerSize, chipY + chipH); ovCtx.lineTo(chipX + chipW, chipY + chipH); ovCtx.lineTo(chipX + chipW, chipY + chipH - cornerSize); ovCtx.stroke();
+		}
+
+		function getCroppedImage() {
+			if (!cropImage) return null;
+			
+			const chipW = cropChipW;
+			const chipH = cropChipH;
+			const containerW = cropCanvas.width;
+			const containerH = cropCanvas.height;
+			
+			// Calculate crop area in image coordinates
+			const imgW = cropImage.width * cropState.zoom;
+			const imgH = cropImage.height * cropState.zoom;
+			const imgX = (containerW - imgW) / 2 + cropState.x;
+			const imgY = (containerH - imgH) / 2 + cropState.y;
+			
+			const chipX = (containerW - chipW) / 2;
+			const chipY = (containerH - chipH) / 2;
+			
+			// Convert chip coordinates to source image coordinates
+			const srcX = (chipX - imgX) / cropState.zoom;
+			const srcY = (chipY - imgY) / cropState.zoom;
+			const srcW = chipW / cropState.zoom;
+			const srcH = chipH / cropState.zoom;
+			
+			// Create output canvas
+			const outCanvas = document.createElement('canvas');
+			outCanvas.width = chipW;
+			outCanvas.height = chipH;
+			const outCtx = outCanvas.getContext('2d');
+			
+			outCtx.drawImage(cropImage, srcX, srcY, srcW, srcH, 0, 0, chipW, chipH);
+			
+			// Convert to WebP with compression
+			return outCanvas.toDataURL('image/webp', 0.85);
+		}
+
+		// Crop event handlers
+		cropZoom.addEventListener('input', () => {
+			cropState.zoom = parseFloat(cropZoom.value);
+			cropZoomValue.textContent = Math.round(cropState.zoom * 100) + '%';
+			renderCrop();
+		});
+
+		cropContainer.addEventListener('mousedown', (e) => {
+			cropState.dragging = true;
+			cropState.startX = e.clientX - cropState.x;
+			cropState.startY = e.clientY - cropState.y;
+			e.preventDefault();
+		});
+
+		cropContainer.addEventListener('mousemove', (e) => {
+			if (!cropState.dragging) return;
+			cropState.x = e.clientX - cropState.startX;
+			cropState.y = e.clientY - cropState.startY;
+			renderCrop();
+		});
+
+		cropContainer.addEventListener('mouseup', () => {
+			cropState.dragging = false;
+		});
+
+		cropContainer.addEventListener('mouseleave', () => {
+			cropState.dragging = false;
+		});
+
+		cropContainer.addEventListener('wheel', (e) => {
+			e.preventDefault();
+			const delta = e.deltaY > 0 ? -0.1 : 0.1;
+			cropState.zoom = Math.max(0.5, Math.min(3, cropState.zoom + delta));
+			cropZoom.value = cropState.zoom;
+			cropZoomValue.textContent = Math.round(cropState.zoom * 100) + '%';
+			renderCrop();
+		}, { passive: false });
+
+		cropApply.addEventListener('click', () => {
+			const croppedData = getCroppedImage();
+			if (croppedData && cropCallback) {
+				cropCallback(croppedData, cropTargetKey);
+			}
+			closeCropModal();
+		});
+
+		cropCancel.addEventListener('click', closeCropModal);
+		// =============================================
+		// End Image Crop
+		// =============================================
+
+		// Key Image Modal Elements
+		const modalKeyImage = document.getElementById('modalKeyImage');
+		const closeKeyImage = document.getElementById('closeKeyImage');
+		const kiDefaultImg = document.getElementById('ki_default_img');
+		const kiDefaultClear = document.getElementById('ki_default_clear');
+		const kiDefaultHide = document.getElementById('ki_default_hide');
+		const kiDefaultPreview = document.getElementById('ki_default_preview');
+		const kiDefaultPreviewImg = document.getElementById('ki_default_preview_img');
+		const kiKeySelect = document.getElementById('ki_key_select');
+		const kiAddCustom = document.getElementById('ki_add_custom');
+		const kiKeyConfig = document.getElementById('ki_key_config');
+		const kiSelectedKey = document.getElementById('ki_selected_key');
+		const kiKeyImg = document.getElementById('ki_key_img');
+		const kiKeyClear = document.getElementById('ki_key_clear');
+		const kiKeyHide = document.getElementById('ki_key_hide');
+		const kiKeyPreview = document.getElementById('ki_key_preview');
+		const kiKeyPreviewImg = document.getElementById('ki_key_preview_img');
+		const kiKeySave = document.getElementById('ki_key_save');
+		const kiConfiguredList = document.getElementById('ki_configured_list');
+		const kiClearAll = document.getElementById('ki_clear_all');
+		const kiPreviewQueue = document.getElementById('ki_preview_queue');
+
+		let currentEditKey = null;
+		let pendingKeyImage = null;
+
+		function openModalKeyImage() {
+			modalKeyImage.style.display = 'flex';
+			loadKeyImageSettings();
+			populateKeySelect();
+			updateConfiguredList();
+			updateKIPreview();
+		}
+		function closeModalKeyImage() {
+			modalKeyImage.style.display = 'none';
+			currentEditKey = null;
+			pendingKeyImage = null;
+		}
+
+		function loadKeyImageSettings() {
+			const images = getKeyImages();
+			const hides = getHideKeyText();
+			
+			// Load default settings
+			if (images['default']) {
+				kiDefaultPreview.style.display = 'block';
+				kiDefaultPreviewImg.src = images['default'];
+			} else {
+				kiDefaultPreview.style.display = 'none';
+			}
+			kiDefaultHide.checked = !!hides['default'];
+		}
+
+		function populateKeySelect() {
+			const selectText = currentLanguage === 'ko' ? '-- 키 선택 --' : '-- Select Key --';
+			kiKeySelect.innerHTML = `<option value="">${selectText}</option>`;
+			COMMON_KEYS.forEach(k => {
+				const opt = document.createElement('option');
+				opt.value = k;
+				opt.textContent = k;
+				kiKeySelect.appendChild(opt);
+			});
+		}
+
+		function updateConfiguredList() {
+			const images = getKeyImages();
+			const hides = getHideKeyText();
+			const keys = new Set([...Object.keys(images), ...Object.keys(hides)]);
+			keys.delete('default'); // Don't show default in list
+			
+			if (keys.size === 0) {
+				const emptyText = currentLanguage === 'ko' ? '설정된 키가 없습니다' : 'No keys configured';
+				kiConfiguredList.innerHTML = `<div class="help" style="text-align:center; padding:20px">${emptyText}</div>`;
+				return;
+			}
+			
+			let html = '';
+			Array.from(keys).sort().forEach(key => {
+				const hasImg = !!images[key];
+				const hideText = !!hides[key];
+				const imgIcon = hasImg ? '🖼️' : '';
+				const hideIcon = hideText ? '👁️‍🗨️' : '';
+				html += `<div style="display:flex; align-items:center; gap:8px; padding:6px 8px; border-bottom:1px solid var(--border)">
+					<span class="badge">${key}</span>
+					<span style="font-size:12px">${imgIcon} ${hideIcon}</span>
+					<span class="spacer"></span>
+					<button onclick="editKeyImage('${key}')" style="padding:4px 8px; font-size:11px" data-text-ko="편집" data-text-en="Edit">편집</button>
+					<button onclick="removeKeyImage('${key}')" class="danger" style="padding:4px 8px; font-size:11px" data-text-ko="삭제" data-text-en="Delete">삭제</button>
+				</div>`;
+			});
+			kiConfiguredList.innerHTML = html;
+		}
+
+		// Expose functions globally for onclick handlers
+		window.editKeyImage = function(key) {
+			currentEditKey = key;
+			kiSelectedKey.textContent = key;
+			kiKeyConfig.style.display = 'block';
+			
+			const images = getKeyImages();
+			const hides = getHideKeyText();
+			
+			if (images[key]) {
+				kiKeyPreview.style.display = 'block';
+				kiKeyPreviewImg.src = images[key];
+				pendingKeyImage = images[key];
+			} else {
+				kiKeyPreview.style.display = 'none';
+				pendingKeyImage = null;
+			}
+			kiKeyHide.checked = !!hides[key];
+			kiKeyImg.value = '';
+		};
+
+		window.removeKeyImage = function(key) {
+			const images = getKeyImages();
+			const hides = getHideKeyText();
+			delete images[key];
+			delete hides[key];
+			setKeyImages(images);
+			setHideKeyText(hides);
+			updateConfiguredList();
+			updateKIPreview();
+			
+			if (currentEditKey === key) {
+				kiKeyConfig.style.display = 'none';
+				currentEditKey = null;
+			}
+		};
+
+		function updateKIPreview() {
+			const images = getKeyImages();
+			const hides = getHideKeyText();
+			// Include longer keys like SPACE, ENTER for preview
+			const sampleKeys = ['Q', 'W', 'SPACE', 'ENTER'];
+			
+			kiPreviewQueue.innerHTML = '';
+			sampleKeys.forEach(k => {
+				const chip = document.createElement('div');
+				chip.className = 'chip';
+				chip.style.cssText = 'background:var(--chip-bg, rgba(0,0,0,0.6)); color:var(--chip-fg, #fff); padding:10px 14px; border-radius:10px; font-size:24px; font-weight:700; min-width:44px; text-align:center; display:flex; align-items:center; justify-content:center; background-size:cover; background-position:center;';
+				
+				const img = images[k] || images['default'];
+				const hideText = hides[k] !== undefined ? hides[k] : hides['default'];
+				
+				// Set image as background
+				if (img) {
+					chip.style.backgroundImage = `url(${img})`;
+				}
+				
+				// Always add text to maintain size, use transparent color if hidden
+				chip.textContent = k;
+				if (hideText) {
+					chip.style.color = 'transparent';
+				}
+				
+				kiPreviewQueue.appendChild(chip);
+			});
+		}
+
+		// Event Handlers
+		closeKeyImage.addEventListener('click', closeModalKeyImage);
+
+		kiDefaultImg.addEventListener('change', async (e) => {
+			const file = e.target.files[0];
+			if (!file) return;
+			
+			// Check file size (max 5MB for upload, will be compressed after crop)
+			if (file.size > 5 * 1024 * 1024) {
+				alert(currentLanguage === 'ko' ? '이미지 크기가 5MB를 초과합니다' : 'Image size exceeds 5MB');
+				kiDefaultImg.value = '';
+				return;
+			}
+			
+			const base64 = await fileToBase64(file);
+			// Open crop modal
+			openCropModal(base64, 'default', (croppedData, targetKey) => {
+				const images = getKeyImages();
+				images[targetKey] = croppedData;
+				setKeyImages(images);
+				
+				kiDefaultPreview.style.display = 'block';
+				kiDefaultPreviewImg.src = croppedData;
+				updateKIPreview();
+			});
+			kiDefaultImg.value = '';
+		});
+
+		kiDefaultClear.addEventListener('click', () => {
+			const images = getKeyImages();
+			delete images['default'];
+			setKeyImages(images);
+			kiDefaultPreview.style.display = 'none';
+			kiDefaultImg.value = '';
+			updateKIPreview();
+		});
+
+		kiDefaultHide.addEventListener('change', () => {
+			const hides = getHideKeyText();
+			hides['default'] = kiDefaultHide.checked;
+			setHideKeyText(hides);
+			updateKIPreview();
+		});
+
+		kiKeySelect.addEventListener('change', () => {
+			const key = kiKeySelect.value;
+			if (!key) {
+				kiKeyConfig.style.display = 'none';
+				currentEditKey = null;
+				return;
+			}
+			window.editKeyImage(key);
+		});
+
+		kiAddCustom.addEventListener('click', () => {
+			const promptText = currentLanguage === 'ko' ? '키 이름 입력 (예: SPACE, LCMD):' : 'Enter key name (e.g., SPACE, LCMD):';
+			const key = prompt(promptText);
+			if (key && key.trim()) {
+				window.editKeyImage(key.trim().toUpperCase());
+				kiKeySelect.value = '';
+			}
+		});
+
+		kiKeyImg.addEventListener('change', async (e) => {
+			const file = e.target.files[0];
+			if (!file) return;
+			
+			// Check file size (max 5MB for upload, will be compressed after crop)
+			if (file.size > 5 * 1024 * 1024) {
+				alert(currentLanguage === 'ko' ? '이미지 크기가 5MB를 초과합니다' : 'Image size exceeds 5MB');
+				kiKeyImg.value = '';
+				return;
+			}
+			
+			const base64 = await fileToBase64(file);
+			// Open crop modal
+			openCropModal(base64, currentEditKey, (croppedData, targetKey) => {
+				pendingKeyImage = croppedData;
+				kiKeyPreview.style.display = 'block';
+				kiKeyPreviewImg.src = croppedData;
+			});
+			kiKeyImg.value = '';
+		});
+
+		kiKeyClear.addEventListener('click', () => {
+			pendingKeyImage = null;
+			kiKeyPreview.style.display = 'none';
+			kiKeyImg.value = '';
+		});
+
+		kiKeySave.addEventListener('click', () => {
+			if (!currentEditKey) return;
+			
+			const images = getKeyImages();
+			const hides = getHideKeyText();
+			
+			if (pendingKeyImage) {
+				images[currentEditKey] = pendingKeyImage;
+			} else {
+				delete images[currentEditKey];
+			}
+			
+			if (kiKeyHide.checked) {
+				hides[currentEditKey] = true;
+			} else {
+				delete hides[currentEditKey];
+			}
+			
+			setKeyImages(images);
+			setHideKeyText(hides);
+			
+			updateConfiguredList();
+			updateKIPreview();
+			
+			// Reset form
+			kiKeyConfig.style.display = 'none';
+			kiKeySelect.value = '';
+			currentEditKey = null;
+			pendingKeyImage = null;
+		});
+
+		kiClearAll.addEventListener('click', () => {
+			const confirmText = currentLanguage === 'ko' ? '모든 키 이미지 설정을 삭제하시겠습니까?' : 'Clear all key image settings?';
+			if (confirm(confirmText)) {
+				localStorage.removeItem(STORAGE_KEY_IMAGES);
+				localStorage.removeItem(STORAGE_KEY_HIDE);
+				loadKeyImageSettings();
+				updateConfiguredList();
+				updateKIPreview();
+				kiKeyConfig.style.display = 'none';
+			}
+		});
+		// =============================================
+		// End Key Image Settings
+		// =============================================
 
 		function safeAddEventListener(element, event, handler) {
 			if (element && typeof element.addEventListener === 'function') {
@@ -460,7 +1142,7 @@
 			root.style.setProperty('--align', alignMap[ov_align.value] || 'left');
 			root.style.setProperty('--dir', (ov_direction.value === 'rtl') ? 'rtl' : 'ltr');
 
-			// Rebuild preview chips: always Q,W,E,R but obey capacity when rows>0
+			// Rebuild preview chips: Q,W,E,R but obey capacity when rows>0
 			const labels = ['Q','W','E','R'];
 			const cols = colsVal; const rows = rowsVal;
 			let count = labels.length;
@@ -469,10 +1151,31 @@
 			ov_preview_queue.style.justifyContent = alignMap[ov_align.value] || 'left';
 			ov_preview_queue.style.direction = (ov_direction.value === 'rtl') ? 'rtl' : 'ltr';
 			ov_preview_queue.innerHTML = '';
+			
+			// Get key image settings for preview
+			const keyImages = getKeyImages();
+			const hideKeyText = getHideKeyText();
+			
 			for (let i=0;i<count;i++){
+				const k = labels[i];
 				const chip = document.createElement('div');
 				chip.className = 'chip';
-				chip.textContent = labels[i];
+				chip.style.backgroundSize = 'cover';
+				chip.style.backgroundPosition = 'center';
+				
+				// Apply key image if exists
+				const img = keyImages[k] || keyImages['default'];
+				if (img) {
+					chip.style.backgroundImage = `url(${img})`;
+				}
+				
+				// Apply text (transparent if hidden)
+				chip.textContent = k;
+				const hideText = hideKeyText[k] !== undefined ? hideKeyText[k] : hideKeyText['default'];
+				if (hideText) {
+					chip.style.color = 'transparent';
+				}
+				
 				ov_preview_queue.appendChild(chip);
 			}
 		}
@@ -794,6 +1497,12 @@
 		openOverlayCfg.addEventListener('click', async ()=>{ await loadOverlayConfig(); openModalOverlay(); });
 		closeOverlay.addEventListener('click', ()=> closeModalOverlay());
 		saveOverlay.addEventListener('click', saveOverlayConfig);
+		
+		// Open key image settings from overlay settings modal
+		document.getElementById('ov_open_key_image').addEventListener('click', () => {
+			closeModalOverlay();
+			openModalKeyImage();
+		});
 
 		cancelAll.addEventListener('click', ()=>{ closeModalAll(); });
 		saveAll.addEventListener('click', async ()=>{

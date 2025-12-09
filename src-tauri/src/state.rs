@@ -37,6 +37,14 @@ pub struct OverlayConfig {
     pub single_line_scale: u32,
     pub align: String,
     pub direction: String,
+    // Key image settings (stored as JSON string, parsed in JS)
+    // Format: {"default": "data:image/...", "S": "data:image/...", ...}
+    #[serde(default)]
+    pub key_images: String,
+    // Hide text settings (stored as JSON string)
+    // Format: {"default": false, "S": true, ...}
+    #[serde(default)]
+    pub hide_key_text: String,
 }
 
 impl Default for OverlayConfig {
@@ -59,6 +67,8 @@ impl Default for OverlayConfig {
             single_line_scale: 90,
             align: "left".to_string(), // Left alignment by default
             direction: "ltr".to_string(),
+            key_images: "{}".to_string(), // Empty JSON object
+            hide_key_text: "{}".to_string(), // Empty JSON object
         }
     }
 }
