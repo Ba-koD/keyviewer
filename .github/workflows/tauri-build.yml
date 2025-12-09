@@ -144,7 +144,9 @@ jobs:
 
     - name: Build Linux
       working-directory: src-tauri
-      run: cargo tauri build --verbose
+      env:
+        CARGO_INCREMENTAL: 1
+      run: cargo tauri build
 
     - name: Upload AppImage artifact
       if: success()
@@ -162,7 +164,7 @@ jobs:
         path: |
           src-tauri/target/release/bundle/deb/*.deb
 
-  # macOS Build
+  # macOS Build (with Code Signing)
   build-macos:
     needs: prepare
     runs-on: macos-latest
@@ -191,9 +193,74 @@ jobs:
       if: steps.cache-tauri.outputs.cache-hit != 'true'
       run: cargo install tauri-cli --version "^2.0.0" --locked
 
-    - name: Build macOS
+    - name: Import Code Signing Certificate
+      if: ${{ env.MACOS_SIGNING_CERT != '' }}
+      env:
+        MACOS_SIGNING_CERT: ${{ secrets.MACOS_SIGNING_CERT }}
+        MACOS_SIGNING_CERT_PWD: ${{ secrets.MACOS_SIGNING_CERT_PWD }}
       run: |
-        cargo tauri build
+        # Create temporary keychain
+        KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
+        KEYCHAIN_PWD="build-$(date +%s)"
+        
+        echo "Creating temporary keychain..."
+        security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+        security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+        security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+        
+        # Decode and import certificate
+        echo "Importing certificate..."
+        echo "$MACOS_SIGNING_CERT" | base64 --decode > $RUNNER_TEMP/cert.p12
+        security import $RUNNER_TEMP/cert.p12 -k "$KEYCHAIN_PATH" \
+          -P "$MACOS_SIGNING_CERT_PWD" \
+          -T /usr/bin/codesign \
+          -T /usr/bin/security
+        
+        # Allow codesign to access the keychain
+        security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
+        
+        # Add keychain to search list
+        security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
+        
+        # Verify certificate
+        echo "Verifying certificate..."
+        security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+        
+        # Save keychain path for later steps
+        echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
+        echo "SIGNING_IDENTITY=KeyViewer Signing" >> $GITHUB_ENV
+        
+        # Cleanup temp file
+        rm -f $RUNNER_TEMP/cert.p12
+
+    - name: Build macOS
+      env:
+        CARGO_INCREMENTAL: 1
+      run: cargo tauri build
+
+    - name: Sign macOS App
+      if: ${{ env.SIGNING_IDENTITY != '' }}
+      run: |
+        echo "Signing .app bundle..."
+        for app in src-tauri/target/release/bundle/macos/*.app; do
+          if [ -d "$app" ]; then
+            echo "Signing: $app"
+            codesign --force --deep --sign "$SIGNING_IDENTITY" "$app"
+            echo "Verifying signature..."
+            codesign --verify --verbose "$app"
+          fi
+        done
+        
+        echo "Signing .dmg..."
+        for dmg in src-tauri/target/release/bundle/dmg/*.dmg; do
+          if [ -f "$dmg" ]; then
+            echo "Signing: $dmg"
+            codesign --force --sign "$SIGNING_IDENTITY" "$dmg"
+          fi
+        done
+
+    - name: Prepare dist folder
+      run: |
         mkdir -p dist/macos
         cp -f src-tauri/target/release/bundle/dmg/*.dmg dist/macos/ || true
         # Copy .app bundle as zip to keep structure in a single file
@@ -202,6 +269,13 @@ jobs:
             name=$(basename "$app")
             zip -rq "dist/macos/${name%.app}.zip" "$app"
           done
+        fi
+
+    - name: Cleanup Keychain
+      if: always()
+      run: |
+        if [ -n "$KEYCHAIN_PATH" ] && [ -f "$KEYCHAIN_PATH" ]; then
+          security delete-keychain "$KEYCHAIN_PATH" || true
         fi
 
     - name: Upload DMG artifact
