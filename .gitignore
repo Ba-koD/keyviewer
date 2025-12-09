@@ -72,3 +72,10 @@ yarn.lock
 .env.local
 # Local environment files (do not commit)
 .env
+
+# Code signing certificates (NEVER commit these!)
+certs/
+*.p12
+*.pem
+*.cer
+*.keychain

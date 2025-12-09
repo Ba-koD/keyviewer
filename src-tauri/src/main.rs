@@ -276,49 +276,80 @@ fn main() {
                     keyboard::start_keyboard_hook(state_clone);
                 });
             } else {
-                // Accessibility permission missing - show setup guide
+                // Accessibility permission missing - show unified permission setup dialog
                 eprintln!("Accessibility permission missing - showing permission setup guide...");
                 
-                // Step 1: Accessibility
-                let result = Command::new("osascript").args([
-                    "-e",
-                    r#"display dialog "Step 1/3: Accessibility Permission\n\nRequired for keyboard capture.\n\nClick 'Next' to open System Settings.\nEnable 'KeyQueueViewer' in Accessibility.\n\nIMPORTANT: After enabling, you MUST QUIT (Cmd+Q) and restart the app!" with title "Permission Setup" buttons {"Cancel", "Next"} default button "Next""#,
-                ]).output();
-                
-                if result.is_ok() && result.as_ref().unwrap().status.success() {
-                    let _ = open::that("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility");
-                    std::thread::sleep(std::time::Duration::from_millis(1500));
+                // Show single dialog with buttons for each permission
+                loop {
+                    // Check current permission status
+                    let acc_status = if unsafe { AXIsProcessTrusted() } { "✓" } else { "✗" };
                     
-                    // Step 2: Input Monitoring
-                    let result = Command::new("osascript").args([
-                        "-e",
-                        r#"display dialog "Step 2/3: Input Monitoring Permission\n\nRequired for key event detection.\n\nClick 'Next' to open System Settings.\nEnable 'KeyQueueViewer' in Input Monitoring.\n\nRemember to QUIT and restart after enabling!" with title "Permission Setup" buttons {"Cancel", "Next"} default button "Next""#,
-                    ]).output();
+                    let dialog_text = format!(
+                        r#"display dialog "🔐 KeyQueueViewer Permission Setup
+
+Required permissions:
+{} Accessibility (keyboard capture)
+✗ Input Monitoring (key events)  
+✗ Screen Recording (window titles)
+
+Click a button to open that setting.
+After enabling ALL permissions, click 'Done & Restart'.
+
+⚠️ App will restart after clicking 'Done & Restart'!" with title "Permission Setup" buttons {{"1. Accessibility", "2. Input Monitor", "3. Screen Record"}} default button "1. Accessibility""#,
+                        acc_status
+                    );
                     
-                    if result.is_ok() && result.as_ref().unwrap().status.success() {
-                        let _ = open::that("x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent");
-                        std::thread::sleep(std::time::Duration::from_millis(1500));
+                    let result = Command::new("osascript").args(["-e", &dialog_text]).output();
+                    
+                    if let Ok(output) = result {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
                         
-                        // Step 3: Screen Recording
-                        let result = Command::new("osascript").args([
+                        if stdout.contains("1. Accessibility") {
+                            let _ = open::that("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility");
+                        } else if stdout.contains("2. Input Monitor") {
+                            let _ = open::that("x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent");
+                        } else if stdout.contains("3. Screen Record") {
+                            let _ = open::that("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture");
+                        } else {
+                            // Dialog was cancelled
+                            break;
+                        }
+                        
+                        // Wait a bit then show "Done" dialog
+                        std::thread::sleep(std::time::Duration::from_millis(500));
+                        
+                        let done_result = Command::new("osascript").args([
                             "-e",
-                            r#"display dialog "Step 3/3: Screen Recording Permission\n\nRequired to read window titles from other apps.\n\nWITHOUT this permission, you will NOT see window titles!\n\nClick 'Open Settings' to enable it." with title "Permission Setup" buttons {"Skip", "Open Settings"} default button "Open Settings""#,
+                            r#"display dialog "Did you enable the permission?
+
+Click 'More Settings' to configure another permission.
+Click 'Done & Restart' when ALL permissions are enabled." with title "Permission Setup" buttons {"More Settings", "Done & Restart"} default button "More Settings""#,
                         ]).output();
                         
-                        if result.is_ok() && result.as_ref().unwrap().status.success() {
-                            let _ = open::that("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture");
-                            std::thread::sleep(std::time::Duration::from_millis(500));
+                        if let Ok(done_output) = done_result {
+                            let done_stdout = String::from_utf8_lossy(&done_output.stdout);
+                            if done_stdout.contains("Done & Restart") {
+                                // Show final message and exit
+                                let _ = Command::new("osascript").args([
+                                    "-e",
+                                    r#"display dialog "Restarting KeyQueueViewer...
+
+The app will now restart to apply permissions." with title "Restarting" buttons {"OK"} default button "OK" giving up after 2"#,
+                                ]).output();
+                                
+                                eprintln!("User requested restart after permission setup.");
+                                break;
+                            }
+                            // Otherwise continue the loop to show permission dialog again
+                        } else {
+                            break;
                         }
+                    } else {
+                        break;
                     }
                 }
                 
-                // Final dialog with clear instructions
-                let _ = Command::new("osascript").args([
-                    "-e",
-                    r#"display dialog "Setup Complete!\n\nNow you MUST:\n\n1. Make sure ALL THREE permissions are enabled:\n   ✓ Accessibility\n   ✓ Input Monitoring\n   ✓ Screen Recording\n\n2. QUIT this app (press Cmd+Q or use menu)\n\n3. Start the app again\n\nPermissions will NOT work until you restart!" with title "RESTART REQUIRED" buttons {"OK"} default button "OK" with icon caution"#,
-                ]).output();
-                
-                eprintln!("Permissions setup dialog shown. Waiting for user to enable permissions and restart...");
+                eprintln!("Permission setup dialog closed. Please restart the app if permissions were changed.");
             }
         }
     }
