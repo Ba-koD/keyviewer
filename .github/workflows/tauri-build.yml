@@ -52,6 +52,8 @@ jobs:
       with:
         path: ~/.cargo/bin/cargo-tauri.exe
         key: ${{ runner.os }}-tauri-cli-2.0
+        restore-keys: |
+          ${{ runner.os }}-tauri-cli-
 
     - name: Install Tauri CLI
       if: steps.cache-tauri.outputs.cache-hit != 'true'
@@ -130,6 +132,8 @@ jobs:
       with:
         path: ~/.cargo/bin/cargo-tauri
         key: ${{ runner.os }}-tauri-cli-2.0
+        restore-keys: |
+          ${{ runner.os }}-tauri-cli-
 
     - name: Install Tauri CLI
       if: steps.cache-tauri.outputs.cache-hit != 'true'
@@ -188,6 +192,8 @@ jobs:
       with:
         path: ~/.cargo/bin/cargo-tauri
         key: ${{ runner.os }}-tauri-cli-2.0
+        restore-keys: |
+          ${{ runner.os }}-tauri-cli-
 
     - name: Install Tauri CLI
       if: steps.cache-tauri.outputs.cache-hit != 'true'
