@@ -35,11 +35,12 @@ enum InputEvent {
 #[cfg(target_os = "linux")]
 fn key_to_label(key: Key) -> String {
     match key {
-        Key::Alt => "ALT".to_string(),
-        Key::AltGr => "ALT GR".to_string(),
+        Key::Alt => "LALT".to_string(),
+        Key::AltGr => "RALT".to_string(),
         Key::Backspace => "BKSP".to_string(),
         Key::CapsLock => "CAPS".to_string(),
-        Key::ControlLeft | Key::ControlRight => "CTRL".to_string(),
+        Key::ControlLeft => "LCTRL".to_string(),
+        Key::ControlRight => "RCTRL".to_string(),
         Key::Delete => "DEL".to_string(),
         Key::DownArrow => "DOWN".to_string(),
         Key::End => "END".to_string(),
@@ -58,12 +59,14 @@ fn key_to_label(key: Key) -> String {
         Key::F12 => "F12".to_string(),
         Key::Home => "HOME".to_string(),
         Key::LeftArrow => "LEFT".to_string(),
-        Key::MetaLeft | Key::MetaRight => "CMD".to_string(),
+        Key::MetaLeft => "LSUPER".to_string(),
+        Key::MetaRight => "RSUPER".to_string(),
         Key::PageDown => "PG DN".to_string(),
         Key::PageUp => "PG UP".to_string(),
         Key::Return => "ENTER".to_string(),
         Key::RightArrow => "RIGHT".to_string(),
-        Key::ShiftLeft | Key::ShiftRight => "SHIFT".to_string(),
+        Key::ShiftLeft => "LSHIFT".to_string(),
+        Key::ShiftRight => "RSHIFT".to_string(),
         Key::Space => "SPACE".to_string(),
         Key::Tab => "TAB".to_string(),
         Key::UpArrow => "UP".to_string(),
@@ -196,14 +199,15 @@ fn keycode_to_label(keycode: u16) -> String {
         50 => "`".to_string(),
         51 => "BKSP".to_string(),
         53 => "ESC".to_string(),
-        55 => "CMD".to_string(),
-        56 => "SHIFT".to_string(),
+        54 => "RCMD".to_string(),
+        55 => "LCMD".to_string(),
+        56 => "LSHIFT".to_string(),
         57 => "CAPS".to_string(),
-        58 => "OPT".to_string(),
-        59 => "CTRL".to_string(),
-        60 => "SHIFT".to_string(),
-        61 => "OPT".to_string(),
-        62 => "CTRL".to_string(),
+        58 => "LOPT".to_string(),
+        59 => "LCTRL".to_string(),
+        60 => "RSHIFT".to_string(),
+        61 => "ROPT".to_string(),
+        62 => "RCTRL".to_string(),
         63 => "FN".to_string(),
         64 => "F17".to_string(),
         65 => ".".to_string(),
@@ -298,7 +302,11 @@ pub fn start_keyboard_hook(state: Arc<RwLock<AppState>>) {
     eprintln!("[Keyboard Hook] Starting macOS CGEventTap listener...");
     
     use core_foundation::runloop::{kCFRunLoopCommonModes, CFRunLoop};
-    use core_graphics::event::{CGEvent, CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement, CGEventType, EventField, CGEventTapProxy};
+    use core_graphics::event::{CGEvent, CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement, CGEventType, CGEventFlags, EventField, CGEventTapProxy};
+    use std::sync::atomic::{AtomicU64, Ordering};
+    
+    // Track modifier state with atomic
+    static MODIFIER_STATE: AtomicU64 = AtomicU64::new(0);
     
     let state_ptr = Arc::into_raw(state) as *mut std::ffi::c_void;
     
@@ -307,27 +315,21 @@ pub fn start_keyboard_hook(state: Arc<RwLock<AppState>>) {
         let state_clone = Arc::clone(&state);
         std::mem::forget(state); // Don't drop the Arc
         
+        // Check target config first
+        let target_config = {
+            let state_lock = state_clone.read();
+            state_lock.target_config.clone()
+        };
+        
+        if !should_process_event(&target_config) {
+            return Some(event.to_owned());
+        }
+        
         match event_type {
             CGEventType::KeyDown => {
                 let keycode = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE);
-                eprintln!("[Keyboard Hook] Key down: keycode {}", keycode);
-                
-                // Check if target window matches
-                let target_config = {
-                    let state_lock = state_clone.read();
-                    state_lock.target_config.clone()
-                };
-                
-                eprintln!("[Keyboard Hook] Target config - mode: {}, value: {:?}", target_config.mode, target_config.value);
-                
-                if !should_process_event(&target_config) {
-                    eprintln!("[Keyboard Hook] Event filtered out by target config");
-                    return Some(event.to_owned());
-                }
-                
-                // Convert keycode to label
                 let label = keycode_to_label(keycode as u16);
-                eprintln!("[Keyboard Hook] Adding key: {} (code: {})", label, keycode);
+                eprintln!("[Keyboard Hook] Key down: {} (keycode {})", label, keycode);
                 
                 let mut state_lock = state_clone.write();
                 state_lock.add_key(keycode as u32, label);
@@ -336,6 +338,40 @@ pub fn start_keyboard_hook(state: Arc<RwLock<AppState>>) {
                 let keycode = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE);
                 let mut state_lock = state_clone.write();
                 state_lock.remove_key(keycode as u32);
+            }
+            CGEventType::FlagsChanged => {
+                // Handle modifier keys (Shift, Cmd, Opt, Ctrl, Fn, Caps)
+                let keycode = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE);
+                let flags = event.get_flags();
+                let prev_flags = MODIFIER_STATE.load(Ordering::Relaxed);
+                MODIFIER_STATE.store(flags.bits(), Ordering::Relaxed);
+                
+                let label = keycode_to_label(keycode as u16);
+                eprintln!("[Keyboard Hook] FlagsChanged: {} (keycode {}, flags 0x{:X})", label, keycode, flags.bits());
+                
+                // Determine if key was pressed or released based on flag changes
+                let is_pressed = match keycode {
+                    // Left Shift (56), Right Shift (60)
+                    56 | 60 => flags.contains(CGEventFlags::CGEventFlagShift),
+                    // Left Cmd (55), Right Cmd (54)
+                    55 | 54 => flags.contains(CGEventFlags::CGEventFlagCommand),
+                    // Left Opt (58), Right Opt (61)
+                    58 | 61 => flags.contains(CGEventFlags::CGEventFlagAlternate),
+                    // Left Ctrl (59), Right Ctrl (62)
+                    59 | 62 => flags.contains(CGEventFlags::CGEventFlagControl),
+                    // Caps Lock (57)
+                    57 => flags.contains(CGEventFlags::CGEventFlagAlphaShift),
+                    // Fn (63)
+                    63 => flags.contains(CGEventFlags::CGEventFlagSecondaryFn),
+                    _ => false,
+                };
+                
+                let mut state_lock = state_clone.write();
+                if is_pressed {
+                    state_lock.add_key(keycode as u32, label);
+                } else {
+                    state_lock.remove_key(keycode as u32);
+                }
             }
             _ => {}
         }
@@ -347,7 +383,7 @@ pub fn start_keyboard_hook(state: Arc<RwLock<AppState>>) {
         CGEventTapLocation::HID,
         CGEventTapPlacement::HeadInsertEventTap,
         CGEventTapOptions::ListenOnly,
-        vec![CGEventType::KeyDown, CGEventType::KeyUp],
+        vec![CGEventType::KeyDown, CGEventType::KeyUp, CGEventType::FlagsChanged],
         callback,
     ) {
         Ok(tap) => {
@@ -654,15 +690,15 @@ fn validate_key_state_loop(state: Arc<RwLock<AppState>>) {
         (0x2D, "INS"), (0x24, "HOME"), (0x23, "END"),
         (0x21, "PG UP"), (0x22, "PG DN"),
         // Modifiers (use specific left/right for accurate tracking)
-        (0xA0, "SHIFT"), // VK_LSHIFT
-        (0xA1, "SHIFT"), // VK_RSHIFT  
-        (0xA2, "CTRL"),  // VK_LCONTROL
-        (0xA3, "CTRL"),  // VK_RCONTROL
-        (0xA4, "ALT"),   // VK_LMENU
-        (0xA5, "ALT"),   // VK_RMENU
+        (0xA0, "LSHIFT"), // VK_LSHIFT
+        (0xA1, "RSHIFT"), // VK_RSHIFT  
+        (0xA2, "LCTRL"),  // VK_LCONTROL
+        (0xA3, "RCTRL"),  // VK_RCONTROL
+        (0xA4, "LALT"),   // VK_LMENU
+        (0xA5, "RALT"),   // VK_RMENU
         (0x14, "CAPS"),
-        (0x5B, "WIN"),   // VK_LWIN
-        (0x5C, "WIN"),   // VK_RWIN
+        (0x5B, "LWIN"),   // VK_LWIN
+        (0x5C, "RWIN"),   // VK_RWIN
         // Arrow keys
         (0x25, "LEFT"), (0x26, "UP"), (0x27, "RIGHT"), (0x28, "DOWN"),
         // Function keys

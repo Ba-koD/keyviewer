@@ -173,20 +173,20 @@
 </head>
 <body>
     <div class="container">
-        <h1>🔐 Permission Setup</h1>
-        <p class="subtitle">KeyQueueViewer needs these permissions to work</p>
+        <h1>🔐 <span data-i18n="title">Permission Setup</span></h1>
+        <p class="subtitle" data-i18n="subtitle">KeyQueueViewer needs these permissions to work</p>
         
         <div class="permission-item" id="perm-accessibility">
             <div class="permission-info">
                 <span class="permission-icon">⌨️</span>
                 <div>
-                    <div class="permission-name">Accessibility</div>
-                    <div class="permission-desc">Required for keyboard capture</div>
+                    <div class="permission-name" data-i18n="accessibility">Accessibility</div>
+                    <div class="permission-desc" data-i18n="accessibility_desc">Required for keyboard capture</div>
                 </div>
             </div>
             <div class="status">
                 <span class="status-icon pending" id="status-accessibility">⏳</span>
-                <button class="open-btn" onclick="openSettings('accessibility')">Open</button>
+                <button class="open-btn" data-i18n="open" onclick="openSettings('accessibility')">Open</button>
             </div>
         </div>
         
@@ -194,13 +194,13 @@
             <div class="permission-info">
                 <span class="permission-icon">🎹</span>
                 <div>
-                    <div class="permission-name">Input Monitoring</div>
-                    <div class="permission-desc">For key event detection</div>
+                    <div class="permission-name" data-i18n="input_monitoring">Input Monitoring</div>
+                    <div class="permission-desc" data-i18n="input_monitoring_desc">For key event detection</div>
                 </div>
             </div>
             <div class="status">
                 <span class="status-icon pending" id="status-input">❓</span>
-                <button class="open-btn" onclick="openSettings('input_monitoring')">Open</button>
+                <button class="open-btn" data-i18n="open" onclick="openSettings('input_monitoring')">Open</button>
             </div>
         </div>
         
@@ -208,30 +208,86 @@
             <div class="permission-info">
                 <span class="permission-icon">🖥️</span>
                 <div>
-                    <div class="permission-name">Screen Recording</div>
-                    <div class="permission-desc">For window title display</div>
+                    <div class="permission-name" data-i18n="screen_recording">Screen Recording</div>
+                    <div class="permission-desc" data-i18n="screen_recording_desc">For window title display</div>
                 </div>
             </div>
             <div class="status">
                 <span class="status-icon pending" id="status-screen">❓</span>
-                <button class="open-btn" onclick="openSettings('screen_recording')">Open</button>
+                <button class="open-btn" data-i18n="open" onclick="openSettings('screen_recording')">Open</button>
             </div>
         </div>
         
         <div class="note">
-            <div class="note-title">⚠️ Note</div>
-            All 3 permissions are required to use KeyQueueViewer.
+            <div class="note-title">⚠️ <span data-i18n="note_title">Note</span></div>
+            <span data-i18n="note_text">All 3 permissions are required to use KeyQueueViewer.</span>
         </div>
         
         <button class="continue-btn" id="continueBtn" onclick="continueTo()">
-            Continue to KeyQueueViewer
+            <span data-i18n="continue">Continue to KeyQueueViewer</span>
         </button>
         
-        <div class="checking">Checking permissions every 2 seconds...</div>
+        <div class="checking" data-i18n="checking">Checking permissions every 2 seconds...</div>
     </div>
 
     <script>
         const { invoke } = window.__TAURI__.core;
+        
+        // Translations
+        const translations = {
+            ko: {
+                title: '권한 설정',
+                subtitle: 'KeyQueueViewer를 사용하려면 다음 권한이 필요합니다',
+                accessibility: '손쉬운 사용',
+                accessibility_desc: '키보드 입력 캡처에 필요',
+                input_monitoring: '입력 모니터링',
+                input_monitoring_desc: '키 이벤트 감지에 필요',
+                screen_recording: '화면 기록',
+                screen_recording_desc: '창 제목 표시에 필요',
+                open: '열기',
+                note_title: '참고',
+                note_text: 'KeyQueueViewer를 사용하려면 3개 권한 모두 필요합니다.',
+                continue: 'KeyQueueViewer로 계속',
+                checking: '2초마다 권한 확인 중...'
+            },
+            en: {
+                title: 'Permission Setup',
+                subtitle: 'KeyQueueViewer needs these permissions to work',
+                accessibility: 'Accessibility',
+                accessibility_desc: 'Required for keyboard capture',
+                input_monitoring: 'Input Monitoring',
+                input_monitoring_desc: 'For key event detection',
+                screen_recording: 'Screen Recording',
+                screen_recording_desc: 'For window title display',
+                open: 'Open',
+                note_title: 'Note',
+                note_text: 'All 3 permissions are required to use KeyQueueViewer.',
+                continue: 'Continue to KeyQueueViewer',
+                checking: 'Checking permissions every 2 seconds...'
+            }
+        };
+        
+        // Detect language (Korean or English)
+        function getLanguage() {
+            const lang = navigator.language || navigator.userLanguage;
+            return lang.startsWith('ko') ? 'ko' : 'en';
+        }
+        
+        // Apply translations
+        function applyTranslations() {
+            const lang = getLanguage();
+            const t = translations[lang];
+            
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (t[key]) {
+                    el.textContent = t[key];
+                }
+            });
+            
+            // Update html lang attribute
+            document.documentElement.lang = lang;
+        }
         
         let allGranted = false;
         
@@ -294,10 +350,12 @@
             }
         }
         
+        // Apply translations on load
+        applyTranslations();
+        
         // Check permissions on load and every 2 seconds
         checkPermissions();
         setInterval(checkPermissions, 2000);
     </script>
 </body>
 </html>
-
