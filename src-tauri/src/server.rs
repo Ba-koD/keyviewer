@@ -1,4 +1,4 @@
-use crate::state::{AppState, TargetConfig, KeyImagesConfig, KeyStyleConfig};
+use crate::state::{AppState, KeyImagesConfig, KeyStyleConfig, TargetConfig};
 use crate::window_info;
 use axum::{
     body::Body,
@@ -84,11 +84,11 @@ impl ServerController {
         let running_clone = self.running.clone();
         // Keep a reference for stop()
         self.state_ref = Some(state.clone());
-        
+
         // Create shutdown channel
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
         self.shutdown_tx = Some(shutdown_tx);
-        
+
         let handle = self.runtime.spawn(async move {
             // Mark server alive in shared state and bump cache buster
             {
@@ -104,19 +104,18 @@ impl ServerController {
             }
             let app = create_router(state.clone());
             let addr = SocketAddr::from(([127, 0, 0, 1], port));
-            
+
             println!("Server listening on http://{}", addr);
             *running_clone.lock() = true;
 
             match tokio::net::TcpListener::bind(addr).await {
                 Ok(listener) => {
                     // Use graceful shutdown
-                    let server = axum::serve(listener, app)
-                        .with_graceful_shutdown(async move {
-                            let _ = shutdown_rx.await;
-                            println!("Server shutdown signal received");
-                        });
-                    
+                    let server = axum::serve(listener, app).with_graceful_shutdown(async move {
+                        let _ = shutdown_rx.await;
+                        println!("Server shutdown signal received");
+                    });
+
                     if let Err(e) = server.await {
                         eprintln!("Server error: {}", e);
                     }
@@ -151,7 +150,9 @@ impl ServerController {
             let mut s = st.write();
             s.server_alive = false;
             s.clear_keys();
-            if let Some(tx) = &s.event_tx { let _ = tx.send(Vec::new()); }
+            if let Some(tx) = &s.event_tx {
+                let _ = tx.send(Vec::new());
+            }
         }
 
         // Send shutdown signal to gracefully stop the server
@@ -173,7 +174,6 @@ impl ServerController {
         *self.running.lock()
     }
 }
-
 
 fn create_router(state: SharedState) -> Router {
     // Setup CORS
@@ -204,7 +204,10 @@ fn create_router(state: SharedState) -> Router {
         .route("/api/config", get(api_get_config))
         .route("/api/config", axum::routing::post(api_set_config))
         .route("/api/overlay-config", get(api_get_overlay_config))
-        .route("/api/overlay-config", axum::routing::post(api_set_overlay_config))
+        .route(
+            "/api/overlay-config",
+            axum::routing::post(api_set_overlay_config),
+        )
         .route("/api/launcher-language", get(api_get_launcher_language))
         .route("/api/focus", axum::routing::post(api_focus_window))
         .route("/api/key-images", get(api_get_key_images))
@@ -223,7 +226,10 @@ async fn root_redirect() -> impl IntoResponse {
 async fn get_overlay() -> impl IntoResponse {
     Response::builder()
         .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
-        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate, max-age=0")
+        .header(
+            header::CACHE_CONTROL,
+            "no-cache, no-store, must-revalidate, max-age=0",
+        )
         .header(header::PRAGMA, "no-cache")
         .header(header::EXPIRES, "0")
         .body(Body::from(OVERLAY_HTML))
@@ -233,7 +239,10 @@ async fn get_overlay() -> impl IntoResponse {
 async fn get_control() -> impl IntoResponse {
     Response::builder()
         .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
-        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate, max-age=0")
+        .header(
+            header::CACHE_CONTROL,
+            "no-cache, no-store, must-revalidate, max-age=0",
+        )
         .header(header::PRAGMA, "no-cache")
         .header(header::EXPIRES, "0")
         .body(Body::from(CONTROL_HTML))
@@ -244,7 +253,10 @@ async fn get_control() -> impl IntoResponse {
 async fn get_overlay_css() -> impl IntoResponse {
     Response::builder()
         .header(header::CONTENT_TYPE, "text/css; charset=utf-8")
-        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate, max-age=0")
+        .header(
+            header::CACHE_CONTROL,
+            "no-cache, no-store, must-revalidate, max-age=0",
+        )
         .header(header::PRAGMA, "no-cache")
         .header(header::EXPIRES, "0")
         .body(Body::from(OVERLAY_CSS))
@@ -254,7 +266,10 @@ async fn get_overlay_css() -> impl IntoResponse {
 async fn get_chip_css() -> impl IntoResponse {
     Response::builder()
         .header(header::CONTENT_TYPE, "text/css; charset=utf-8")
-        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate, max-age=0")
+        .header(
+            header::CACHE_CONTROL,
+            "no-cache, no-store, must-revalidate, max-age=0",
+        )
         .header(header::PRAGMA, "no-cache")
         .header(header::EXPIRES, "0")
         .body(Body::from(CHIP_CSS))
@@ -264,24 +279,42 @@ async fn get_chip_css() -> impl IntoResponse {
 // JavaScript module handlers
 async fn get_js_utils() -> impl IntoResponse {
     Response::builder()
-        .header(header::CONTENT_TYPE, "application/javascript; charset=utf-8")
-        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate, max-age=0")
+        .header(
+            header::CONTENT_TYPE,
+            "application/javascript; charset=utf-8",
+        )
+        .header(
+            header::CACHE_CONTROL,
+            "no-cache, no-store, must-revalidate, max-age=0",
+        )
         .body(Body::from(JS_UTILS))
         .unwrap()
 }
 
 async fn get_js_gradient_editor() -> impl IntoResponse {
     Response::builder()
-        .header(header::CONTENT_TYPE, "application/javascript; charset=utf-8")
-        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate, max-age=0")
+        .header(
+            header::CONTENT_TYPE,
+            "application/javascript; charset=utf-8",
+        )
+        .header(
+            header::CACHE_CONTROL,
+            "no-cache, no-store, must-revalidate, max-age=0",
+        )
         .body(Body::from(JS_GRADIENT_EDITOR))
         .unwrap()
 }
 
 async fn get_js_chip_preview() -> impl IntoResponse {
     Response::builder()
-        .header(header::CONTENT_TYPE, "application/javascript; charset=utf-8")
-        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate, max-age=0")
+        .header(
+            header::CONTENT_TYPE,
+            "application/javascript; charset=utf-8",
+        )
+        .header(
+            header::CACHE_CONTROL,
+            "no-cache, no-store, must-revalidate, max-age=0",
+        )
         .body(Body::from(JS_CHIP_PREVIEW))
         .unwrap()
 }
@@ -289,7 +322,10 @@ async fn get_js_chip_preview() -> impl IntoResponse {
 async fn get_control_css() -> impl IntoResponse {
     Response::builder()
         .header(header::CONTENT_TYPE, "text/css; charset=utf-8")
-        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate, max-age=0")
+        .header(
+            header::CACHE_CONTROL,
+            "no-cache, no-store, must-revalidate, max-age=0",
+        )
         .header(header::PRAGMA, "no-cache")
         .header(header::EXPIRES, "0")
         .body(Body::from(CONTROL_CSS))
@@ -299,7 +335,10 @@ async fn get_control_css() -> impl IntoResponse {
 async fn get_launcher_css() -> impl IntoResponse {
     Response::builder()
         .header(header::CONTENT_TYPE, "text/css; charset=utf-8")
-        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate, max-age=0")
+        .header(
+            header::CACHE_CONTROL,
+            "no-cache, no-store, must-revalidate, max-age=0",
+        )
         .header(header::PRAGMA, "no-cache")
         .header(header::EXPIRES, "0")
         .body(Body::from(LAUNCHER_CSS))
@@ -317,7 +356,10 @@ async fn get_favicon() -> impl IntoResponse {
         .unwrap()
 }
 
-async fn websocket_handler(ws: WebSocketUpgrade, AxumState(state): AxumState<SharedState>) -> impl IntoResponse {
+async fn websocket_handler(
+    ws: WebSocketUpgrade,
+    AxumState(state): AxumState<SharedState>,
+) -> impl IntoResponse {
     ws.on_upgrade(|socket| handle_socket(socket, state))
 }
 
@@ -328,7 +370,11 @@ async fn handle_socket(mut socket: WebSocket, state: SharedState) {
         state_lock.get_keys()
     };
     let initial_msg = json!({ "keys": keys });
-    if socket.send(Message::Text(initial_msg.to_string())).await.is_err() {
+    if socket
+        .send(Message::Text(initial_msg.to_string()))
+        .await
+        .is_err()
+    {
         return;
     }
 
@@ -355,15 +401,21 @@ async fn handle_socket(mut socket: WebSocket, state: SharedState) {
 
         if !alive {
             // Inform client and close
-            let _ = socket.send(Message::Text(json!({"type":"shutdown"}).to_string())).await;
+            let _ = socket
+                .send(Message::Text(json!({"type":"shutdown"}).to_string()))
+                .await;
             let _ = socket.send(Message::Close(None)).await;
             break;
         }
 
         let msg_str = json!({ "keys": keys }).to_string();
-        if msg_str == last_sent { continue; }
+        if msg_str == last_sent {
+            continue;
+        }
         last_sent = msg_str.clone();
-        if socket.send(Message::Text(msg_str)).await.is_err() { break; }
+        if socket.send(Message::Text(msg_str)).await.is_err() {
+            break;
+        }
     }
 }
 
@@ -405,13 +457,10 @@ async fn api_set_target(
     let mut state_lock = state.write();
     state_lock.target_config = payload.clone();
     state_lock.clear_keys();
-    
+
     // Save to registry
-    let _ = crate::settings::save_target_config(
-        &payload.mode,
-        payload.value.as_deref(),
-    );
-    
+    let _ = crate::settings::save_target_config(&payload.mode, payload.value.as_deref());
+
     Json(json!({
         "mode": payload.mode,
         "value": payload.value,
@@ -561,8 +610,10 @@ async fn api_focus_window(Json(payload): Json<FocusRequest>) -> impl IntoRespons
         #[cfg(target_os = "windows")]
         {
             use windows::Win32::Foundation::HWND;
-            use windows::Win32::UI::WindowsAndMessaging::{SetForegroundWindow, ShowWindow, SW_RESTORE};
-            
+            use windows::Win32::UI::WindowsAndMessaging::{
+                SetForegroundWindow, ShowWindow, SW_RESTORE,
+            };
+
             let hwnd = HWND(hwnd_num as *mut _);
             unsafe {
                 // Restore window if minimized
@@ -592,10 +643,10 @@ async fn api_set_key_images(
 ) -> impl IntoResponse {
     let mut state_lock = state.write();
     state_lock.app_config.key_images = payload.clone();
-    
+
     // Save to persistent storage
     let _ = crate::settings::save_key_images_config(&payload);
-    
+
     Json(json!({ "ok": true }))
 }
 
@@ -610,10 +661,9 @@ async fn api_set_key_style(
 ) -> impl IntoResponse {
     let mut state_lock = state.write();
     state_lock.app_config.key_style = payload.clone();
-    
+
     // Save to persistent storage
     let _ = crate::settings::save_key_style_config(&payload);
-    
+
     Json(json!({ "ok": true }))
 }
-

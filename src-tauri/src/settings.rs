@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::state::{KeyImagesConfig, KeyStyleConfig};
+use serde::{Deserialize, Serialize};
 
 #[cfg(target_os = "windows")]
 use winreg::enums::*;
@@ -9,16 +9,16 @@ use winreg::RegKey;
 // macOS UserDefaults helper functions
 #[cfg(target_os = "macos")]
 mod macos_defaults {
-    use cocoa::foundation::{NSAutoreleasePool, NSString};
     use cocoa::base::{id, nil};
+    use cocoa::foundation::{NSAutoreleasePool, NSString};
     use objc::{msg_send, sel, sel_impl};
-    
+
     // Get NSUserDefaults standardUserDefaults
     unsafe fn get_user_defaults() -> id {
         let class = objc::runtime::Class::get("NSUserDefaults").unwrap();
         msg_send![class, standardUserDefaults]
     }
-    
+
     // Set integer value for key
     pub fn set_integer(key: &str, value: i64) {
         unsafe {
@@ -29,7 +29,7 @@ mod macos_defaults {
             let _: () = msg_send![defaults, synchronize];
         }
     }
-    
+
     // Get integer value for key with default
     pub fn get_integer(key: &str, default: i64) -> i64 {
         unsafe {
@@ -47,7 +47,7 @@ mod macos_defaults {
             value
         }
     }
-    
+
     // Set string value for key
     pub fn set_string(key: &str, value: &str) {
         unsafe {
@@ -59,7 +59,7 @@ mod macos_defaults {
             let _: () = msg_send![defaults, synchronize];
         }
     }
-    
+
     // Get string value for key with default
     pub fn get_string(key: &str, default: &str) -> String {
         unsafe {
@@ -79,7 +79,7 @@ mod macos_defaults {
                 .into_owned()
         }
     }
-    
+
     // Remove value for key
     pub fn remove(key: &str) {
         unsafe {
@@ -102,9 +102,9 @@ pub struct LauncherSettings {
 impl Default for LauncherSettings {
     fn default() -> Self {
         Self {
-            port: 8000, // Default port, always starts with this
+            port: 8000,                 // Default port, always starts with this
             language: "ko".to_string(), // Default language, always starts with Korean
-            run_on_startup: false, // Default disabled, always starts disabled
+            run_on_startup: false,      // Default disabled, always starts disabled
         }
     }
 }
@@ -116,13 +116,15 @@ impl LauncherSettings {
         {
             let hkcu = RegKey::predef(HKEY_CURRENT_USER);
             let key_path = r"Software\KeyViewer";
-            
+
             if let Ok(key) = hkcu.open_subkey(key_path) {
                 let port_u32: u32 = key.get_value("Port").unwrap_or(8000);
                 let port = port_u32 as u16;
-                let language: String = key.get_value("Language").unwrap_or_else(|_| "ko".to_string());
+                let language: String = key
+                    .get_value("Language")
+                    .unwrap_or_else(|_| "ko".to_string());
                 let run_on_startup: u32 = key.get_value("RunOnStartup").unwrap_or(0);
-                
+
                 Self {
                     port,
                     language,
@@ -132,20 +134,20 @@ impl LauncherSettings {
                 Self::default()
             }
         }
-        
+
         #[cfg(target_os = "macos")]
         {
             let port = macos_defaults::get_integer("com.keyviewer.Port", 8000) as u16;
             let language = macos_defaults::get_string("com.keyviewer.Language", "ko");
             let run_on_startup = macos_defaults::get_integer("com.keyviewer.RunOnStartup", 0) != 0;
-            
+
             Self {
                 port,
                 language,
                 run_on_startup,
             }
         }
-        
+
         #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
         {
             // Linux and other platforms: use default values
@@ -159,11 +161,12 @@ impl LauncherSettings {
         {
             let hkcu = RegKey::predef(HKEY_CURRENT_USER);
             let key_path = r"Software\KeyViewer";
-            
+
             // Create the key if it doesn't exist
-            let (key, _) = hkcu.create_subkey(key_path)
+            let (key, _) = hkcu
+                .create_subkey(key_path)
                 .map_err(|e| format!("Failed to create registry key: {}", e))?;
-            
+
             // Save settings to registry (port as u32 because registry doesn't support u16)
             let port_u32: u32 = self.port as u32;
             key.set_value("Port", &port_u32)
@@ -173,18 +176,21 @@ impl LauncherSettings {
             let run_on_startup_u32: u32 = if self.run_on_startup { 1 } else { 0 };
             key.set_value("RunOnStartup", &run_on_startup_u32)
                 .map_err(|e| format!("Failed to save run_on_startup: {}", e))?;
-            
+
             Ok(())
         }
-        
+
         #[cfg(target_os = "macos")]
         {
             macos_defaults::set_integer("com.keyviewer.Port", self.port as i64);
             macos_defaults::set_string("com.keyviewer.Language", &self.language);
-            macos_defaults::set_integer("com.keyviewer.RunOnStartup", if self.run_on_startup { 1 } else { 0 });
+            macos_defaults::set_integer(
+                "com.keyviewer.RunOnStartup",
+                if self.run_on_startup { 1 } else { 0 },
+            );
             Ok(())
         }
-        
+
         #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
         {
             // Linux and other platforms: no-op
@@ -198,15 +204,20 @@ impl LauncherSettings {
 pub fn set_windows_startup(enabled: bool) -> Result<(), String> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let path = r"Software\Microsoft\Windows\CurrentVersion\Run";
-    let key = hkcu.open_subkey_with_flags(path, KEY_WRITE)
+    let key = hkcu
+        .open_subkey_with_flags(path, KEY_WRITE)
         .map_err(|e| format!("Failed to open registry key: {}", e))?;
 
     if enabled {
-        let exe_path = std::env::current_exe()
-            .map_err(|e| format!("Failed to get exe path: {}", e))?;
+        let exe_path =
+            std::env::current_exe().map_err(|e| format!("Failed to get exe path: {}", e))?;
         // Quote the full path to handle spaces in path
         let exe_str = exe_path.to_string_lossy().to_string();
-        let quoted = if exe_str.contains(' ') { format!("\"{}\"", exe_str) } else { exe_str };
+        let quoted = if exe_str.contains(' ') {
+            format!("\"{}\"", exe_str)
+        } else {
+            exe_str
+        };
         key.set_value("KeyViewer", &quoted)
             .map_err(|e| format!("Failed to set registry value: {}", e))?;
     } else {
@@ -226,24 +237,25 @@ pub fn save_target_config(mode: &str, value: Option<&str>) -> Result<(), String>
     #[cfg(target_os = "windows")]
     {
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-        let (key, _) = hkcu.create_subkey(r"Software\KeyViewer")
+        let (key, _) = hkcu
+            .create_subkey(r"Software\KeyViewer")
             .map_err(|e| format!("Failed to create registry key: {}", e))?;
-        
+
         key.set_value("TargetMode", &mode.to_string())
             .map_err(|e| format!("Failed to save target mode: {}", e))?;
         key.set_value("TargetValue", &value.unwrap_or(""))
             .map_err(|e| format!("Failed to save target value: {}", e))?;
-        
+
         Ok(())
     }
-    
+
     #[cfg(target_os = "macos")]
     {
         macos_defaults::set_string("com.keyviewer.TargetMode", mode);
         macos_defaults::set_string("com.keyviewer.TargetValue", value.unwrap_or(""));
         Ok(())
     }
-    
+
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         // Linux and other platforms: no-op
@@ -257,15 +269,19 @@ pub fn load_target_config() -> (String, Option<String>) {
     {
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         if let Ok(key) = hkcu.open_subkey(r"Software\KeyViewer") {
-            let mode: String = key.get_value("TargetMode").unwrap_or_else(|_| "disabled".to_string());
-            let value: String = key.get_value("TargetValue").unwrap_or_else(|_| "".to_string());
+            let mode: String = key
+                .get_value("TargetMode")
+                .unwrap_or_else(|_| "disabled".to_string());
+            let value: String = key
+                .get_value("TargetValue")
+                .unwrap_or_else(|_| "".to_string());
             let value_opt = if value.is_empty() { None } else { Some(value) };
             (mode, value_opt)
         } else {
             ("disabled".to_string(), None)
         }
     }
-    
+
     #[cfg(target_os = "macos")]
     {
         let mode = macos_defaults::get_string("com.keyviewer.TargetMode", "disabled");
@@ -273,7 +289,7 @@ pub fn load_target_config() -> (String, Option<String>) {
         let value_opt = if value.is_empty() { None } else { Some(value) };
         (mode, value_opt)
     }
-    
+
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         // Linux and other platforms: return defaults
@@ -307,33 +323,53 @@ pub fn save_overlay_config(
     #[cfg(target_os = "windows")]
     {
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-        let (key, _) = hkcu.create_subkey(r"Software\KeyViewer\Overlay")
+        let (key, _) = hkcu
+            .create_subkey(r"Software\KeyViewer\Overlay")
             .map_err(|e| format!("Failed to create registry key: {}", e))?;
-        
+
         // Save all overlay settings
-        key.set_value("FadeInMs", &fade_in_ms).map_err(|e| format!("Failed to save fade_in_ms: {}", e))?;
-        key.set_value("FadeOutMs", &fade_out_ms).map_err(|e| format!("Failed to save fade_out_ms: {}", e))?;
-        key.set_value("ChipBg", &chip_bg.to_string()).map_err(|e| format!("Failed to save chip_bg: {}", e))?;
-        key.set_value("ChipFg", &chip_fg.to_string()).map_err(|e| format!("Failed to save chip_fg: {}", e))?;
-        key.set_value("ChipGap", &chip_gap).map_err(|e| format!("Failed to save chip_gap: {}", e))?;
-        key.set_value("ChipPadV", &chip_pad_v).map_err(|e| format!("Failed to save chip_pad_v: {}", e))?;
-        key.set_value("ChipPadH", &chip_pad_h).map_err(|e| format!("Failed to save chip_pad_h: {}", e))?;
-        key.set_value("ChipRadius", &chip_radius).map_err(|e| format!("Failed to save chip_radius: {}", e))?;
-        key.set_value("ChipFontPx", &chip_font_px).map_err(|e| format!("Failed to save chip_font_px: {}", e))?;
-        key.set_value("ChipFontWeight", &chip_font_weight).map_err(|e| format!("Failed to save chip_font_weight: {}", e))?;
-        key.set_value("Background", &background.to_string()).map_err(|e| format!("Failed to save background: {}", e))?;
-        key.set_value("Cols", &cols).map_err(|e| format!("Failed to save cols: {}", e))?;
-        key.set_value("Rows", &rows).map_err(|e| format!("Failed to save rows: {}", e))?;
-        key.set_value("Align", &align.to_string()).map_err(|e| format!("Failed to save align: {}", e))?;
-        key.set_value("Direction", &direction.to_string()).map_err(|e| format!("Failed to save direction: {}", e))?;
-        key.set_value("ColorMode", &color_mode.to_string()).map_err(|e| format!("Failed to save color_mode: {}", e))?;
-        key.set_value("GradColor1", &grad_color1.to_string()).map_err(|e| format!("Failed to save grad_color1: {}", e))?;
-        key.set_value("GradColor2", &grad_color2.to_string()).map_err(|e| format!("Failed to save grad_color2: {}", e))?;
-        key.set_value("GradDir", &grad_dir.to_string()).map_err(|e| format!("Failed to save grad_dir: {}", e))?;
-        
+        key.set_value("FadeInMs", &fade_in_ms)
+            .map_err(|e| format!("Failed to save fade_in_ms: {}", e))?;
+        key.set_value("FadeOutMs", &fade_out_ms)
+            .map_err(|e| format!("Failed to save fade_out_ms: {}", e))?;
+        key.set_value("ChipBg", &chip_bg.to_string())
+            .map_err(|e| format!("Failed to save chip_bg: {}", e))?;
+        key.set_value("ChipFg", &chip_fg.to_string())
+            .map_err(|e| format!("Failed to save chip_fg: {}", e))?;
+        key.set_value("ChipGap", &chip_gap)
+            .map_err(|e| format!("Failed to save chip_gap: {}", e))?;
+        key.set_value("ChipPadV", &chip_pad_v)
+            .map_err(|e| format!("Failed to save chip_pad_v: {}", e))?;
+        key.set_value("ChipPadH", &chip_pad_h)
+            .map_err(|e| format!("Failed to save chip_pad_h: {}", e))?;
+        key.set_value("ChipRadius", &chip_radius)
+            .map_err(|e| format!("Failed to save chip_radius: {}", e))?;
+        key.set_value("ChipFontPx", &chip_font_px)
+            .map_err(|e| format!("Failed to save chip_font_px: {}", e))?;
+        key.set_value("ChipFontWeight", &chip_font_weight)
+            .map_err(|e| format!("Failed to save chip_font_weight: {}", e))?;
+        key.set_value("Background", &background.to_string())
+            .map_err(|e| format!("Failed to save background: {}", e))?;
+        key.set_value("Cols", &cols)
+            .map_err(|e| format!("Failed to save cols: {}", e))?;
+        key.set_value("Rows", &rows)
+            .map_err(|e| format!("Failed to save rows: {}", e))?;
+        key.set_value("Align", &align.to_string())
+            .map_err(|e| format!("Failed to save align: {}", e))?;
+        key.set_value("Direction", &direction.to_string())
+            .map_err(|e| format!("Failed to save direction: {}", e))?;
+        key.set_value("ColorMode", &color_mode.to_string())
+            .map_err(|e| format!("Failed to save color_mode: {}", e))?;
+        key.set_value("GradColor1", &grad_color1.to_string())
+            .map_err(|e| format!("Failed to save grad_color1: {}", e))?;
+        key.set_value("GradColor2", &grad_color2.to_string())
+            .map_err(|e| format!("Failed to save grad_color2: {}", e))?;
+        key.set_value("GradDir", &grad_dir.to_string())
+            .map_err(|e| format!("Failed to save grad_dir: {}", e))?;
+
         Ok(())
     }
-    
+
     #[cfg(target_os = "macos")]
     {
         macos_defaults::set_integer("com.keyviewer.overlay.FadeInMs", fade_in_ms as i64);
@@ -345,7 +381,10 @@ pub fn save_overlay_config(
         macos_defaults::set_integer("com.keyviewer.overlay.ChipPadH", chip_pad_h as i64);
         macos_defaults::set_integer("com.keyviewer.overlay.ChipRadius", chip_radius as i64);
         macos_defaults::set_integer("com.keyviewer.overlay.ChipFontPx", chip_font_px as i64);
-        macos_defaults::set_integer("com.keyviewer.overlay.ChipFontWeight", chip_font_weight as i64);
+        macos_defaults::set_integer(
+            "com.keyviewer.overlay.ChipFontWeight",
+            chip_font_weight as i64,
+        );
         macos_defaults::set_string("com.keyviewer.overlay.Background", background);
         macos_defaults::set_integer("com.keyviewer.overlay.Cols", cols as i64);
         macos_defaults::set_integer("com.keyviewer.overlay.Rows", rows as i64);
@@ -357,70 +396,167 @@ pub fn save_overlay_config(
         macos_defaults::set_string("com.keyviewer.overlay.GradDir", grad_dir);
         Ok(())
     }
-    
+
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         // Linux and other platforms: no-op
-        let _ = (fade_in_ms, fade_out_ms, chip_bg, chip_fg, chip_gap, chip_pad_v, chip_pad_h, 
-                 chip_radius, chip_font_px, chip_font_weight, background, cols, rows, align, direction,
-                 color_mode, grad_color1, grad_color2, grad_dir);
+        let _ = (
+            fade_in_ms,
+            fade_out_ms,
+            chip_bg,
+            chip_fg,
+            chip_gap,
+            chip_pad_v,
+            chip_pad_h,
+            chip_radius,
+            chip_font_px,
+            chip_font_weight,
+            background,
+            cols,
+            rows,
+            align,
+            direction,
+            color_mode,
+            grad_color1,
+            grad_color2,
+            grad_dir,
+        );
         Ok(())
     }
 }
 
-// Returns: (fade_in_ms, fade_out_ms, chip_bg, chip_fg, chip_gap, chip_pad_v, chip_pad_h, 
+// Returns: (fade_in_ms, fade_out_ms, chip_bg, chip_fg, chip_gap, chip_pad_v, chip_pad_h,
 //           chip_radius, chip_font_px, chip_font_weight, background, cols, rows, align, direction,
 //           color_mode, grad_color1, grad_color2, grad_dir)
 #[allow(clippy::type_complexity)]
-pub fn load_overlay_config() -> (u32, u32, String, String, u32, u32, u32, u32, u32, u32, String, u32, u32, String, String, String, String, String, String) {
+pub fn load_overlay_config() -> (
+    u32,
+    u32,
+    String,
+    String,
+    u32,
+    u32,
+    u32,
+    u32,
+    u32,
+    u32,
+    String,
+    u32,
+    u32,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+) {
     #[cfg(target_os = "windows")]
     {
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         if let Ok(key) = hkcu.open_subkey(r"Software\KeyViewer\Overlay") {
             let fade_in_ms = key.get_value("FadeInMs").unwrap_or(120);
             let fade_out_ms = key.get_value("FadeOutMs").unwrap_or(120);
-            let chip_bg = key.get_value("ChipBg").unwrap_or_else(|_| "#000000".to_string());
-            let chip_fg = key.get_value("ChipFg").unwrap_or_else(|_| "#ffffff".to_string());
+            let chip_bg = key
+                .get_value("ChipBg")
+                .unwrap_or_else(|_| "#000000".to_string());
+            let chip_fg = key
+                .get_value("ChipFg")
+                .unwrap_or_else(|_| "#ffffff".to_string());
             let chip_gap = key.get_value("ChipGap").unwrap_or(8);
             let chip_pad_v = key.get_value("ChipPadV").unwrap_or(10);
             let chip_pad_h = key.get_value("ChipPadH").unwrap_or(14);
             let chip_radius = key.get_value("ChipRadius").unwrap_or(10);
             let chip_font_px = key.get_value("ChipFontPx").unwrap_or(24);
             let chip_font_weight = key.get_value("ChipFontWeight").unwrap_or(700);
-            let background = key.get_value("Background").unwrap_or_else(|_| "rgba(0,0,0,0)".to_string());
+            let background = key
+                .get_value("Background")
+                .unwrap_or_else(|_| "rgba(0,0,0,0)".to_string());
             let cols = key.get_value("Cols").unwrap_or(8);
             let rows = key.get_value("Rows").unwrap_or(1);
-            let align = key.get_value("Align").unwrap_or_else(|_| "left".to_string());
-            let direction = key.get_value("Direction").unwrap_or_else(|_| "ltr".to_string());
-            let color_mode = key.get_value("ColorMode").unwrap_or_else(|_| "solid".to_string());
-            let grad_color1 = key.get_value("GradColor1").unwrap_or_else(|_| "#000000".to_string());
-            let grad_color2 = key.get_value("GradColor2").unwrap_or_else(|_| "#333333".to_string());
-            let grad_dir = key.get_value("GradDir").unwrap_or_else(|_| "to bottom".to_string());
-            
-            (fade_in_ms, fade_out_ms, chip_bg, chip_fg, chip_gap, chip_pad_v, chip_pad_h, 
-             chip_radius, chip_font_px, chip_font_weight, background, cols, rows, align, direction,
-             color_mode, grad_color1, grad_color2, grad_dir)
+            let align = key
+                .get_value("Align")
+                .unwrap_or_else(|_| "left".to_string());
+            let direction = key
+                .get_value("Direction")
+                .unwrap_or_else(|_| "ltr".to_string());
+            let color_mode = key
+                .get_value("ColorMode")
+                .unwrap_or_else(|_| "solid".to_string());
+            let grad_color1 = key
+                .get_value("GradColor1")
+                .unwrap_or_else(|_| "#000000".to_string());
+            let grad_color2 = key
+                .get_value("GradColor2")
+                .unwrap_or_else(|_| "#333333".to_string());
+            let grad_dir = key
+                .get_value("GradDir")
+                .unwrap_or_else(|_| "to bottom".to_string());
+
+            (
+                fade_in_ms,
+                fade_out_ms,
+                chip_bg,
+                chip_fg,
+                chip_gap,
+                chip_pad_v,
+                chip_pad_h,
+                chip_radius,
+                chip_font_px,
+                chip_font_weight,
+                background,
+                cols,
+                rows,
+                align,
+                direction,
+                color_mode,
+                grad_color1,
+                grad_color2,
+                grad_dir,
+            )
         } else {
             // Return default values
-            (120, 120, "#000000".to_string(), "#ffffff".to_string(), 8, 10, 14, 
-             10, 24, 700, "rgba(0,0,0,0)".to_string(), 8, 1, "left".to_string(), "ltr".to_string(),
-             "solid".to_string(), "#000000".to_string(), "#333333".to_string(), "to bottom".to_string())
+            (
+                120,
+                120,
+                "#000000".to_string(),
+                "#ffffff".to_string(),
+                8,
+                10,
+                14,
+                10,
+                24,
+                700,
+                "rgba(0,0,0,0)".to_string(),
+                8,
+                1,
+                "left".to_string(),
+                "ltr".to_string(),
+                "solid".to_string(),
+                "#000000".to_string(),
+                "#333333".to_string(),
+                "to bottom".to_string(),
+            )
         }
     }
-    
+
     #[cfg(target_os = "macos")]
     {
         let fade_in_ms = macos_defaults::get_integer("com.keyviewer.overlay.FadeInMs", 120) as u32;
-        let fade_out_ms = macos_defaults::get_integer("com.keyviewer.overlay.FadeOutMs", 120) as u32;
+        let fade_out_ms =
+            macos_defaults::get_integer("com.keyviewer.overlay.FadeOutMs", 120) as u32;
         let chip_bg = macos_defaults::get_string("com.keyviewer.overlay.ChipBg", "#000000");
         let chip_fg = macos_defaults::get_string("com.keyviewer.overlay.ChipFg", "#ffffff");
         let chip_gap = macos_defaults::get_integer("com.keyviewer.overlay.ChipGap", 8) as u32;
         let chip_pad_v = macos_defaults::get_integer("com.keyviewer.overlay.ChipPadV", 10) as u32;
         let chip_pad_h = macos_defaults::get_integer("com.keyviewer.overlay.ChipPadH", 14) as u32;
-        let chip_radius = macos_defaults::get_integer("com.keyviewer.overlay.ChipRadius", 10) as u32;
-        let chip_font_px = macos_defaults::get_integer("com.keyviewer.overlay.ChipFontPx", 24) as u32;
-        let chip_font_weight = macos_defaults::get_integer("com.keyviewer.overlay.ChipFontWeight", 700) as u32;
-        let background = macos_defaults::get_string("com.keyviewer.overlay.Background", "rgba(0,0,0,0)");
+        let chip_radius =
+            macos_defaults::get_integer("com.keyviewer.overlay.ChipRadius", 10) as u32;
+        let chip_font_px =
+            macos_defaults::get_integer("com.keyviewer.overlay.ChipFontPx", 24) as u32;
+        let chip_font_weight =
+            macos_defaults::get_integer("com.keyviewer.overlay.ChipFontWeight", 700) as u32;
+        let background =
+            macos_defaults::get_string("com.keyviewer.overlay.Background", "rgba(0,0,0,0)");
         let cols = macos_defaults::get_integer("com.keyviewer.overlay.Cols", 8) as u32;
         let rows = macos_defaults::get_integer("com.keyviewer.overlay.Rows", 1) as u32;
         let align = macos_defaults::get_string("com.keyviewer.overlay.Align", "left");
@@ -429,18 +565,54 @@ pub fn load_overlay_config() -> (u32, u32, String, String, u32, u32, u32, u32, u
         let grad_color1 = macos_defaults::get_string("com.keyviewer.overlay.GradColor1", "#000000");
         let grad_color2 = macos_defaults::get_string("com.keyviewer.overlay.GradColor2", "#333333");
         let grad_dir = macos_defaults::get_string("com.keyviewer.overlay.GradDir", "to bottom");
-        
-        (fade_in_ms, fade_out_ms, chip_bg, chip_fg, chip_gap, chip_pad_v, chip_pad_h, 
-         chip_radius, chip_font_px, chip_font_weight, background, cols, rows, align, direction,
-         color_mode, grad_color1, grad_color2, grad_dir)
+
+        (
+            fade_in_ms,
+            fade_out_ms,
+            chip_bg,
+            chip_fg,
+            chip_gap,
+            chip_pad_v,
+            chip_pad_h,
+            chip_radius,
+            chip_font_px,
+            chip_font_weight,
+            background,
+            cols,
+            rows,
+            align,
+            direction,
+            color_mode,
+            grad_color1,
+            grad_color2,
+            grad_dir,
+        )
     }
-    
+
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         // Linux and other platforms: return defaults
-        (120, 120, "#000000".to_string(), "#ffffff".to_string(), 8, 10, 14, 10, 24, 700, 
-         "rgba(0,0,0,0)".to_string(), 8, 1, "left".to_string(), "ltr".to_string(),
-         "solid".to_string(), "#000000".to_string(), "#333333".to_string(), "to bottom".to_string())
+        (
+            120,
+            120,
+            "#000000".to_string(),
+            "#ffffff".to_string(),
+            8,
+            10,
+            14,
+            10,
+            24,
+            700,
+            "rgba(0,0,0,0)".to_string(),
+            8,
+            1,
+            "left".to_string(),
+            "ltr".to_string(),
+            "solid".to_string(),
+            "#000000".to_string(),
+            "#333333".to_string(),
+            "to bottom".to_string(),
+        )
     }
 }
 
@@ -449,13 +621,13 @@ pub fn load_overlay_config() -> (u32, u32, String, String, u32, u32, u32, u32, u
 pub fn save_key_images_config(config: &KeyImagesConfig) -> Result<(), String> {
     let config_dir = get_config_dir()?;
     let file_path = config_dir.join("key_images.json");
-    
+
     let json = serde_json::to_string_pretty(config)
         .map_err(|e| format!("Failed to serialize key images: {}", e))?;
-    
+
     std::fs::write(&file_path, json)
         .map_err(|e| format!("Failed to write key images file: {}", e))?;
-    
+
     Ok(())
 }
 
@@ -475,13 +647,13 @@ pub fn load_key_images_config() -> KeyImagesConfig {
 pub fn save_key_style_config(config: &KeyStyleConfig) -> Result<(), String> {
     let config_dir = get_config_dir()?;
     let file_path = config_dir.join("key_style.json");
-    
+
     let json = serde_json::to_string_pretty(config)
         .map_err(|e| format!("Failed to serialize key style: {}", e))?;
-    
+
     std::fs::write(&file_path, json)
         .map_err(|e| format!("Failed to write key style file: {}", e))?;
-    
+
     Ok(())
 }
 
@@ -508,7 +680,7 @@ fn get_config_dir() -> Result<std::path::PathBuf, String> {
         }
         Err("APPDATA not found".to_string())
     }
-    
+
     #[cfg(target_os = "macos")]
     {
         if let Some(home) = std::env::var_os("HOME") {
@@ -522,7 +694,7 @@ fn get_config_dir() -> Result<std::path::PathBuf, String> {
         }
         Err("HOME not found".to_string())
     }
-    
+
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         if let Some(home) = std::env::var_os("HOME") {
@@ -543,13 +715,13 @@ pub fn reset_all_settings() -> Result<(), String> {
     {
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         let key_path = r"Software\KeyViewer";
-        
+
         // Delete the entire KeyViewer registry key
         match hkcu.delete_subkey_all(key_path) {
             Ok(_) => {
                 println!("Registry key deleted successfully");
                 Ok(())
-            },
+            }
             Err(e) => {
                 // If key doesn't exist, that's also success
                 if e.kind() == std::io::ErrorKind::NotFound {
@@ -561,7 +733,7 @@ pub fn reset_all_settings() -> Result<(), String> {
             }
         }
     }
-    
+
     #[cfg(target_os = "macos")]
     {
         // Remove all settings from UserDefaults
@@ -588,7 +760,7 @@ pub fn reset_all_settings() -> Result<(), String> {
         println!("UserDefaults settings deleted successfully");
         Ok(())
     }
-    
+
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         // Linux and other platforms: no-op
@@ -596,4 +768,3 @@ pub fn reset_all_settings() -> Result<(), String> {
         Ok(())
     }
 }
-

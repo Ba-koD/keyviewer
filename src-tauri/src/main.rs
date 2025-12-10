@@ -29,7 +29,10 @@ use crate::state::AppState;
 fn is_portable() -> bool {
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_name) = exe_path.file_name() {
-            return exe_name.to_string_lossy().to_lowercase().contains("portable");
+            return exe_name
+                .to_string_lossy()
+                .to_lowercase()
+                .contains("portable");
         }
     }
     false
@@ -68,27 +71,38 @@ fn check_macos_permissions() -> MacOSPermissions {
     #[cfg(target_os = "macos")]
     {
         let accessibility = unsafe { AXIsProcessTrusted() };
-        
+
         // Check Input Monitoring by trying to create event tap
         let input_monitoring = {
-            use core_graphics::event::{CGEventTap, CGEventTapLocation, CGEventTapPlacement, CGEventTapOptions, CGEventType};
+            use core_graphics::event::{
+                CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement, CGEventType,
+            };
             CGEventTap::new(
                 CGEventTapLocation::Session,
                 CGEventTapPlacement::HeadInsertEventTap,
                 CGEventTapOptions::ListenOnly,
                 vec![CGEventType::KeyDown],
                 |_, _, _| None,
-            ).is_ok()
+            )
+            .is_ok()
         };
-        
+
         // Check Screen Recording permission
         let screen_recording = unsafe { CGPreflightScreenCaptureAccess() };
-        
-        MacOSPermissions { accessibility, input_monitoring, screen_recording }
+
+        MacOSPermissions {
+            accessibility,
+            input_monitoring,
+            screen_recording,
+        }
     }
     #[cfg(not(target_os = "macos"))]
     {
-        MacOSPermissions { accessibility: true, input_monitoring: true, screen_recording: true }
+        MacOSPermissions {
+            accessibility: true,
+            input_monitoring: true,
+            screen_recording: true,
+        }
     }
 }
 
@@ -100,11 +114,16 @@ fn open_macos_permission_settings(permission_type: String) -> Result<(), String>
         match permission_type.as_str() {
             "accessibility" => {
                 // AXIsProcessTrusted triggers registration
-                unsafe { AXIsProcessTrusted(); }
-            },
+                unsafe {
+                    AXIsProcessTrusted();
+                }
+            }
             "input_monitoring" => {
                 // CGEventTap triggers Input Monitoring registration
-                use core_graphics::event::{CGEventTap, CGEventTapLocation, CGEventTapPlacement, CGEventTapOptions, CGEventType};
+                use core_graphics::event::{
+                    CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement,
+                    CGEventType,
+                };
                 let _ = CGEventTap::new(
                     CGEventTapLocation::Session,
                     CGEventTapPlacement::HeadInsertEventTap,
@@ -112,25 +131,31 @@ fn open_macos_permission_settings(permission_type: String) -> Result<(), String>
                     vec![CGEventType::KeyDown],
                     |_, _, _| None,
                 );
-            },
+            }
             "screen_recording" => {
                 // CGWindowListCopyWindowInfo triggers Screen Recording registration
-                use core_graphics::window::{kCGWindowListOptionOnScreenOnly, kCGNullWindowID};
+                use core_graphics::window::{kCGNullWindowID, kCGWindowListOptionOnScreenOnly};
                 unsafe {
                     core_graphics::window::CGWindowListCopyWindowInfo(
                         kCGWindowListOptionOnScreenOnly,
                         kCGNullWindowID,
                     );
                 }
-            },
+            }
             _ => return Err("Unknown permission type".to_string()),
         };
-        
+
         // Open System Settings
         let url = match permission_type.as_str() {
-            "accessibility" => "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
-            "input_monitoring" => "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
-            "screen_recording" => "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+            "accessibility" => {
+                "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+            }
+            "input_monitoring" => {
+                "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
+            }
+            "screen_recording" => {
+                "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+            }
             _ => return Err("Unknown permission type".to_string()),
         };
         open::that(url).map_err(|e| e.to_string())
@@ -160,11 +185,11 @@ fn save_language_setting(language: String, handle: State<AppHandle>) -> Result<(
     let mut settings = LauncherSettings::load();
     settings.language = language.clone();
     settings.save()?;
-    
+
     // Update AppState language
     let mut state = handle.app_state.write();
     state.language = language;
-    
+
     Ok(())
 }
 
@@ -195,7 +220,7 @@ fn open_url(url: String) -> Result<(), String> {
 #[tauri::command]
 fn minimize_to_tray(window: tauri::Window<Wry>) -> Result<(), String> {
     let app = window.app_handle();
-    
+
     // Create tray icon if it doesn't exist
     if app.tray_by_id("main-tray").is_none() {
         let show_item = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)
@@ -232,7 +257,8 @@ fn minimize_to_tray(window: tauri::Window<Wry>) -> Result<(), String> {
                         button: MouseButton::Left,
                         button_state: MouseButtonState::Up,
                         ..
-                    } | TrayIconEvent::DoubleClick {
+                    }
+                    | TrayIconEvent::DoubleClick {
                         button: MouseButton::Left,
                         ..
                     } => {
@@ -251,11 +277,15 @@ fn minimize_to_tray(window: tauri::Window<Wry>) -> Result<(), String> {
             .build(app)
             .map_err(|e| format!("Failed to build tray: {}", e))?;
     }
-    
+
     // Hide window and remove from taskbar
-    window.hide().map_err(|e| format!("Failed to hide window: {}", e))?;
-    window.set_skip_taskbar(true).map_err(|e| format!("Failed to set skip taskbar: {}", e))?;
-    
+    window
+        .hide()
+        .map_err(|e| format!("Failed to hide window: {}", e))?;
+    window
+        .set_skip_taskbar(true)
+        .map_err(|e| format!("Failed to set skip taskbar: {}", e))?;
+
     Ok(())
 }
 
@@ -279,7 +309,7 @@ fn main() {
     } else {
         "keyviewer"
     };
-    
+
     // Try to create single instance lock, but don't panic if it fails (e.g. on macOS with permission issues)
     match single_instance::SingleInstance::new(app_name) {
         Ok(instance) => {
@@ -293,7 +323,10 @@ fn main() {
         }
         Err(e) => {
             // Log the error but continue - single instance check is not critical for functionality
-            eprintln!("Warning: Failed to create single instance lock (continuing anyway): {}", e);
+            eprintln!(
+                "Warning: Failed to create single instance lock (continuing anyway): {}",
+                e
+            );
             println!("Note: Multiple instances may be able to run simultaneously");
         }
     }
@@ -303,13 +336,16 @@ fn main() {
     let settings = LauncherSettings::load();
     initial_state.language = settings.language.clone();
     println!("Initial language: {}", initial_state.language);
-    
+
     // Load target config from registry
     let (target_mode, target_value) = settings::load_target_config();
     initial_state.target_config.mode = target_mode;
     initial_state.target_config.value = target_value;
-    println!("Loaded target config: mode={}, value={:?}", initial_state.target_config.mode, initial_state.target_config.value);
-    
+    println!(
+        "Loaded target config: mode={}, value={:?}",
+        initial_state.target_config.mode, initial_state.target_config.value
+    );
+
     // Important debug info for macOS
     #[cfg(target_os = "macos")]
     {
@@ -319,12 +355,29 @@ fn main() {
         println!("NOTE: If you change target settings, you may need to restart the app!");
         println!("======================\n");
     }
-    
+
     // Load overlay config from registry
-    let (fade_in_ms, fade_out_ms, chip_bg, chip_fg, chip_gap, chip_pad_v, chip_pad_h,
-         chip_radius, chip_font_px, chip_font_weight, background, cols, rows, align, direction,
-         color_mode, grad_color1, grad_color2, grad_dir) 
-        = settings::load_overlay_config();
+    let (
+        fade_in_ms,
+        fade_out_ms,
+        chip_bg,
+        chip_fg,
+        chip_gap,
+        chip_pad_v,
+        chip_pad_h,
+        chip_radius,
+        chip_font_px,
+        chip_font_weight,
+        background,
+        cols,
+        rows,
+        align,
+        direction,
+        color_mode,
+        grad_color1,
+        grad_color2,
+        grad_dir,
+    ) = settings::load_overlay_config();
     initial_state.app_config.overlay.fade_in_ms = fade_in_ms;
     initial_state.app_config.overlay.fade_out_ms = fade_out_ms;
     initial_state.app_config.overlay.chip_bg = chip_bg;
@@ -345,15 +398,15 @@ fn main() {
     initial_state.app_config.overlay.grad_color2 = grad_color2;
     initial_state.app_config.overlay.grad_dir = grad_dir;
     println!("Loaded overlay config from registry");
-    
+
     // Load key images config from file
     initial_state.app_config.key_images = settings::load_key_images_config();
     println!("Loaded key images config");
-    
+
     // Load key style config from file
     initial_state.app_config.key_style = settings::load_key_style_config();
     println!("Loaded key style config");
-    
+
     let app_state = Arc::new(RwLock::new(initial_state));
 
     // Create server controller
@@ -371,24 +424,37 @@ fn main() {
             // Check all permissions
             let accessibility = unsafe { AXIsProcessTrusted() };
             let input_monitoring = {
-                use core_graphics::event::{CGEventTap, CGEventTapLocation, CGEventTapPlacement, CGEventTapOptions, CGEventType};
+                use core_graphics::event::{
+                    CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement,
+                    CGEventType,
+                };
                 CGEventTap::new(
                     CGEventTapLocation::Session,
                     CGEventTapPlacement::HeadInsertEventTap,
                     CGEventTapOptions::ListenOnly,
                     vec![CGEventType::KeyDown],
                     |_, _, _| None,
-                ).is_ok()
+                )
+                .is_ok()
             };
             let screen_recording = unsafe { CGPreflightScreenCaptureAccess() };
-            
-            eprintln!("[macOS Permissions] Accessibility: {}", if accessibility { "✓" } else { "✗" });
-            eprintln!("[macOS Permissions] Input Monitoring: {}", if input_monitoring { "✓" } else { "✗" });
-            eprintln!("[macOS Permissions] Screen Recording: {}", if screen_recording { "✓" } else { "✗" });
-            
+
+            eprintln!(
+                "[macOS Permissions] Accessibility: {}",
+                if accessibility { "✓" } else { "✗" }
+            );
+            eprintln!(
+                "[macOS Permissions] Input Monitoring: {}",
+                if input_monitoring { "✓" } else { "✗" }
+            );
+            eprintln!(
+                "[macOS Permissions] Screen Recording: {}",
+                if screen_recording { "✓" } else { "✗" }
+            );
+
             if accessibility && input_monitoring && screen_recording {
                 eprintln!("All permissions granted. Starting keyboard hook on macOS.");
-                
+
                 let state_clone = app_state.clone();
                 std::thread::spawn(move || {
                     keyboard::start_keyboard_hook(state_clone);
@@ -426,11 +492,11 @@ fn main() {
                         std::process::exit(0);
                     }
                 });
-                
+
                 /* OLD CODE - tray on close
                 let app_handle = app.app_handle().clone();
                 let window_clone = window.clone();
-                
+
                 window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                         if app_handle.tray_by_id("main-tray").is_none() {
@@ -484,10 +550,10 @@ fn main() {
                                     }
                                 })
                                 .build(&app_handle);
-                            
+
                             std::mem::forget(tray); // Keep tray alive
                         }
-                        
+
                         let _ = window_clone.hide();
                         let _ = window_clone.set_skip_taskbar(true);
                         api.prevent_close();
@@ -515,4 +581,3 @@ fn main() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-
