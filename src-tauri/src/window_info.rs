@@ -214,7 +214,9 @@ pub fn get_foreground_window() -> Option<WindowInfo> {
         fn CGWindowListCopyWindowInfo(option: u32, relative_to_window: u32) -> CFArrayRef;
     }
 
+    #[allow(dead_code, non_upper_case_globals)]
     const kCGWindowListOptionAll: u32 = 0;
+    #[allow(non_upper_case_globals)]
     const kCGWindowListOptionOnScreenOnly: u32 = 1 << 0;
 
     unsafe {
@@ -259,19 +261,19 @@ pub fn get_foreground_window() -> Option<WindowInfo> {
 
                 let owner_name = window_info
                     .find(owner_name_key.as_concrete_TypeRef())
-                    .and_then(|v| {
+                    .map(|v| {
                         let s: CFString =
                             CFString::wrap_under_get_rule(v.as_CFTypeRef() as CFStringRef);
-                        Some(s.to_string())
+                        s.to_string()
                     })
                     .unwrap_or_default();
 
                 let window_name = window_info
                     .find(window_name_key.as_concrete_TypeRef())
-                    .and_then(|v| {
+                    .map(|v| {
                         let s: CFString =
                             CFString::wrap_under_get_rule(v.as_CFTypeRef() as CFStringRef);
-                        Some(s.to_string())
+                        s.to_string()
                     })
                     .unwrap_or_default();
 
@@ -294,15 +296,14 @@ pub fn get_foreground_window() -> Option<WindowInfo> {
                 // Static warning for empty titles (only show once per run)
                 static TITLE_WARNING_SHOWN: std::sync::atomic::AtomicBool =
                     std::sync::atomic::AtomicBool::new(false);
-                if window_name.is_empty() && !owner_name.is_empty() {
-                    if !TITLE_WARNING_SHOWN.swap(true, std::sync::atomic::Ordering::Relaxed) {
-                        eprintln!("\n⚠️  [macOS] Window titles are EMPTY!");
-                        eprintln!("⚠️  Screen Recording permission is probably missing.");
-                        eprintln!(
-                            "⚠️  Fix: System Settings > Privacy & Security > Screen Recording"
-                        );
-                        eprintln!("⚠️  Enable 'KeyQueueViewer', then QUIT (Cmd+Q) and restart.\n");
-                    }
+                if window_name.is_empty()
+                    && !owner_name.is_empty()
+                    && !TITLE_WARNING_SHOWN.swap(true, std::sync::atomic::Ordering::Relaxed)
+                {
+                    eprintln!("\n⚠️  [macOS] Window titles are EMPTY!");
+                    eprintln!("⚠️  Screen Recording permission is probably missing.");
+                    eprintln!("⚠️  Fix: System Settings > Privacy & Security > Screen Recording");
+                    eprintln!("⚠️  Enable 'KeyQueueViewer', then QUIT (Cmd+Q) and restart.\n");
                 }
 
                 // Return first normal window with a name (even if title is empty)
@@ -335,6 +336,7 @@ pub fn get_all_windows() -> Vec<WindowInfo> {
         fn CGWindowListCopyWindowInfo(option: u32, relative_to_window: u32) -> CFArrayRef;
     }
 
+    #[allow(non_upper_case_globals)]
     const kCGWindowListOptionOnScreenOnly: u32 = 1 << 0;
 
     let mut windows = Vec::new();
@@ -380,19 +382,19 @@ pub fn get_all_windows() -> Vec<WindowInfo> {
 
                 let owner_name = window_info
                     .find(owner_name_key.as_concrete_TypeRef())
-                    .and_then(|v| {
+                    .map(|v| {
                         let s: CFString =
                             CFString::wrap_under_get_rule(v.as_CFTypeRef() as CFStringRef);
-                        Some(s.to_string())
+                        s.to_string()
                     })
                     .unwrap_or_default();
 
                 let window_name = window_info
                     .find(window_name_key.as_concrete_TypeRef())
-                    .and_then(|v| {
+                    .map(|v| {
                         let s: CFString =
                             CFString::wrap_under_get_rule(v.as_CFTypeRef() as CFStringRef);
-                        Some(s.to_string())
+                        s.to_string()
                     })
                     .unwrap_or_default();
 

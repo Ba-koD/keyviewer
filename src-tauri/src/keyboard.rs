@@ -13,6 +13,7 @@ use rdev::{listen, Button, Event, EventType, Key};
 // Windows uses pure polling - no rdev hook needed
 
 #[cfg(target_os = "macos")]
+#[allow(unused_imports)]
 use rdev::Key;
 
 // Interval for polling actual key state (primary method for games)
@@ -348,7 +349,7 @@ pub fn start_keyboard_hook(state: Arc<RwLock<AppState>>) {
                     // Handle modifier keys (Shift, Cmd, Opt, Ctrl, Fn, Caps)
                     let keycode = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE);
                     let flags = event.get_flags();
-                    let prev_flags = MODIFIER_STATE.load(Ordering::Relaxed);
+                    let _prev_flags = MODIFIER_STATE.load(Ordering::Relaxed);
                     MODIFIER_STATE.store(flags.bits(), Ordering::Relaxed);
 
                     let label = keycode_to_label(keycode as u16);
