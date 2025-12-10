@@ -14,10 +14,10 @@
       {
         "title": "KeyQueueViewer",
         "width": 520,
-        "height": 580,
+        "height": 640,
         "resizable": true,
         "minWidth": 420,
-        "minHeight": 480,
+        "minHeight": 540,
         "fullscreen": false,
         "decorations": true,
         "alwaysOnTop": false,

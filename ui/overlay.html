@@ -6,11 +6,12 @@
 	<title>Key Queue Overlay</title>
 	<link rel="icon" href="/static/favicon.ico" type="image/x-icon" />
 	<link rel="stylesheet" href="/static/overlay.css">
+	<link rel="stylesheet" href="/static/chip.css">
 	<style>
 		:root {
 			--bg: rgba(0,0,0,0);
-			--chip-bg: rgba(0,0,0,0.6);
-			--chip-fg: #fff;
+			--chip-bg: #000000;
+			--chip-fg: #ffffff;
 			--chip-gap: 8px;
 			--chip-pad-v: 10px;
 			--chip-pad-h: 14px;
@@ -29,24 +30,21 @@
 		.container { width: 100%; height: 100%; display:flex; align-items:center; justify-content:center; }
 		.queue-wrap { width: 90vw; max-width: 96vw; }
 		.queue {
-			display: grid;
-			grid-template-columns: repeat(var(--cols), max-content);
-			grid-auto-rows: max-content;
-			gap: var(--chip-gap);
-			justify-content: var(--align);
+			display: flex;
+			flex-wrap: wrap;
+			gap: var(--chip-gap, 8px);
+			justify-content: var(--align, flex-start);
 		}
 		.chip {
-			background: var(--chip-bg);
-			color: var(--chip-fg);
-			padding: calc(var(--chip-pad-v) * var(--single-scale)) calc(var(--chip-pad-h) * var(--single-scale));
-			border-radius: calc(var(--chip-radius) * var(--single-scale));
-			font-size: calc(var(--chip-font) * var(--single-scale));
-			font-weight: var(--chip-font-weight);
+			background: var(--chip-bg, rgba(0,0,0,0.6));
+			color: var(--chip-fg, #ffffff);
+			padding: calc(var(--chip-pad-v, 10px) * var(--single-scale, 1)) calc(var(--chip-pad-h, 14px) * var(--single-scale, 1));
+			border-radius: calc(var(--chip-radius, 10px) * var(--single-scale, 1));
+			font-size: calc(var(--chip-font, 24px) * var(--single-scale, 1));
+			font-weight: var(--chip-font-weight, 700);
 			font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
 			min-width: 44px; text-align: center; user-select: none; transform: translateY(0);
 			transition: transform var(--fade-in) ease, opacity var(--fade-in) ease;
-			display: flex; align-items: center; justify-content: center;
-			background-size: cover; background-position: center; background-repeat: no-repeat;
 		}
 		.chip.hide { opacity: 0; transform: translateY(8px); transition: transform var(--fade-out) ease, opacity var(--fade-out) ease; }
 
@@ -83,17 +81,6 @@
 		const wrapEl = document.querySelector('.queue-wrap');
 		let ws; let lastKeys = []; let overlayCfg = null;
 
-		// Key Image Settings (localStorage based)
-		const STORAGE_KEY_IMAGES = 'kv_key_images';
-		const STORAGE_KEY_HIDE = 'kv_hide_key_text';
-		
-		function getKeyImages() {
-			try { return JSON.parse(localStorage.getItem(STORAGE_KEY_IMAGES) || '{}'); } catch(e) { return {}; }
-		}
-		function getHideKeyText() {
-			try { return JSON.parse(localStorage.getItem(STORAGE_KEY_HIDE) || '{}'); } catch(e) { return {}; }
-		}
-
 		function applyOverlayConfig(cfg){
 			if (!cfg) return; overlayCfg = cfg; const root = document.documentElement;
 			if (cfg.background) root.style.setProperty('--bg', cfg.background);
@@ -101,7 +88,14 @@
 			if (cfg.chip_fg) root.style.setProperty('--chip-fg', cfg.chip_fg);
 			['chip_gap','chip_pad_v','chip_pad_h','chip_radius','chip_font_px','chip_font_weight','fade_in_ms','fade_out_ms'].forEach(k=>{
 				const map = {chip_gap:'--chip-gap',chip_pad_v:'--chip-pad-v',chip_pad_h:'--chip-pad-h',chip_radius:'--chip-radius',chip_font_px:'--chip-font',chip_font_weight:'--chip-font-weight',fade_in_ms:'--fade-in',fade_out_ms:'--fade-out'};
-				const v = cfg[k]; if (typeof v === 'number') root.style.setProperty(map[k], (k.includes('ms')? v+'ms' : v+'px'));
+				const v = cfg[k]; 
+				if (typeof v === 'number') {
+					// font-weight has no unit, ms for time, px for others
+					let unit = '';
+					if (k.includes('ms')) unit = 'ms';
+					else if (k !== 'chip_font_weight') unit = 'px';
+					root.style.setProperty(map[k], v + unit);
+				}
 			});
 			if (typeof cfg.cols === 'number') root.style.setProperty('--cols', String(cfg.cols));
 			if (typeof cfg.rows === 'number') root.style.setProperty('--rows', String(cfg.rows));
@@ -138,34 +132,7 @@
 			let toShow = keys;
 			if (rows > 0){ const capacity = Math.max(1, cols * rows); toShow = keys.slice(Math.max(0, keys.length - capacity)); }
 			if (overlayCfg?.direction === 'rtl') toShow = Array.from(toShow).reverse();
-			
-			// Get key image settings
-			const keyImages = getKeyImages();
-			const hideKeyText = getHideKeyText();
-			
-			toShow.forEach(k => {
-				const chip = document.createElement('div');
-				chip.className = 'chip';
-				chip.dataset.key = k;
-				
-				// Get image (specific key or default)
-				const img = keyImages[k] || keyImages['default'];
-				// Get hide text setting (specific key or default)
-				const hideText = hideKeyText[k] !== undefined ? hideKeyText[k] : hideKeyText['default'];
-				
-				// Set image as background if exists
-				if (img) {
-					chip.style.backgroundImage = `url(${img})`;
-				}
-				
-				// Always add text to maintain size, use transparent color if hidden
-				chip.textContent = k;
-				if (hideText) {
-					chip.style.color = 'transparent';
-				}
-				
-				queueEl.appendChild(chip);
-			});
+			toShow.forEach(k => { const chip = document.createElement('div'); chip.className = 'chip'; chip.dataset.key = k; chip.textContent = k; queueEl.appendChild(chip); });
 		}
 
 		// --- Inline config panel (color pickers + hex) ---
@@ -262,8 +229,21 @@
 		}
 
 		function connect(){
-			const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws'; ws = new WebSocket(url);
-			ws.onmessage = (ev) => { try { const data = JSON.parse(ev.data); if (data.type === 'config' && data.overlay){ applyOverlayConfig(data.overlay); return; } if (Array.isArray(data.keys)) { lastKeys = data.keys; placeChips(lastKeys); } } catch(e){} };
+			const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
+			ws = new WebSocket(url);
+			ws.onmessage = (ev) => { 
+				try { 
+					const data = JSON.parse(ev.data); 
+					if (data.type === 'config' && data.overlay){ 
+						applyOverlayConfig(data.overlay); 
+						return; 
+					} 
+					if (Array.isArray(data.keys)) { 
+						lastKeys = data.keys; 
+						placeChips(lastKeys); 
+					} 
+				} catch(e){} 
+			};
 			ws.onclose = () => { setTimeout(connect, 1000); };
 		}
 
@@ -275,7 +255,10 @@
 			}
 		});
 
-		initConfig().then(()=> setupConfigPanel()); connect();
+		Promise.all([initConfig(), loadKeyImagesConfig()]).then(()=> setupConfigPanel()); connect();
+		
+		// Periodically refresh key images config (every 5 seconds)
+		setInterval(loadKeyImagesConfig, 5000);
 	})();
 	</script>
 </body>
