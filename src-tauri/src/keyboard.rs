@@ -2,7 +2,6 @@ use crate::state::AppState;
 use crate::window_info;
 use parking_lot::RwLock;
 use std::sync::Arc;
-use std::time::Duration;
 
 #[cfg(target_os = "linux")]
 use std::sync::mpsc;

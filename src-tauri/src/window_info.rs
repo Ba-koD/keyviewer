@@ -435,7 +435,6 @@ pub fn get_all_windows() -> Vec<WindowInfo> {
 
 #[cfg(target_os = "linux")]
 pub fn get_foreground_window() -> Option<WindowInfo> {
-    use std::ffi::CString;
     use std::ptr;
     use x11::xlib::*;
 
