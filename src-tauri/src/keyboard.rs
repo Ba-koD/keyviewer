@@ -2,6 +2,7 @@ use crate::state::AppState;
 use crate::window_info;
 use parking_lot::RwLock;
 use std::sync::Arc;
+#[allow(unused_imports)]
 use std::time::Duration;
 
 #[cfg(target_os = "linux")]
@@ -9,11 +10,12 @@ use std::sync::mpsc;
 
 // Linux uses hook-based input
 #[cfg(target_os = "linux")]
-use rdev::{listen, Event, EventType, Key, Button};
+use rdev::{listen, Button, Event, EventType, Key};
 
 // Windows uses pure polling - no rdev hook needed
 
 #[cfg(target_os = "macos")]
+#[allow(unused_imports)]
 use rdev::Key;
 
 // Interval for polling actual key state (primary method for games)
@@ -266,7 +268,7 @@ fn key_to_code(key: Key) -> u32 {
     // Use hash of the debug representation as a unique identifier
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
-    
+
     let mut hasher = DefaultHasher::new();
     format!("{:?}", key).hash(&mut hasher);
     hasher.finish() as u32
@@ -299,100 +301,120 @@ fn button_to_code(button: Button) -> u32 {
 #[cfg(target_os = "macos")]
 pub fn start_keyboard_hook(state: Arc<RwLock<AppState>>) {
     eprintln!("[Keyboard Hook] Starting macOS CGEventTap listener...");
-    
+
     use core_foundation::runloop::{kCFRunLoopCommonModes, CFRunLoop};
-    use core_graphics::event::{CGEvent, CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement, CGEventType, CGEventFlags, EventField, CGEventTapProxy};
+    use core_graphics::event::{
+        CGEvent, CGEventFlags, CGEventTap, CGEventTapLocation, CGEventTapOptions,
+        CGEventTapPlacement, CGEventTapProxy, CGEventType, EventField,
+    };
     use std::sync::atomic::{AtomicU64, Ordering};
-    
+
     // Track modifier state with atomic
     static MODIFIER_STATE: AtomicU64 = AtomicU64::new(0);
-    
+
     let state_ptr = Arc::into_raw(state) as *mut std::ffi::c_void;
-    
-    let callback = Box::new(move |_proxy: CGEventTapProxy, event_type: CGEventType, event: &CGEvent| -> Option<CGEvent> {
-        let state = unsafe { Arc::from_raw(state_ptr as *const RwLock<AppState>) };
-        let state_clone = Arc::clone(&state);
-        std::mem::forget(state); // Don't drop the Arc
-        
-        // Check target config first
-        let target_config = {
-            let state_lock = state_clone.read();
-            state_lock.target_config.clone()
-        };
-        
-        if !should_process_event(&target_config) {
-            return Some(event.to_owned());
-        }
-        
-        match event_type {
-            CGEventType::KeyDown => {
-                let keycode = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE);
-                let label = keycode_to_label(keycode as u16);
-                eprintln!("[Keyboard Hook] Key down: {} (keycode {})", label, keycode);
-                
-                let mut state_lock = state_clone.write();
-                state_lock.add_key(keycode as u32, label);
+
+    let callback = Box::new(
+        move |_proxy: CGEventTapProxy,
+              event_type: CGEventType,
+              event: &CGEvent|
+              -> Option<CGEvent> {
+            let state = unsafe { Arc::from_raw(state_ptr as *const RwLock<AppState>) };
+            let state_clone = Arc::clone(&state);
+            std::mem::forget(state); // Don't drop the Arc
+
+            // Check target config first
+            let target_config = {
+                let state_lock = state_clone.read();
+                state_lock.target_config.clone()
+            };
+
+            if !should_process_event(&target_config) {
+                return Some(event.to_owned());
             }
-            CGEventType::KeyUp => {
-                let keycode = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE);
-                let mut state_lock = state_clone.write();
-                state_lock.remove_key(keycode as u32);
-            }
-            CGEventType::FlagsChanged => {
-                // Handle modifier keys (Shift, Cmd, Opt, Ctrl, Fn, Caps)
-                let keycode = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE);
-                let flags = event.get_flags();
-                let prev_flags = MODIFIER_STATE.load(Ordering::Relaxed);
-                MODIFIER_STATE.store(flags.bits(), Ordering::Relaxed);
-                
-                let label = keycode_to_label(keycode as u16);
-                eprintln!("[Keyboard Hook] FlagsChanged: {} (keycode {}, flags 0x{:X})", label, keycode, flags.bits());
-                
-                // Determine if key was pressed or released based on flag changes
-                let is_pressed = match keycode {
-                    // Left Shift (56), Right Shift (60)
-                    56 | 60 => flags.contains(CGEventFlags::CGEventFlagShift),
-                    // Left Cmd (55), Right Cmd (54)
-                    55 | 54 => flags.contains(CGEventFlags::CGEventFlagCommand),
-                    // Left Opt (58), Right Opt (61)
-                    58 | 61 => flags.contains(CGEventFlags::CGEventFlagAlternate),
-                    // Left Ctrl (59), Right Ctrl (62)
-                    59 | 62 => flags.contains(CGEventFlags::CGEventFlagControl),
-                    // Caps Lock (57)
-                    57 => flags.contains(CGEventFlags::CGEventFlagAlphaShift),
-                    // Fn (63)
-                    63 => flags.contains(CGEventFlags::CGEventFlagSecondaryFn),
-                    _ => false,
-                };
-                
-                let mut state_lock = state_clone.write();
-                if is_pressed {
+
+            match event_type {
+                CGEventType::KeyDown => {
+                    let keycode = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE);
+                    let label = keycode_to_label(keycode as u16);
+                    eprintln!("[Keyboard Hook] Key down: {} (keycode {})", label, keycode);
+
+                    let mut state_lock = state_clone.write();
                     state_lock.add_key(keycode as u32, label);
-                } else {
+                }
+                CGEventType::KeyUp => {
+                    let keycode = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE);
+                    let mut state_lock = state_clone.write();
                     state_lock.remove_key(keycode as u32);
                 }
+                CGEventType::FlagsChanged => {
+                    // Handle modifier keys (Shift, Cmd, Opt, Ctrl, Fn, Caps)
+                    let keycode = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE);
+                    let flags = event.get_flags();
+                    let _prev_flags = MODIFIER_STATE.load(Ordering::Relaxed);
+                    MODIFIER_STATE.store(flags.bits(), Ordering::Relaxed);
+
+                    let label = keycode_to_label(keycode as u16);
+                    eprintln!(
+                        "[Keyboard Hook] FlagsChanged: {} (keycode {}, flags 0x{:X})",
+                        label,
+                        keycode,
+                        flags.bits()
+                    );
+
+                    // Determine if key was pressed or released based on flag changes
+                    let is_pressed = match keycode {
+                        // Left Shift (56), Right Shift (60)
+                        56 | 60 => flags.contains(CGEventFlags::CGEventFlagShift),
+                        // Left Cmd (55), Right Cmd (54)
+                        55 | 54 => flags.contains(CGEventFlags::CGEventFlagCommand),
+                        // Left Opt (58), Right Opt (61)
+                        58 | 61 => flags.contains(CGEventFlags::CGEventFlagAlternate),
+                        // Left Ctrl (59), Right Ctrl (62)
+                        59 | 62 => flags.contains(CGEventFlags::CGEventFlagControl),
+                        // Caps Lock (57)
+                        57 => flags.contains(CGEventFlags::CGEventFlagAlphaShift),
+                        // Fn (63)
+                        63 => flags.contains(CGEventFlags::CGEventFlagSecondaryFn),
+                        _ => false,
+                    };
+
+                    let mut state_lock = state_clone.write();
+                    if is_pressed {
+                        state_lock.add_key(keycode as u32, label);
+                    } else {
+                        state_lock.remove_key(keycode as u32);
+                    }
+                }
+                _ => {}
             }
-            _ => {}
-        }
-        
-        Some(event.to_owned())
-    });
-    
+
+            Some(event.to_owned())
+        },
+    );
+
     match CGEventTap::new(
         CGEventTapLocation::HID,
         CGEventTapPlacement::HeadInsertEventTap,
         CGEventTapOptions::ListenOnly,
-        vec![CGEventType::KeyDown, CGEventType::KeyUp, CGEventType::FlagsChanged],
+        vec![
+            CGEventType::KeyDown,
+            CGEventType::KeyUp,
+            CGEventType::FlagsChanged,
+        ],
         callback,
     ) {
         Ok(tap) => {
-            let loop_source = tap.mach_port.create_runloop_source(0).expect("Failed to create runloop source");
-            
+            let loop_source = tap
+                .mach_port
+                .create_runloop_source(0)
+                .expect("Failed to create runloop source");
+
             unsafe {
                 let run_loop = CFRunLoop::get_current();
                 run_loop.add_source(&loop_source, kCFRunLoopCommonModes);
                 tap.enable();
-                
+
                 eprintln!("[Keyboard Hook] CGEventTap enabled, starting runloop...");
                 CFRunLoop::run_current();
             }
@@ -410,12 +432,14 @@ pub fn start_keyboard_hook(state: Arc<RwLock<AppState>>) {
 pub fn start_keyboard_hook(state: Arc<RwLock<AppState>>) {
     eprintln!("[Keyboard] Windows: Starting pure polling-based key detection...");
     eprintln!("[Keyboard] NO hook installed - using GetAsyncKeyState only");
-    eprintln!("[Keyboard] This method works reliably with all games and doesn't interfere with input");
-    
+    eprintln!(
+        "[Keyboard] This method works reliably with all games and doesn't interfere with input"
+    );
+
     // Start polling thread - this is the ONLY method on Windows
     // No rdev hook is installed to avoid interfering with keyboard input
     validate_key_state_loop(state);
-    
+
     // This function will block forever (polling loop)
     // If it returns, something went wrong
     eprintln!("[Keyboard] Polling loop ended unexpectedly!");
@@ -425,16 +449,16 @@ pub fn start_keyboard_hook(state: Arc<RwLock<AppState>>) {
 #[cfg(target_os = "linux")]
 pub fn start_keyboard_hook(state: Arc<RwLock<AppState>>) {
     eprintln!("[Keyboard Hook] Linux: Starting hook-based key detection...");
-    
+
     let (tx, rx) = mpsc::channel::<InputEvent>();
-    
+
     // Spawn event processor thread
     let state_for_processor = state.clone();
     std::thread::spawn(move || {
         eprintln!("[Event Processor] Started");
         process_input_events(rx, state_for_processor);
     });
-    
+
     let callback = move |event: Event| {
         let input_event = match event.event_type {
             EventType::KeyPress(key) => {
@@ -457,7 +481,7 @@ pub fn start_keyboard_hook(state: Arc<RwLock<AppState>>) {
             }
             _ => None,
         };
-        
+
         if let Some(evt) = input_event {
             let _ = tx.send(evt);
         }
@@ -478,7 +502,7 @@ fn process_input_events(rx: mpsc::Receiver<InputEvent>, state: Arc<RwLock<AppSta
     let mut cached_target_value: Option<String> = None;
     let mut config_check_counter = 0u32;
     const CONFIG_REFRESH_INTERVAL: u32 = 50; // Refresh config every N events
-    
+
     loop {
         // Wait for next event
         let event = match rx.recv() {
@@ -488,7 +512,7 @@ fn process_input_events(rx: mpsc::Receiver<InputEvent>, state: Arc<RwLock<AppSta
                 break;
             }
         };
-        
+
         // Periodically refresh cached target config
         config_check_counter += 1;
         if config_check_counter >= CONFIG_REFRESH_INTERVAL || cached_target_mode.is_empty() {
@@ -497,14 +521,14 @@ fn process_input_events(rx: mpsc::Receiver<InputEvent>, state: Arc<RwLock<AppSta
             cached_target_mode = state_lock.target_config.mode.clone();
             cached_target_value = state_lock.target_config.value.clone();
         }
-        
+
         match event {
             InputEvent::KeyPress { code, label } => {
                 // Check if target window matches (uses cached config)
                 if !should_process_event_cached(&cached_target_mode, &cached_target_value) {
                     continue;
                 }
-                
+
                 eprintln!("[Event Processor] KeyPress: code={}, label={}", code, label);
                 let mut state_lock = state.write();
                 state_lock.add_key(code, label);
@@ -515,7 +539,7 @@ fn process_input_events(rx: mpsc::Receiver<InputEvent>, state: Arc<RwLock<AppSta
                     let state_lock = state.read();
                     state_lock.is_key_pressed(code) || cached_target_mode == "all"
                 };
-                
+
                 if should_process {
                     eprintln!("[Event Processor] KeyRelease: code={}", code);
                     let mut state_lock = state.write();
@@ -526,8 +550,11 @@ fn process_input_events(rx: mpsc::Receiver<InputEvent>, state: Arc<RwLock<AppSta
                 if !should_process_event_cached(&cached_target_mode, &cached_target_value) {
                     continue;
                 }
-                
-                eprintln!("[Event Processor] ButtonPress: code={}, label={}", code, label);
+
+                eprintln!(
+                    "[Event Processor] ButtonPress: code={}, label={}",
+                    code, label
+                );
                 let mut state_lock = state.write();
                 state_lock.add_key(code, label);
             }
@@ -536,7 +563,7 @@ fn process_input_events(rx: mpsc::Receiver<InputEvent>, state: Arc<RwLock<AppSta
                     let state_lock = state.read();
                     state_lock.is_key_pressed(code) || cached_target_mode == "all"
                 };
-                
+
                 if should_process {
                     eprintln!("[Event Processor] ButtonRelease: code={}", code);
                     let mut state_lock = state.write();
@@ -598,26 +625,31 @@ fn should_process_event_cached(mode: &str, value: &Option<String>) -> bool {
 #[cfg(target_os = "macos")]
 fn should_process_event(target_config: &crate::state::TargetConfig) -> bool {
     let mode = target_config.mode.as_str();
-    
+
     match mode {
         "disabled" => {
             eprintln!("[Keyboard Hook] Mode is 'disabled' - ignoring event");
             false
-        },
+        }
         "all" => {
             eprintln!("[Keyboard Hook] Mode is 'all' - accepting event");
             true
-        },
+        }
         "title" | "process" | "hwnd" | "class" => {
             // Get foreground window info and check if it matches
             if let Some(window_info) = window_info::get_foreground_window() {
-                eprintln!("[Keyboard Hook] Checking window - title: '{}', process: '{}'", 
-                         window_info.title, window_info.process);
-                
+                eprintln!(
+                    "[Keyboard Hook] Checking window - title: '{}', process: '{}'",
+                    window_info.title, window_info.process
+                );
+
                 let result = match mode {
                     "title" => {
                         if let Some(value) = &target_config.value {
-                            window_info.title.to_lowercase().contains(&value.to_lowercase())
+                            window_info
+                                .title
+                                .to_lowercase()
+                                .contains(&value.to_lowercase())
                         } else {
                             false
                         }
@@ -645,9 +677,9 @@ fn should_process_event(target_config: &crate::state::TargetConfig) -> bool {
                     }
                     _ => false,
                 };
-                
+
                 eprintln!("[Keyboard Hook] Filter result: {}", result);
-                
+
                 result
             } else {
                 eprintln!("[Keyboard Hook] Could not get foreground window");
@@ -667,136 +699,210 @@ fn should_process_event(target_config: &crate::state::TargetConfig) -> bool {
 #[cfg(target_os = "windows")]
 fn validate_key_state_loop(state: Arc<RwLock<AppState>>) {
     use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
-    
+
     // All keys to monitor with their VK codes
     // Using u32 as key code (VK code directly for polling)
     const MONITORED_KEYS: &[(i32, &str)] = &[
         // Letters A-Z
-        (0x41, "A"), (0x42, "B"), (0x43, "C"), (0x44, "D"),
-        (0x45, "E"), (0x46, "F"), (0x47, "G"), (0x48, "H"),
-        (0x49, "I"), (0x4A, "J"), (0x4B, "K"), (0x4C, "L"),
-        (0x4D, "M"), (0x4E, "N"), (0x4F, "O"), (0x50, "P"),
-        (0x51, "Q"), (0x52, "R"), (0x53, "S"), (0x54, "T"),
-        (0x55, "U"), (0x56, "V"), (0x57, "W"), (0x58, "X"),
-        (0x59, "Y"), (0x5A, "Z"),
+        (0x41, "A"),
+        (0x42, "B"),
+        (0x43, "C"),
+        (0x44, "D"),
+        (0x45, "E"),
+        (0x46, "F"),
+        (0x47, "G"),
+        (0x48, "H"),
+        (0x49, "I"),
+        (0x4A, "J"),
+        (0x4B, "K"),
+        (0x4C, "L"),
+        (0x4D, "M"),
+        (0x4E, "N"),
+        (0x4F, "O"),
+        (0x50, "P"),
+        (0x51, "Q"),
+        (0x52, "R"),
+        (0x53, "S"),
+        (0x54, "T"),
+        (0x55, "U"),
+        (0x56, "V"),
+        (0x57, "W"),
+        (0x58, "X"),
+        (0x59, "Y"),
+        (0x5A, "Z"),
         // Numbers 0-9
-        (0x30, "0"), (0x31, "1"), (0x32, "2"), (0x33, "3"),
-        (0x34, "4"), (0x35, "5"), (0x36, "6"), (0x37, "7"),
-        (0x38, "8"), (0x39, "9"),
+        (0x30, "0"),
+        (0x31, "1"),
+        (0x32, "2"),
+        (0x33, "3"),
+        (0x34, "4"),
+        (0x35, "5"),
+        (0x36, "6"),
+        (0x37, "7"),
+        (0x38, "8"),
+        (0x39, "9"),
         // Special keys
-        (0x20, "SPACE"), (0x0D, "ENTER"), (0x09, "TAB"),
-        (0x1B, "ESC"), (0x08, "BKSP"), (0x2E, "DEL"),
-        (0x2D, "INS"), (0x24, "HOME"), (0x23, "END"),
-        (0x21, "PG UP"), (0x22, "PG DN"),
+        (0x20, "SPACE"),
+        (0x0D, "ENTER"),
+        (0x09, "TAB"),
+        (0x1B, "ESC"),
+        (0x08, "BKSP"),
+        (0x2E, "DEL"),
+        (0x2D, "INS"),
+        (0x24, "HOME"),
+        (0x23, "END"),
+        (0x21, "PG UP"),
+        (0x22, "PG DN"),
         // Modifiers (use specific left/right for accurate tracking)
         (0xA0, "LSHIFT"), // VK_LSHIFT
-        (0xA1, "RSHIFT"), // VK_RSHIFT  
+        (0xA1, "RSHIFT"), // VK_RSHIFT
         (0xA2, "LCTRL"),  // VK_LCONTROL
         (0xA3, "RCTRL"),  // VK_RCONTROL
-        (0xA4, "LALT"),  // VK_LMENU
-        (0xA5, "RALT"),  // VK_RMENU
+        (0xA4, "LALT"),   // VK_LMENU
+        (0xA5, "RALT"),   // VK_RMENU
         (0x14, "CAPS"),
-        (0x5B, "LWIN"),   // VK_LWIN
-        (0x5C, "RWIN"),   // VK_RWIN
+        (0x5B, "LWIN"), // VK_LWIN
+        (0x5C, "RWIN"), // VK_RWIN
         // Arrow keys
-        (0x25, "LEFT"), (0x26, "UP"), (0x27, "RIGHT"), (0x28, "DOWN"),
+        (0x25, "LEFT"),
+        (0x26, "UP"),
+        (0x27, "RIGHT"),
+        (0x28, "DOWN"),
         // Function keys
-        (0x70, "F1"), (0x71, "F2"), (0x72, "F3"), (0x73, "F4"),
-        (0x74, "F5"), (0x75, "F6"), (0x76, "F7"), (0x77, "F8"),
-        (0x78, "F9"), (0x79, "F10"), (0x7A, "F11"), (0x7B, "F12"),
+        (0x70, "F1"),
+        (0x71, "F2"),
+        (0x72, "F3"),
+        (0x73, "F4"),
+        (0x74, "F5"),
+        (0x75, "F6"),
+        (0x76, "F7"),
+        (0x77, "F8"),
+        (0x78, "F9"),
+        (0x79, "F10"),
+        (0x7A, "F11"),
+        (0x7B, "F12"),
         // Mouse buttons
-        (0x01, "LMB"), (0x02, "RMB"), (0x04, "MMB"),
+        (0x01, "LMB"),
+        (0x02, "RMB"),
+        (0x04, "MMB"),
         // Symbols
-        (0xC0, "`"), (0xBD, "-"), (0xBB, "="),
-        (0xDB, "["), (0xDD, "]"), (0xDC, "\\"),
-        (0xBA, ";"), (0xDE, "'"),
-        (0xBC, ","), (0xBE, "."), (0xBF, "/"),
+        (0xC0, "`"),
+        (0xBD, "-"),
+        (0xBB, "="),
+        (0xDB, "["),
+        (0xDD, "]"),
+        (0xDC, "\\"),
+        (0xBA, ";"),
+        (0xDE, "'"),
+        (0xBC, ","),
+        (0xBE, "."),
+        (0xBF, "/"),
         // Numpad
-        (0x60, "NUM0"), (0x61, "NUM1"), (0x62, "NUM2"), (0x63, "NUM3"),
-        (0x64, "NUM4"), (0x65, "NUM5"), (0x66, "NUM6"), (0x67, "NUM7"),
-        (0x68, "NUM8"), (0x69, "NUM9"),
-        (0x6A, "*"), (0x6B, "+"), (0x6D, "-"), (0x6E, "."), (0x6F, "/"),
+        (0x60, "NUM0"),
+        (0x61, "NUM1"),
+        (0x62, "NUM2"),
+        (0x63, "NUM3"),
+        (0x64, "NUM4"),
+        (0x65, "NUM5"),
+        (0x66, "NUM6"),
+        (0x67, "NUM7"),
+        (0x68, "NUM8"),
+        (0x69, "NUM9"),
+        (0x6A, "*"),
+        (0x6B, "+"),
+        (0x6D, "-"),
+        (0x6E, "."),
+        (0x6F, "/"),
     ];
-    
+
     // Track which VK codes are currently "pressed" according to our state
     let mut polling_state: std::collections::HashMap<i32, bool> = std::collections::HashMap::new();
-    
-    eprintln!("[Key Poller] Starting pure polling mode ({}ms interval)", KEY_POLLING_INTERVAL_MS);
-    
+
+    eprintln!(
+        "[Key Poller] Starting pure polling mode ({}ms interval)",
+        KEY_POLLING_INTERVAL_MS
+    );
+
     loop {
         std::thread::sleep(Duration::from_millis(KEY_POLLING_INTERVAL_MS));
-        
+
         // Check target window filter
         let target_config = {
             let s = state.read();
             s.target_config.clone()
         };
-        
+
         // Skip if disabled
         if target_config.mode == "disabled" {
             // Clear all keys when disabled
-            let has_keys = { state.read().key_labels.len() > 0 };
+            let has_keys = { !state.read().key_labels.is_empty() };
             if has_keys {
                 state.write().clear_keys();
                 polling_state.clear();
             }
             continue;
         }
-        
+
         // Check if current window matches target (for non-"all" modes)
         let should_track = if target_config.mode == "all" {
             true
         } else {
             should_process_event_cached(&target_config.mode, &target_config.value)
         };
-        
+
         if !should_track {
             // Clear keys when not in target window
-            let has_keys = { state.read().key_labels.len() > 0 };
+            let has_keys = { !state.read().key_labels.is_empty() };
             if has_keys {
                 state.write().clear_keys();
                 polling_state.clear();
             }
             continue;
         }
-        
+
         // Poll all monitored keys
         let mut keys_to_add: Vec<(i32, &str)> = Vec::new();
         let mut keys_to_remove: Vec<i32> = Vec::new();
-        
+
         for &(vk, label) in MONITORED_KEYS {
             let key_state = unsafe { GetAsyncKeyState(vk) };
             let is_down = (key_state as u16 & 0x8000) != 0;
             let was_down = *polling_state.get(&vk).unwrap_or(&false);
-            
+
             if is_down && !was_down {
                 // Key just pressed
-                eprintln!("[Poller] PRESS: {} (vk=0x{:02X}, raw_state=0x{:04X})", label, vk, key_state);
+                eprintln!(
+                    "[Poller] PRESS: {} (vk=0x{:02X}, raw_state=0x{:04X})",
+                    label, vk, key_state
+                );
                 keys_to_add.push((vk, label));
                 polling_state.insert(vk, true);
             } else if !is_down && was_down {
                 // Key just released
-                eprintln!("[Poller] RELEASE: {} (vk=0x{:02X}, raw_state=0x{:04X})", label, vk, key_state);
+                eprintln!(
+                    "[Poller] RELEASE: {} (vk=0x{:02X}, raw_state=0x{:04X})",
+                    label, vk, key_state
+                );
                 keys_to_remove.push(vk);
                 polling_state.insert(vk, false);
             }
         }
-        
+
         // Apply changes
         if !keys_to_add.is_empty() || !keys_to_remove.is_empty() {
             let mut state_lock = state.write();
-            
+
             for (vk, label) in &keys_to_add {
                 // Use VK code as the key code for polling-based tracking
                 let code = *vk as u32 | 0x80000000; // High bit set to distinguish from hook codes
                 state_lock.add_key(code, label.to_string());
             }
-            
+
             for vk in &keys_to_remove {
                 let code = *vk as u32 | 0x80000000;
                 state_lock.remove_key(code);
             }
-            
+
             // Debug: show current state
             let current_keys: Vec<String> = state_lock.label_order.iter().cloned().collect();
             eprintln!("[Poller] Current keys: {:?}", current_keys);

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
-use tokio::sync::watch;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::sync::watch;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TargetConfig {
@@ -48,10 +48,18 @@ pub struct OverlayConfig {
     pub grad_dir: String,
 }
 
-fn default_color_mode() -> String { "solid".to_string() }
-fn default_grad_color1() -> String { "#000000".to_string() }
-fn default_grad_color2() -> String { "#333333".to_string() }
-fn default_grad_dir() -> String { "to bottom".to_string() }
+fn default_color_mode() -> String {
+    "solid".to_string()
+}
+fn default_grad_color1() -> String {
+    "#000000".to_string()
+}
+fn default_grad_color2() -> String {
+    "#333333".to_string()
+}
+fn default_grad_dir() -> String {
+    "to bottom".to_string()
+}
 
 impl Default for OverlayConfig {
     fn default() -> Self {
@@ -87,13 +95,13 @@ impl Default for OverlayConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackgroundConfig {
     pub transparent: bool,
-    pub mode: String,  // "solid" | "gradient" | "image"
+    pub mode: String, // "solid" | "gradient" | "image"
     #[serde(default)]
     pub color: Option<String>,
     #[serde(default)]
     pub gradient: Option<GradientConfig>,
     #[serde(default)]
-    pub image: Option<String>,  // Base64 encoded
+    pub image: Option<String>, // Base64 encoded
 }
 
 impl Default for BackgroundConfig {
@@ -112,7 +120,7 @@ impl Default for BackgroundConfig {
 pub struct GradientConfig {
     pub color1: String,
     pub color2: String,
-    pub direction: String,  // "to bottom", "to right", etc.
+    pub direction: String, // "to bottom", "to right", etc.
 }
 
 impl Default for GradientConfig {
@@ -131,30 +139,44 @@ pub struct FontConfig {
     #[serde(default = "default_font_family")]
     pub family: String,
     #[serde(default = "default_font_url")]
-    pub url: Option<String>,  // Google Fonts URL or custom font URL
+    pub url: Option<String>, // Google Fonts URL or custom font URL
     #[serde(default = "default_font_size")]
     pub size: u32,
     #[serde(default = "default_font_weight")]
     pub weight: u32,
     #[serde(rename = "colorMode", default = "default_color_mode_str")]
-    pub color_mode: String,  // "solid" | "gradient"
+    pub color_mode: String, // "solid" | "gradient"
     #[serde(default = "default_font_color")]
     pub color: String,
     #[serde(default)]
     pub gradient: Option<GradientConfig>,
     #[serde(default)]
-    pub transparent: bool,  // Hide text
+    pub transparent: bool, // Hide text
     #[serde(default = "default_shadow")]
     pub shadow: bool,
 }
 
-fn default_font_family() -> String { "system-ui".to_string() }
-fn default_font_url() -> Option<String> { None }
-fn default_font_size() -> u32 { 24 }
-fn default_font_weight() -> u32 { 700 }
-fn default_color_mode_str() -> String { "solid".to_string() }
-fn default_font_color() -> String { "#ffffff".to_string() }
-fn default_shadow() -> bool { true }
+fn default_font_family() -> String {
+    "system-ui".to_string()
+}
+fn default_font_url() -> Option<String> {
+    None
+}
+fn default_font_size() -> u32 {
+    24
+}
+fn default_font_weight() -> u32 {
+    700
+}
+fn default_color_mode_str() -> String {
+    "solid".to_string()
+}
+fn default_font_color() -> String {
+    "#ffffff".to_string()
+}
+fn default_shadow() -> bool {
+    true
+}
 
 impl Default for FontConfig {
     fn default() -> Self {
@@ -178,8 +200,8 @@ pub struct StyleGroup {
     pub id: String,
     pub name: String,
     #[serde(rename = "groupType")]
-    pub group_type: String,  // "individual" | "group" | "all"
-    pub keys: Vec<String>,   // Empty for "all" type
+    pub group_type: String, // "individual" | "group" | "all"
+    pub keys: Vec<String>, // Empty for "all" type
     #[serde(rename = "chipBg")]
     pub chip_bg: BackgroundConfig,
     pub font: FontConfig,
@@ -188,7 +210,7 @@ pub struct StyleGroup {
 /// Main style configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeyStyleConfig {
-    pub background: BackgroundConfig,  // Overall overlay background
+    pub background: BackgroundConfig, // Overall overlay background
     #[serde(rename = "styleGroups")]
     pub style_groups: Vec<StyleGroup>,
     #[serde(rename = "defaultFont")]
@@ -204,187 +226,18 @@ pub struct KeyStyleConfig {
     pub chip_radius: u32,
 }
 
-fn default_chip_gap() -> u32 { 8 }
-fn default_chip_pad_v() -> u32 { 10 }
-fn default_chip_pad_h() -> u32 { 14 }
-fn default_chip_radius() -> u32 { 10 }
-
-impl Default for KeyStyleConfig {
-    fn default() -> Self {
-        Self {
-            background: BackgroundConfig::default(),
-            style_groups: Vec::new(),
-            default_font: FontConfig::default(),
-            chip_gap: 8,
-            chip_pad_v: 10,
-            chip_pad_h: 14,
-            chip_radius: 10,
-        }
-    }
+fn default_chip_gap() -> u32 {
+    8
 }
-
-// ============= Legacy structures (keep for backward compatibility) =============
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct KeyImageData {
-    pub image: String, // Base64 encoded image
-    #[serde(rename = "textColor", default = "default_text_color")]
-    pub text_color: Option<String>,
-    #[serde(rename = "textOpacity", default)]
-    pub text_opacity: Option<f64>,
+fn default_chip_pad_v() -> u32 {
+    10
 }
-
-fn default_text_color() -> Option<String> {
-    Some("#ffffff".to_string())
+fn default_chip_pad_h() -> u32 {
+    14
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct KeyGroupData {
-    pub keys: Vec<String>,
-    pub image: String, // Base64 encoded image
-    #[serde(rename = "keyType", default)]
-    pub key_type: Option<String>,
-    #[serde(rename = "textColor", default)]
-    pub text_color: Option<String>,
-    #[serde(rename = "textOpacity", default)]
-    pub text_opacity: Option<f64>,
+fn default_chip_radius() -> u32 {
+    10
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct KeyImagesConfig {
-    pub individual: std::collections::HashMap<String, KeyImageData>,
-    pub groups: Vec<KeyGroupData>,
-    #[serde(rename = "allKeys")]
-    pub all_keys: Option<KeyImageData>,
-}
-
-// ============= New Style System =============
-
-/// Background configuration (for overlay background or chip background)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BackgroundConfig {
-    pub transparent: bool,
-    pub mode: String,  // "solid" | "gradient" | "image"
-    #[serde(default)]
-    pub color: Option<String>,
-    #[serde(default)]
-    pub gradient: Option<GradientConfig>,
-    #[serde(default)]
-    pub image: Option<String>,  // Base64 encoded
-}
-
-impl Default for BackgroundConfig {
-    fn default() -> Self {
-        Self {
-            transparent: true,
-            mode: "solid".to_string(),
-            color: Some("#000000".to_string()),
-            gradient: None,
-            image: None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GradientConfig {
-    pub color1: String,
-    pub color2: String,
-    pub direction: String,  // "to bottom", "to right", etc.
-}
-
-impl Default for GradientConfig {
-    fn default() -> Self {
-        Self {
-            color1: "#000000".to_string(),
-            color2: "#333333".to_string(),
-            direction: "to bottom".to_string(),
-        }
-    }
-}
-
-/// Font configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FontConfig {
-    #[serde(default = "default_font_family")]
-    pub family: String,
-    #[serde(default = "default_font_url")]
-    pub url: Option<String>,  // Google Fonts URL or custom font URL
-    #[serde(default = "default_font_size")]
-    pub size: u32,
-    #[serde(default = "default_font_weight")]
-    pub weight: u32,
-    #[serde(rename = "colorMode", default = "default_color_mode_str")]
-    pub color_mode: String,  // "solid" | "gradient"
-    #[serde(default = "default_font_color")]
-    pub color: String,
-    #[serde(default)]
-    pub gradient: Option<GradientConfig>,
-    #[serde(default)]
-    pub transparent: bool,  // Hide text
-    #[serde(default = "default_shadow")]
-    pub shadow: bool,
-}
-
-fn default_font_family() -> String { "system-ui".to_string() }
-fn default_font_url() -> Option<String> { None }
-fn default_font_size() -> u32 { 24 }
-fn default_font_weight() -> u32 { 700 }
-fn default_color_mode_str() -> String { "solid".to_string() }
-fn default_font_color() -> String { "#ffffff".to_string() }
-fn default_shadow() -> bool { true }
-
-impl Default for FontConfig {
-    fn default() -> Self {
-        Self {
-            family: "system-ui".to_string(),
-            url: None,
-            size: 24,
-            weight: 700,
-            color_mode: "solid".to_string(),
-            color: "#ffffff".to_string(),
-            gradient: None,
-            transparent: false,
-            shadow: true,
-        }
-    }
-}
-
-/// A style group - can be applied to specific keys, group of keys, or all keys
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StyleGroup {
-    pub id: String,
-    pub name: String,
-    #[serde(rename = "groupType")]
-    pub group_type: String,  // "individual" | "group" | "all"
-    pub keys: Vec<String>,   // Empty for "all" type
-    #[serde(rename = "chipBg")]
-    pub chip_bg: BackgroundConfig,
-    pub font: FontConfig,
-}
-
-/// Main style configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct KeyStyleConfig {
-    pub background: BackgroundConfig,  // Overall overlay background
-    #[serde(rename = "styleGroups")]
-    pub style_groups: Vec<StyleGroup>,
-    #[serde(rename = "defaultFont")]
-    pub default_font: FontConfig,
-    // Chip layout settings
-    #[serde(rename = "chipGap", default = "default_chip_gap")]
-    pub chip_gap: u32,
-    #[serde(rename = "chipPadV", default = "default_chip_pad_v")]
-    pub chip_pad_v: u32,
-    #[serde(rename = "chipPadH", default = "default_chip_pad_h")]
-    pub chip_pad_h: u32,
-    #[serde(rename = "chipRadius", default = "default_chip_radius")]
-    pub chip_radius: u32,
-}
-
-fn default_chip_gap() -> u32 { 8 }
-fn default_chip_pad_v() -> u32 { 10 }
-fn default_chip_pad_h() -> u32 { 14 }
-fn default_chip_radius() -> u32 { 10 }
 
 impl Default for KeyStyleConfig {
     fn default() -> Self {
@@ -500,21 +353,21 @@ impl AppState {
         if self.key_labels.contains_key(&key_code) {
             return;
         }
-        
+
         // Track this key code -> label mapping
         self.key_labels.insert(key_code, label.clone());
-        
+
         // Increment reference count for this label
         let count = self.label_counts.entry(label.clone()).or_insert(0);
         *count += 1;
-        
+
         // Only add to display order if this is the first key with this label
         if *count == 1 {
             self.label_order.push_back(label);
         }
-        
-        if let Some(tx) = &self.event_tx { 
-            let _ = tx.send(self.get_keys()); 
+
+        if let Some(tx) = &self.event_tx {
+            let _ = tx.send(self.get_keys());
         }
     }
 
@@ -524,16 +377,16 @@ impl AppState {
             // Decrement reference count
             if let Some(count) = self.label_counts.get_mut(&label) {
                 *count = count.saturating_sub(1);
-                
+
                 // Only remove from display when NO keys with this label are pressed
                 if *count == 0 {
                     self.label_counts.remove(&label);
                     self.label_order.retain(|l| l != &label);
                 }
             }
-            
-            if let Some(tx) = &self.event_tx { 
-                let _ = tx.send(self.get_keys()); 
+
+            if let Some(tx) = &self.event_tx {
+                let _ = tx.send(self.get_keys());
             }
         }
     }
@@ -542,18 +395,21 @@ impl AppState {
         self.key_labels.clear();
         self.label_counts.clear();
         self.label_order.clear();
-        if let Some(tx) = &self.event_tx { 
-            let _ = tx.send(self.get_keys()); 
+        if let Some(tx) = &self.event_tx {
+            let _ = tx.send(self.get_keys());
         }
     }
 
     // Check if a key code is currently tracked
+    #[allow(dead_code)]
     pub fn is_key_pressed(&self, key_code: u32) -> bool {
         self.key_labels.contains_key(&key_code)
     }
 
     pub fn bump_cache_buster(&mut self) {
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default();
         self.cache_buster = now.as_millis() as u64;
     }
 
@@ -561,4 +417,3 @@ impl AppState {
         self.label_order.iter().cloned().collect()
     }
 }
-
