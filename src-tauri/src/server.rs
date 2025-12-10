@@ -606,7 +606,7 @@ struct FocusRequest {
 
 async fn api_focus_window(Json(payload): Json<FocusRequest>) -> impl IntoResponse {
     // Parse HWND from string
-    if let Ok(_hwnd_num) = payload.hwnd.parse::<usize>() {
+    if let Ok(hwnd_num) = payload.hwnd.parse::<usize>() {
         #[cfg(target_os = "windows")]
         {
             use windows::Win32::Foundation::HWND;
