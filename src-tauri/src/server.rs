@@ -606,6 +606,7 @@ struct FocusRequest {
 
 async fn api_focus_window(Json(payload): Json<FocusRequest>) -> impl IntoResponse {
     // Parse HWND from string
+    #[allow(unused_variables)]
     if let Ok(hwnd_num) = payload.hwnd.parse::<usize>() {
         #[cfg(target_os = "windows")]
         {
