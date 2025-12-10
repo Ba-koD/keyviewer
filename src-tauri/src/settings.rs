@@ -174,7 +174,7 @@ impl LauncherSettings {
             key.set_value("RunOnStartup", &run_on_startup_u32)
                 .map_err(|e| format!("Failed to save run_on_startup: {}", e))?;
             
-            return Ok(());
+            Ok(())
         }
         
         #[cfg(target_os = "macos")]
@@ -182,7 +182,7 @@ impl LauncherSettings {
             macos_defaults::set_integer("com.keyviewer.Port", self.port as i64);
             macos_defaults::set_string("com.keyviewer.Language", &self.language);
             macos_defaults::set_integer("com.keyviewer.RunOnStartup", if self.run_on_startup { 1 } else { 0 });
-            return Ok(());
+            Ok(())
         }
         
         #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
@@ -234,14 +234,14 @@ pub fn save_target_config(mode: &str, value: Option<&str>) -> Result<(), String>
         key.set_value("TargetValue", &value.unwrap_or(""))
             .map_err(|e| format!("Failed to save target value: {}", e))?;
         
-        return Ok(());
+        Ok(())
     }
     
     #[cfg(target_os = "macos")]
     {
         macos_defaults::set_string("com.keyviewer.TargetMode", mode);
         macos_defaults::set_string("com.keyviewer.TargetValue", value.unwrap_or(""));
-        return Ok(());
+        Ok(())
     }
     
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
@@ -282,6 +282,7 @@ pub fn load_target_config() -> (String, Option<String>) {
 }
 
 // Save/Load Overlay Config to/from Registry or UserDefaults
+#[allow(clippy::too_many_arguments)]
 pub fn save_overlay_config(
     fade_in_ms: u32,
     fade_out_ms: u32,
@@ -330,7 +331,7 @@ pub fn save_overlay_config(
         key.set_value("GradColor2", &grad_color2.to_string()).map_err(|e| format!("Failed to save grad_color2: {}", e))?;
         key.set_value("GradDir", &grad_dir.to_string()).map_err(|e| format!("Failed to save grad_dir: {}", e))?;
         
-        return Ok(());
+        Ok(())
     }
     
     #[cfg(target_os = "macos")]
@@ -354,7 +355,7 @@ pub fn save_overlay_config(
         macos_defaults::set_string("com.keyviewer.overlay.GradColor1", grad_color1);
         macos_defaults::set_string("com.keyviewer.overlay.GradColor2", grad_color2);
         macos_defaults::set_string("com.keyviewer.overlay.GradDir", grad_dir);
-        return Ok(());
+        Ok(())
     }
     
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
@@ -370,6 +371,7 @@ pub fn save_overlay_config(
 // Returns: (fade_in_ms, fade_out_ms, chip_bg, chip_fg, chip_gap, chip_pad_v, chip_pad_h, 
 //           chip_radius, chip_font_px, chip_font_weight, background, cols, rows, align, direction,
 //           color_mode, grad_color1, grad_color2, grad_dir)
+#[allow(clippy::type_complexity)]
 pub fn load_overlay_config() -> (u32, u32, String, String, u32, u32, u32, u32, u32, u32, String, u32, u32, String, String, String, String, String, String) {
     #[cfg(target_os = "windows")]
     {

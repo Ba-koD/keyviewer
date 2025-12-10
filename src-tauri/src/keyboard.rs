@@ -735,7 +735,7 @@ fn validate_key_state_loop(state: Arc<RwLock<AppState>>) {
         // Skip if disabled
         if target_config.mode == "disabled" {
             // Clear all keys when disabled
-            let has_keys = { state.read().key_labels.len() > 0 };
+            let has_keys = { !state.read().key_labels.is_empty() };
             if has_keys {
                 state.write().clear_keys();
                 polling_state.clear();
@@ -752,7 +752,7 @@ fn validate_key_state_loop(state: Arc<RwLock<AppState>>) {
         
         if !should_track {
             // Clear keys when not in target window
-            let has_keys = { state.read().key_labels.len() > 0 };
+            let has_keys = { !state.read().key_labels.is_empty() };
             if has_keys {
                 state.write().clear_keys();
                 polling_state.clear();
