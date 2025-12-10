@@ -1,8 +1,8 @@
 ﻿
 		:root {
-			--bg: rgba(0,0,0,0.0);
-			--chip-bg: rgba(0,0,0,0.6);
-			--chip-fg: #fff;
+			--bg: rgba(0,0,0,0);
+			--chip-bg: #000000;
+			--chip-fg: #ffffff;
 			--chip-gap: 8px;
 			--chip-pad-v: 10px;
 			--chip-pad-h: 14px;
@@ -21,22 +21,22 @@
 		.container { width: 100%; height: 100%; display:flex; align-items:center; justify-content:center; }
 		.queue-wrap { width: 90vw; max-width: 96vw; }
 		.queue {
-			display: grid;
-			grid-template-columns: repeat(var(--cols), max-content);
-			grid-auto-rows: max-content;
-			gap: var(--chip-gap);
-			justify-content: var(--align);
+			display: flex;
+			flex-wrap: wrap;
+			gap: var(--chip-gap, 8px);
+			justify-content: flex-start;
 		}
 		.chip {
-			background: var(--chip-bg);
-			color: var(--chip-fg);
-			padding: calc(var(--chip-pad-v) * var(--single-scale)) calc(var(--chip-pad-h) * var(--single-scale));
-			border-radius: calc(var(--chip-radius) * var(--single-scale));
-			font-size: calc(var(--chip-font) * var(--single-scale));
-			font-weight: var(--chip-font-weight);
-			font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
-			min-width: 44px; text-align: center; user-select: none; transform: translateY(0);
-			transition: transform var(--fade-in) ease, opacity var(--fade-in) ease;
+			background: var(--chip-bg, #000000);
+			color: var(--chip-fg, #ffffff);
+			padding: var(--chip-pad-v, 10px) var(--chip-pad-h, 14px);
+			border-radius: var(--chip-radius, 10px);
+			font-size: var(--chip-font, 24px);
+			font-weight: var(--chip-font-weight, 700);
+			font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial;
+			min-width: 44px; 
+			text-align: center;
+			display: inline-block;
 		}
 		.chip.hide { opacity: 0; transform: translateY(8px); transition: transform var(--fade-out) ease, opacity var(--fade-out) ease; }
 	

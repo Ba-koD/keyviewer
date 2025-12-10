@@ -322,7 +322,8 @@ fn main() {
     
     // Load overlay config from registry
     let (fade_in_ms, fade_out_ms, chip_bg, chip_fg, chip_gap, chip_pad_v, chip_pad_h,
-         chip_radius, chip_font_px, chip_font_weight, background, cols, rows, align, direction) 
+         chip_radius, chip_font_px, chip_font_weight, background, cols, rows, align, direction,
+         color_mode, grad_color1, grad_color2, grad_dir) 
         = settings::load_overlay_config();
     initial_state.app_config.overlay.fade_in_ms = fade_in_ms;
     initial_state.app_config.overlay.fade_out_ms = fade_out_ms;
@@ -339,7 +340,19 @@ fn main() {
     initial_state.app_config.overlay.rows = rows;
     initial_state.app_config.overlay.align = align;
     initial_state.app_config.overlay.direction = direction;
+    initial_state.app_config.overlay.color_mode = color_mode;
+    initial_state.app_config.overlay.grad_color1 = grad_color1;
+    initial_state.app_config.overlay.grad_color2 = grad_color2;
+    initial_state.app_config.overlay.grad_dir = grad_dir;
     println!("Loaded overlay config from registry");
+    
+    // Load key images config from file
+    initial_state.app_config.key_images = settings::load_key_images_config();
+    println!("Loaded key images config");
+    
+    // Load key style config from file
+    initial_state.app_config.key_style = settings::load_key_style_config();
+    println!("Loaded key style config");
     
     let app_state = Arc::new(RwLock::new(initial_state));
 

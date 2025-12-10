@@ -27,6 +27,10 @@
                 <input type="number" id="port" value="8000" min="1024" max="65535">
                 <button id="port-save" data-i18n="port_save">포트 저장</button>
             </div>
+            <div class="port-warning" style="margin-top:8px; padding:10px 12px; background:#ff475722; border:1px solid #ff4757; border-radius:6px; font-size:12px; line-height:1.5;">
+                <strong style="color:#ff4757;">⚠️ <span data-i18n="port_warning_title">중요</span></strong><br>
+                <span data-i18n="port_warning_text">포트를 변경하면 저장된 설정(localStorage, Cookie)이 초기화됩니다. 변경 전 설정을 내보내기하세요!</span>
+            </div>
         </div>
 
         <!-- Server Status Section -->
@@ -157,6 +161,8 @@
                 language: '언어:',
                 port: '포트:',
                 port_save: '포트 저장',
+                port_warning_title: '중요',
+                port_warning_text: '포트를 변경하면 저장된 설정(localStorage, Cookie)이 초기화됩니다. 변경 전 설정을 내보내기하세요!',
                 server_status: 'Server status:',
                 server_running: '서버가 실행 중입니다',
                 server_stopped: '서버가 중지되었습니다',
@@ -180,6 +186,8 @@
                 language: 'Language:',
                 port: 'Port:',
                 port_save: 'Save Port',
+                port_warning_title: 'Important',
+                port_warning_text: 'Changing the port will reset saved settings (localStorage, Cookie). Export your settings before changing!',
                 server_status: 'Server status:',
                 server_running: 'Server is running',
                 server_stopped: 'Server is stopped',

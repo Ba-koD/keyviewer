@@ -6,6 +6,7 @@
 	<title>Key Viewer Control</title>
 	<link rel="icon" href="/static/favicon.ico" type="image/x-icon" />
 	<link rel="stylesheet" href="/static/control.css">
+	<link rel="stylesheet" href="/static/chip.css">
 	<style>
 		:root{
 			--bg:#0b0c10; --panel:#12141a; --panel2:#181b22; --text:#eaeef5; --muted:#9aa4b2; --primary:#4f8cff; --border:#232734;
@@ -58,6 +59,78 @@
 		.color-popover .actions{display:flex; gap:6px; justify-content:flex-end}
 		.color-popover .btn{border:1px solid var(--border); background:var(--panel2); color:var(--text); border-radius:6px; padding:6px 10px; font-size:12px; cursor:pointer}
 
+		/* Key Image Settings styles */
+		.key-img-tabs{display:flex; gap:0; border-bottom:1px solid var(--border); margin-bottom:14px}
+		.key-img-tabs button{background:transparent; border:none; color:var(--muted); padding:10px 18px; cursor:pointer; border-bottom:2px solid transparent; transition:all 0.15s}
+		.key-img-tabs button.active{color:var(--primary); border-bottom-color:var(--primary)}
+		.key-img-tabs button:hover{color:var(--text)}
+		.key-img-drop{border:2px dashed var(--border); border-radius:10px; padding:32px; text-align:center; cursor:pointer; transition:all 0.2s; background:var(--panel2)}
+		.key-img-drop:hover,.key-img-drop.dragover{border-color:var(--primary); background:rgba(79,140,255,0.08)}
+		.key-img-drop img{max-width:160px; max-height:120px; border-radius:6px; margin-bottom:10px}
+		.key-img-preview{display:flex; align-items:center; gap:12px; padding:12px; background:var(--panel2); border-radius:8px; margin-top:10px}
+		.key-img-preview img{width:64px; height:64px; object-fit:contain; border-radius:6px; border:1px solid var(--border)}
+		.key-img-list{max-height:260px; overflow-y:auto; scrollbar-width:thin}
+		.key-img-item{display:flex; align-items:center; gap:10px; padding:10px; border-radius:8px; background:var(--panel2); margin-bottom:8px}
+		.key-img-item img{width:48px; height:48px; object-fit:contain; border-radius:4px; border:1px solid var(--border)}
+		.key-img-item .keys{flex:1; font-size:13px}
+		.key-img-item .keys span{background:#2a3040; color:#9ec1ff; border-radius:4px; padding:2px 6px; margin-right:4px; font-size:11px}
+		.key-img-item button{padding:4px 8px; font-size:11px}
+		.key-img-actions{display:flex; gap:4px}
+		.group-keys-input{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px}
+		.group-keys-input input{flex:1; min-width:200px}
+		.gist-section{margin-top:14px; padding-top:14px; border-top:1px solid var(--border)}
+		.gist-section input{width:100%; margin-bottom:8px}
+		.modal-wide{width:680px}
+
+		/* GitHub Login styles */
+		.github-login-section{background:var(--panel2); border-radius:10px; padding:16px; margin-bottom:14px}
+		.github-user{display:flex; align-items:center; gap:12px; padding:12px; background:rgba(46,160,67,0.15); border:1px solid rgba(46,160,67,0.3); border-radius:8px}
+		.github-user img{width:40px; height:40px; border-radius:50%}
+		.github-user .name{font-weight:600; color:#3fb950}
+		.github-user .login{font-size:12px; color:var(--muted)}
+		.btn-github{display:inline-flex; align-items:center; gap:8px; background:#238636; border-color:#238636; color:#fff; padding:10px 16px; font-weight:500}
+		.btn-github:hover{background:#2ea043}
+		.btn-github svg{width:18px; height:18px}
+		.btn-logout{background:transparent; border:1px solid var(--border); color:var(--muted); padding:6px 12px; font-size:12px}
+		.or-divider{display:flex; align-items:center; gap:12px; margin:14px 0; color:var(--muted); font-size:12px}
+		.or-divider::before,.or-divider::after{content:''; flex:1; height:1px; background:var(--border)}
+
+		/* Key Recording styles */
+		.btn-recording{background:#ff4757!important; border-color:#ff4757!important; animation:pulse 1s infinite}
+		@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.7}}
+		.recorded-key{display:inline-block; background:#2a3040; color:#9ec1ff; border-radius:4px; padding:4px 8px; font-size:12px; font-weight:500}
+		.mouse-btn.selected{background:var(--primary)!important; border-color:var(--primary)!important; color:#fff!important}
+
+		/* Image Editor Modal */
+		.img-editor-modal{width:700px}
+		.img-editor-canvas-wrap{position:relative; background:#000; border-radius:8px; overflow:hidden; margin-bottom:12px}
+		.img-editor-canvas{display:block; max-width:100%; margin:0 auto}
+		.img-editor-controls{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:12px}
+		.img-editor-controls label{color:var(--muted); font-size:12px}
+		.img-editor-controls input[type="range"]{width:120px}
+		.img-editor-preview{display:flex; gap:16px; justify-content:center; padding:16px; background:transparent; border-radius:8px; border:1px dashed #2a2f3a}
+		.key-shape-preview{display:flex; flex-direction:column; align-items:center; gap:6px}
+		.key-shape-preview .label{font-size:11px; color:var(--muted)}
+		.key-shape{position:relative; border-radius:6px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.3)}
+		.key-shape .bg{position:absolute; inset:0; background-size:cover; background-position:center}
+		.key-shape .overlay{position:absolute; inset:0; box-shadow:inset 0 0 0 3px rgba(255,255,255,0.15), inset 0 -2px 4px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.1)}
+		.key-shape .text{position:relative; z-index:1; display:flex; align-items:center; justify-content:center; height:100%; font-weight:700; text-shadow:0 1px 2px rgba(0,0,0,0.5)}
+		.key-shape.normal{width:52px; height:52px}
+		.key-shape.normal .text{font-size:18px}
+		.key-shape.wide{width:78px; height:52px}
+		.key-shape.wide .text{font-size:14px}
+		.key-shape.extra-wide{width:120px; height:52px}
+		.key-shape.extra-wide .text{font-size:13px}
+		
+		/* Editor preview chips - uses shared chip.css, add local overrides here if needed */
+
+		/* Gist List styles */
+		.gist-item{display:flex; align-items:center; gap:10px; padding:10px; border-radius:8px; background:var(--panel); margin-bottom:6px; cursor:pointer; border:1px solid transparent; transition:all 0.15s}
+		.gist-item:hover{background:var(--panel2); border-color:var(--border)}
+		.gist-item.selected{border-color:var(--primary); background:rgba(79,140,255,0.1)}
+		.gist-item .gist-name{font-size:13px; font-weight:500; margin-bottom:2px}
+		.gist-item .gist-date{font-size:11px; color:var(--muted)}
+
 		/* Overlay preview inside modal */
 		.overlay-preview{margin-top:12px; border:1px dashed #2a2f3a; border-radius:10px; padding:12px; background:#0f131b}
 		.overlay-preview .queue{display:grid; grid-auto-rows:max-content; gap:var(--chip-gap, 8px)}
@@ -82,15 +155,42 @@
 		.crop-controls label{font-size:12px}
 		.crop-controls input[type="range"]{flex:1; min-width:100px}
 	</style>
+	<!-- Utility Modules -->
+	<script src="/js/utils.js"></script>
+	<script src="/js/gradient-editor.js"></script>
+	<script src="/js/chip-preview.js"></script>
 </head>
 <body>
 	<div class="container">
-		<div class="h1" id="title" data-text-ko="Key Queue Viewer 설정" data-text-en="Key Queue Viewer Settings">Key Queue Viewer 설정</div>
+		<div style="display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap">
+			<div class="h1" id="title" style="margin-bottom:0" data-text-ko="Key Queue Viewer 설정" data-text-en="Key Queue Viewer Settings">Key Queue Viewer 설정</div>
+			<div style="flex:1"></div>
+			
+			<!-- GitHub Login (Logged Out) -->
+			<div id="headerLoggedOut">
+				<button id="headerLoginBtn" class="btn-github" style="padding:6px 12px; font-size:13px">
+					<svg viewBox="0 0 16 16" fill="currentColor" style="width:16px;height:16px"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+					<span data-text-ko="로그인" data-text-en="Login">로그인</span>
+				</button>
+			</div>
+			
+			<!-- GitHub Login (Logged In) -->
+			<div id="headerLoggedIn" style="display:none; align-items:center; gap:8px">
+				<img id="headerAvatar" src="" alt="avatar" style="width:28px; height:28px; border-radius:50%; border:2px solid #3fb950"/>
+				<span id="headerUsername" style="font-size:13px; color:#3fb950; font-weight:500"></span>
+				<button id="headerLogoutBtn" style="padding:4px 8px; font-size:11px; background:transparent; border:1px solid var(--border); color:var(--muted)" data-text-ko="로그아웃" data-text-en="Logout">로그아웃</button>
+			</div>
+			
+			<!-- Preset Buttons -->
+			<button id="headerImportBtn" style="padding:6px 12px; font-size:13px" data-text-ko="📥 불러오기" data-text-en="📥 Import">📥 불러오기</button>
+			<button id="headerExportBtn" class="primary" style="padding:6px 12px; font-size:13px" data-text-ko="📤 내보내기" data-text-en="📤 Export">📤 내보내기</button>
+		</div>
 
 		<div class="panel">
 			<div class="row">
-				<div class="help" id="overlaySettingsLabel" data-text-ko="오버레이 설정" data-text-en="Overlay Settings">오버레이 설정</div>
-				<button id="openOverlayCfg" class="right" data-text-ko="오버레이 설정" data-text-en="Overlay Settings">오버레이 설정</button>
+				<div class="help" id="settingsLabel" data-text-ko="설정" data-text-en="Settings">설정</div>
+				<button id="openUnifiedStyle" class="right primary" data-text-ko="🎨 키 스타일" data-text-en="🎨 Key Style">🎨 키 스타일</button>
+				<button id="openOverlayCfg" data-text-ko="⚙️ 오버레이" data-text-en="⚙️ Overlay">⚙️ 오버레이</button>
 			</div>
 		</div>
 
@@ -305,18 +405,9 @@
 				<h3 id="overlaySettingsTitle" data-text-ko="오버레이 설정" data-text-en="Overlay Settings">오버레이 설정</h3>
 			</div>
 			<div class="modal-content">
+				<div class="help" style="margin-bottom:12px; padding:10px; background:var(--panel2); border-radius:6px" data-text-ko="⏱️ 타이밍 및 레이아웃 설정" data-text-en="⏱️ Timing and Layout Settings">⏱️ 타이밍 및 레이아웃 설정</div>
 				<div class="form-row"><label id="fadeInLabel" data-text-ko="Fade In(ms)" data-text-en="Fade In(ms)">Fade In(ms)</label><input id="ov_fade_in" class="field" type="number" min="0" step="10"/></div>
 				<div class="form-row"><label id="fadeOutLabel" data-text-ko="Fade Out(ms)" data-text-en="Fade Out(ms)">Fade Out(ms)</label><input id="ov_fade_out" class="field" type="number" min="0" step="10"/></div>
-				<div class="form-row"><label id="bgColorLabel" data-text-ko="배경색(전체)" data-text-en="Background Color (Overall)">배경색(전체)</label><div class="field color-field"><input id="ov_bg" type="text" placeholder="#000000"/><button id="ov_bg_pick" class="pick" title="색 선택" data-title-ko="색 선택" data-title-en="Color Picker"></button><input id="ov_bg_picker" type="color" class="picker-hidden"/></div></div>
-				<div class="form-row"><label id="transparentBgLabel" data-text-ko="투명 배경" data-text-en="Transparent Background">투명 배경</label><input id="ov_bg_trans" type="checkbox"/> <span class="help" id="transparentBgHelp" data-text-ko="체크하면 배경이 완전 투명" data-text-en="Check to make background completely transparent">체크하면 배경이 완전 투명</span></div>
-				<div class="form-row"><label id="chipBgLabel" data-text-ko="칩 배경색" data-text-en="Chip Background Color">칩 배경색</label><div class="field color-field"><input id="ov_chip_bg" type="text" placeholder="#000000"/><button id="ov_chip_bg_pick" class="pick" title="색 선택" data-title-ko="색 선택" data-title-en="Color Picker"></button><input id="ov_chip_bg_picker" type="color" class="picker-hidden"/></div></div>
-				<div class="form-row"><label id="textColorLabel" data-text-ko="텍스트 색" data-text-en="Text Color">텍스트 색</label><div class="field color-field"><input id="ov_chip_fg" type="text" placeholder="#ffffff"/><button id="ov_chip_fg_pick" class="pick" title="색 선택" data-title-ko="색 선택" data-title-en="Color Picker"></button><input id="ov_chip_fg_picker" type="color" class="picker-hidden"/></div></div>
-				<div class="form-row"><label id="chipGapLabel" data-text-ko="칩 간격(px)" data-text-en="Chip Gap(px)">칩 간격(px)</label><input id="ov_gap" class="field" type="number" min="0" step="1"/></div>
-				<div class="form-row"><label id="padVLabel" data-text-ko="세로 패딩(px)" data-text-en="Vertical Padding(px)">세로 패딩(px)</label><input id="ov_pad_v" class="field" type="number" min="0" step="1"/></div>
-				<div class="form-row"><label id="padHLabel" data-text-ko="가로 패딩(px)" data-text-en="Horizontal Padding(px)">가로 패딩(px)</label><input id="ov_pad_h" class="field" type="number" min="0" step="1"/></div>
-				<div class="form-row"><label id="radiusLabel" data-text-ko="모서리(px)" data-text-en="Corner Radius(px)">모서리(px)</label><input id="ov_radius" class="field" type="number" min="0" step="1"/></div>
-				<div class="form-row"><label id="fontSizeLabel" data-text-ko="폰트(px)" data-text-en="Font Size(px)">폰트(px)</label><input id="ov_font_px" class="field" type="number" min="8" step="1"/></div>
-				<div class="form-row"><label id="fontWeightLabel" data-text-ko="폰트 두께" data-text-en="Font Weight">폰트 두께</label><input id="ov_font_w" class="field" type="number" min="100" step="50"/></div>
 				<div class="form-row"><label id="colsLabel" data-text-ko="열(Cols)" data-text-en="Columns(Cols)">열(Cols)</label><input id="ov_cols" class="field" type="number" min="1" step="1"/></div>
 				<div class="form-row"><label id="rowsLabel" data-text-ko="행(Rows)" data-text-en="Rows">행(Rows)</label><input id="ov_rows" class="field" type="number" min="0" step="1"/></div>
 				<div class="help" id="rowsHelp" data-text-ko="행(Rows)에 0을 입력하면 제한 없이 여러 줄로 자동 감쌉니다." data-text-en="Enter 0 in Rows to automatically wrap to multiple lines without limit.">행(Rows)에 0을 입력하면 제한 없이 여러 줄로 자동 감쌉니다.</div>
@@ -338,8 +429,447 @@
 			<div class="modal-footer">
 				<div class="actions">
 					<button id="saveOverlay" class="primary" data-text-ko="저장" data-text-en="Save">저장</button>
+					<button id="resetOverlay" data-text-ko="기본값" data-text-en="Reset">기본값</button>
 					<span class="spacer"></span>
 					<button id="closeOverlay" data-text-ko="닫기" data-text-en="Close">닫기</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Unified Key Style Settings Modal -->
+	<div class="modal-backdrop" id="modalUnifiedStyle">
+		<div class="modal" style="width:720px">
+			<div class="modal-header">
+				<h3 data-text-ko="🎨 키 스타일 설정" data-text-en="🎨 Key Style Settings">🎨 키 스타일 설정</h3>
+			</div>
+			<div class="modal-content">
+				<!-- Main Tabs -->
+				<div class="key-img-tabs" id="unifiedStyleTabs">
+					<button id="usTabBg" class="active" data-text-ko="📍 배경" data-text-en="📍 Background">📍 배경</button>
+					<button id="usTabChip" data-text-ko="🎲 칩" data-text-en="🎲 Chip">🎲 칩</button>
+					<button id="usTabFont" data-text-ko="✏️ 폰트" data-text-en="✏️ Font">✏️ 폰트</button>
+				</div>
+
+				<!-- ========== Background Tab ========== -->
+				<div id="usPanelBg">
+					<div class="help" style="margin-bottom:12px" data-text-ko="전체 오버레이 배경을 설정합니다." data-text-en="Configure the overall overlay background.">전체 오버레이 배경을 설정합니다.</div>
+					
+					<div class="form-row">
+						<label data-text-ko="투명 배경" data-text-en="Transparent">투명 배경</label>
+						<input type="checkbox" id="us_bg_transparent" checked/>
+						<span class="help" data-text-ko="체크하면 배경이 완전 투명 (OBS용)" data-text-en="Check for transparent background (for OBS)">체크하면 배경이 완전 투명 (OBS용)</span>
+					</div>
+					
+					<div id="usBgColorSection">
+						<div class="form-row">
+							<label data-text-ko="배경 모드" data-text-en="Mode">배경 모드</label>
+							<select id="us_bg_mode" class="field">
+								<option value="solid" data-text-ko="단색" data-text-en="Solid">단색</option>
+								<option value="gradient" data-text-ko="그라데이션" data-text-en="Gradient">그라데이션</option>
+								<option value="image" data-text-ko="이미지" data-text-en="Image">이미지</option>
+							</select>
+						</div>
+						<div id="usBgSolid">
+							<div class="form-row"><label data-text-ko="배경색" data-text-en="Color">배경색</label><div class="field color-field"><input id="us_bg_color_picker" type="color" value="#000000" style="width:40px;height:32px"/><input id="us_bg_color" type="text" placeholder="#000000" value="#000000" style="flex:1;font-family:monospace"/></div></div>
+						</div>
+						<div id="usBgGradient" style="display:none">
+							<!-- Gradient Direction -->
+							<div class="form-row" style="margin-bottom:12px">
+								<label data-text-ko="방향" data-text-en="Direction">방향</label>
+								<div class="field" style="display:flex; gap:6px; align-items:center">
+									<input type="range" id="us_bg_grad_angle" min="0" max="360" value="180" style="flex:1"/>
+									<input type="number" id="us_bg_grad_angle_num" min="0" max="360" value="180" style="width:60px"/>
+									<span>°</span>
+								</div>
+							</div>
+							<!-- Gradient Preview -->
+							<div id="us_bg_grad_preview" style="height:24px; border-radius:6px; margin-bottom:12px; border:1px solid var(--border); background:linear-gradient(180deg, #000000, #333333)"></div>
+							<!-- Color Stops List -->
+							<div class="help" style="margin-bottom:6px; font-weight:600" data-text-ko="🎨 색상 정지점" data-text-en="🎨 Color Stops">🎨 색상 정지점</div>
+							<div id="us_bg_grad_stops" style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px">
+								<!-- Dynamic color stops will be added here -->
+							</div>
+							<button id="us_bg_grad_add" style="width:100%; padding:6px" data-text-ko="+ 색상 추가" data-text-en="+ Add Color">+ 색상 추가</button>
+						</div>
+						<div id="usBgImage" style="display:none">
+							<div class="key-img-drop" id="usBgImageDrop" style="padding:20px">
+								<div data-text-ko="이미지를 드래그하거나 클릭" data-text-en="Drag image or click">이미지를 드래그하거나 클릭</div>
+								<input type="file" id="usBgImageFile" accept="image/*" style="display:none"/>
+							</div>
+							<div id="usBgImagePreview" style="display:none; margin-top:8px">
+								<img id="usBgImagePreviewImg" src="" style="max-width:100%; max-height:100px; border-radius:6px"/>
+								<button id="usBgImageClear" class="danger" style="margin-left:8px" data-text-ko="제거" data-text-en="Remove">제거</button>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- ========== Chip Tab ========== -->
+				<div id="usPanelChip" style="display:none">
+					<div class="help" style="margin-bottom:12px" data-text-ko="칩(키) 스타일 그룹을 관리합니다. 개별 키 > 그룹 키 > 전체 키 우선순위로 적용됩니다." data-text-en="Manage chip style groups. Priority: Individual > Group > All keys.">칩(키) 스타일 그룹을 관리합니다. 개별 키 > 그룹 키 > 전체 키 우선순위로 적용됩니다.</div>
+					
+					<!-- Chip Layout Settings -->
+					<div style="margin-bottom:16px; padding:12px; background:var(--panel2); border-radius:8px">
+						<div class="help" style="margin-bottom:10px; font-weight:600" data-text-ko="📐 칩 크기/간격" data-text-en="📐 Chip Size/Spacing">📐 칩 크기/간격</div>
+						<div class="form-row"><label data-text-ko="칩 간격(px)" data-text-en="Gap">칩 간격(px)</label><input id="us_chip_gap" class="field" type="number" min="0" value="8"/></div>
+						<div class="form-row"><label data-text-ko="세로 패딩" data-text-en="Pad V">세로 패딩</label><input id="us_chip_pad_v" class="field" type="number" min="0" value="10"/></div>
+						<div class="form-row"><label data-text-ko="가로 패딩" data-text-en="Pad H">가로 패딩</label><input id="us_chip_pad_h" class="field" type="number" min="0" value="14"/></div>
+						<div class="form-row"><label data-text-ko="모서리" data-text-en="Radius">모서리</label><input id="us_chip_radius" class="field" type="number" min="0" value="10"/></div>
+					</div>
+					
+					<!-- Style Groups List -->
+					<div style="margin-bottom:16px; padding:12px; background:var(--panel2); border-radius:8px">
+						<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
+							<div class="help" style="font-weight:600" data-text-ko="📦 스타일 그룹" data-text-en="📦 Style Groups">📦 스타일 그룹</div>
+							<button id="usAddGroup" class="primary" style="padding:4px 10px; font-size:12px" data-text-ko="+ 새 그룹" data-text-en="+ New Group">+ 새 그룹</button>
+						</div>
+						<div id="usGroupList" class="key-img-list" style="max-height:200px">
+							<div class="help" style="text-align:center; padding:20px; color:var(--muted)" id="usNoGroups" data-text-ko="등록된 스타일 그룹이 없습니다" data-text-en="No style groups registered">등록된 스타일 그룹이 없습니다</div>
+						</div>
+					</div>
+					
+					<!-- Group Editor (hidden by default) -->
+					<div id="usGroupEditor" style="display:none; padding:12px; background:var(--panel2); border-radius:8px; border:2px solid var(--primary)">
+						<div class="help" style="margin-bottom:10px; font-weight:600" data-text-ko="✏️ 그룹 편집" data-text-en="✏️ Edit Group">✏️ 그룹 편집</div>
+						<input type="hidden" id="usGroupEditId"/>
+						<div class="form-row"><label data-text-ko="그룹 이름" data-text-en="Name">그룹 이름</label><input id="usGroupName" class="field" type="text" placeholder="My Group"/></div>
+						<div class="form-row">
+							<label data-text-ko="그룹 유형" data-text-en="Type">그룹 유형</label>
+							<select id="usGroupType" class="field">
+								<option value="individual" data-text-ko="개별 키" data-text-en="Individual Keys">개별 키</option>
+								<option value="group" data-text-ko="그룹 키" data-text-en="Group Keys">그룹 키</option>
+								<option value="all" data-text-ko="모든 키" data-text-en="All Keys">모든 키</option>
+							</select>
+						</div>
+						<div id="usGroupKeysSection">
+							<div class="form-row">
+								<label data-text-ko="키 선택" data-text-en="Keys">키 선택</label>
+								<button id="usRecordKeys" data-text-ko="🎤 녹화" data-text-en="🎤 Record">🎤 녹화</button>
+								<span id="usRecordedKeys" style="margin-left:8px; font-size:12px; color:var(--muted)"></span>
+							</div>
+							<div class="form-row" style="margin-top:6px">
+								<label data-text-ko="마우스" data-text-en="Mouse">마우스</label>
+								<button type="button" id="usMouseLMB" onclick="toggleMouseButton('LMB')" class="mouse-btn" style="padding:4px 8px; font-size:11px">🖱️ 좌클릭</button>
+								<button type="button" id="usMouseRMB" onclick="toggleMouseButton('RMB')" class="mouse-btn" style="padding:4px 8px; font-size:11px">🖱️ 우클릭</button>
+								<button type="button" id="usMouseMMB" onclick="toggleMouseButton('MMB')" class="mouse-btn" style="padding:4px 8px; font-size:11px">🖱️ 중간</button>
+								<button type="button" id="usMouseM4" onclick="toggleMouseButton('MOUSE4')" class="mouse-btn" style="padding:4px 8px; font-size:11px">M4</button>
+								<button type="button" id="usMouseM5" onclick="toggleMouseButton('MOUSE5')" class="mouse-btn" style="padding:4px 8px; font-size:11px">M5</button>
+							</div>
+						</div>
+						<div class="form-row">
+							<label data-text-ko="칩 배경" data-text-en="Chip BG">칩 배경</label>
+							<select id="usGroupBgMode" class="field">
+								<option value="transparent" data-text-ko="투명" data-text-en="Transparent">투명</option>
+								<option value="solid" data-text-ko="단색" data-text-en="Solid">단색</option>
+								<option value="gradient" data-text-ko="그라데이션" data-text-en="Gradient">그라데이션</option>
+								<option value="image" data-text-ko="이미지" data-text-en="Image">이미지</option>
+							</select>
+						</div>
+						<div id="usGroupBgSolid" style="display:none">
+							<div class="form-row"><label data-text-ko="색상" data-text-en="Color">색상</label><div class="field color-field"><input id="usGroupBgColor_picker" type="color" value="#000000" style="width:40px;height:32px"/><input id="usGroupBgColor" type="text" value="#000000" style="flex:1;font-family:monospace"/></div></div>
+						</div>
+						<div id="usGroupBgGrad" style="display:none">
+							<!-- Gradient Direction -->
+							<div class="form-row" style="margin-bottom:10px">
+								<label data-text-ko="방향" data-text-en="Direction">방향</label>
+								<div class="field" style="display:flex; gap:6px; align-items:center">
+									<input type="range" id="usGroupGradAngle" min="0" max="360" value="180" style="flex:1"/>
+									<input type="number" id="usGroupGradAngleNum" min="0" max="360" value="180" style="width:55px"/>
+									<span>°</span>
+								</div>
+							</div>
+							<!-- Gradient Preview -->
+							<div id="usGroupGradPreview" style="height:20px; border-radius:4px; margin-bottom:10px; border:1px solid var(--border); background:linear-gradient(180deg, #000000, #333333)"></div>
+							<!-- Color Stops List -->
+							<div class="help" style="margin-bottom:6px; font-size:11px; font-weight:600" data-text-ko="🎨 색상" data-text-en="🎨 Colors">🎨 색상</div>
+							<div id="usGroupGradStops" style="display:flex; flex-direction:column; gap:4px; margin-bottom:6px"></div>
+							<button id="usGroupGradAdd" style="width:100%; padding:4px; font-size:12px" data-text-ko="+ 색상 추가" data-text-en="+ Add Color">+ 색상 추가</button>
+						</div>
+						<div id="usGroupBgImage" style="display:none">
+							<div class="key-img-drop" id="usGroupImageDrop" style="padding:16px">
+								<div data-text-ko="이미지 업로드" data-text-en="Upload Image">이미지 업로드</div>
+								<input type="file" id="usGroupImageFile" accept="image/*" style="display:none"/>
+							</div>
+							<img id="usGroupImagePreview" src="" style="display:none; max-width:100px; margin-top:8px; border-radius:6px"/>
+						</div>
+						<div style="display:flex; gap:8px; margin-top:12px">
+							<button id="usGroupSave" class="primary" data-text-ko="저장" data-text-en="Save">저장</button>
+							<button id="usGroupCancel" data-text-ko="취소" data-text-en="Cancel">취소</button>
+						</div>
+					</div>
+				</div>
+
+				<!-- ========== Font Tab ========== -->
+				<div id="usPanelFont" style="display:none">
+					<div class="help" style="margin-bottom:12px" data-text-ko="기본 폰트와 그룹별 폰트 오버라이드를 설정합니다." data-text-en="Configure default font and group-specific font overrides.">기본 폰트와 그룹별 폰트 오버라이드를 설정합니다.</div>
+					
+					<!-- Default Font -->
+					<div style="margin-bottom:16px; padding:12px; background:var(--panel2); border-radius:8px">
+						<div class="help" style="margin-bottom:10px; font-weight:600" data-text-ko="🔤 기본 폰트" data-text-en="🔤 Default Font">🔤 기본 폰트</div>
+						<div class="form-row">
+							<label data-text-ko="폰트" data-text-en="Font">폰트</label>
+							<select id="us_font_family" class="field">
+								<option value="system-ui">System UI</option>
+								<option value="Arial">Arial</option>
+								<option value="'Segoe UI'">Segoe UI</option>
+								<option value="Roboto">Roboto</option>
+								<option value="'Noto Sans KR'">Noto Sans KR</option>
+								<option value="custom">커스텀 URL...</option>
+							</select>
+						</div>
+						<div id="usFontUrlSection" style="display:none">
+							<div class="form-row"><label>URL</label><input id="us_font_url" class="field" type="text" placeholder="https://fonts.googleapis.com/css2?family=..."/></div>
+							<div class="help" style="font-size:11px" data-text-ko="💡 Google Fonts에서 @import URL을 복사하세요" data-text-en="💡 Copy @import URL from Google Fonts">💡 Google Fonts에서 @import URL을 복사하세요</div>
+						</div>
+						<div class="form-row"><label data-text-ko="크기(px)" data-text-en="Size">크기(px)</label><input id="us_font_size" class="field" type="number" min="8" value="24"/></div>
+						<div class="form-row"><label data-text-ko="두께" data-text-en="Weight">두께</label><select id="us_font_weight" class="field">
+							<option value="400">400 (Normal)</option>
+							<option value="500">500 (Medium)</option>
+							<option value="600">600 (Semi Bold)</option>
+							<option value="700" selected>700 (Bold)</option>
+							<option value="800">800 (Extra Bold)</option>
+							<option value="900">900 (Black)</option>
+						</select></div>
+						<div class="form-row"><label data-text-ko="색상" data-text-en="Color">색상</label><div class="field color-field"><input id="us_font_color_picker" type="color" value="#ffffff" style="width:40px;height:32px"/><input id="us_font_color" type="text" value="#ffffff" style="flex:1;font-family:monospace"/></div></div>
+						<div class="form-row"><label data-text-ko="그림자" data-text-en="Shadow">그림자</label><input type="checkbox" id="us_font_shadow" checked/></div>
+					</div>
+					
+					<!-- Group Font Overrides -->
+					<div style="padding:12px; background:var(--panel2); border-radius:8px">
+						<div class="help" style="margin-bottom:10px; font-weight:600" data-text-ko="🎯 그룹별 폰트 오버라이드" data-text-en="🎯 Group Font Overrides">🎯 그룹별 폰트 오버라이드</div>
+						<div id="usGroupFontList">
+							<div class="help" style="text-align:center; padding:16px; color:var(--muted)" data-text-ko="칩 탭에서 스타일 그룹을 먼저 추가하세요" data-text-en="Add style groups in Chip tab first">칩 탭에서 스타일 그룹을 먼저 추가하세요</div>
+						</div>
+						
+						<!-- Group Font Editor (hidden by default) -->
+						<div id="usGroupFontEditor" style="display:none; margin-top:12px; padding:12px; background:var(--panel); border-radius:8px; border:1px solid var(--primary)">
+							<input type="hidden" id="usGroupFontEditId"/>
+							<div class="help" style="margin-bottom:10px; font-weight:600; color:var(--primary)" id="usGroupFontEditTitle">폰트 설정</div>
+							
+							<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px">
+								<div class="form-group">
+									<label data-text-ko="폰트" data-text-en="Font">폰트</label>
+									<input type="text" id="usGroupFontFamily" placeholder="Arial, sans-serif"/>
+									<div class="help" style="font-size:10px; margin-top:2px" data-text-ko="비워두면 기본 폰트 사용" data-text-en="Leave empty for default">비워두면 기본 폰트 사용</div>
+								</div>
+								<div class="form-group">
+									<label data-text-ko="크기 (px)" data-text-en="Size (px)">크기 (px)</label>
+									<input type="number" id="usGroupFontSize" min="8" max="72" placeholder="24"/>
+								</div>
+								<div class="form-group">
+									<label data-text-ko="두께" data-text-en="Weight">두께</label>
+									<select id="usGroupFontWeight">
+										<option value="">기본값</option>
+										<option value="400">400 (Normal)</option>
+										<option value="500">500 (Medium)</option>
+										<option value="600">600 (Semi-bold)</option>
+										<option value="700">700 (Bold)</option>
+										<option value="800">800 (Extra-bold)</option>
+										<option value="900">900 (Black)</option>
+									</select>
+								</div>
+								<div class="form-group">
+									<label data-text-ko="색상" data-text-en="Color">색상</label>
+									<div style="display:flex; gap:6px; align-items:center">
+										<input type="color" id="usGroupFontColor" value="#ffffff" style="width:40px; height:32px"/>
+										<input type="text" id="usGroupFontColorText" value="#ffffff" style="flex:1; font-family:monospace"/>
+									</div>
+								</div>
+							</div>
+							
+							<div style="display:flex; gap:8px; margin-top:12px">
+								<button id="usGroupFontSave" class="primary" style="flex:1" data-text-ko="저장" data-text-en="Save">저장</button>
+								<button id="usGroupFontCancel" style="flex:1" data-text-ko="취소" data-text-en="Cancel">취소</button>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Preview -->
+				<div class="overlay-preview" id="us_preview" style="margin-top:14px">
+					<div class="help" style="margin-bottom:8px" data-text-ko="미리보기" data-text-en="Preview">미리보기</div>
+					<div class="queue" id="us_preview_queue" style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center"></div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<div class="actions">
+					<button id="usStyleSave" class="primary" data-text-ko="저장" data-text-en="Save">저장</button>
+					<button id="usStyleReset" data-text-ko="기본값" data-text-en="Reset">기본값</button>
+					<span class="spacer"></span>
+					<button id="usStyleClose" data-text-ko="닫기" data-text-en="Close">닫기</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+
+	<!-- Image Editor Modal -->
+	<div id="modalImageEditor" class="modal-backdrop">
+		<div class="modal img-editor-modal" style="width:600px">
+			<div class="modal-header">
+				<h3 data-text-ko="이미지 편집" data-text-en="Edit Image">이미지 편집</h3>
+			</div>
+			<div class="modal-content">
+				<!-- Canvas Area with Chip Mask Overlay -->
+				<div class="img-editor-canvas-wrap" style="position:relative">
+					<canvas id="imgEditorCanvas" class="img-editor-canvas" width="400" height="300"></canvas>
+					<!-- Dark overlay with bright chip area -->
+					<div id="imgChipMask" style="position:absolute; inset:0; pointer-events:none; display:flex; align-items:center; justify-content:center">
+						<div id="imgChipArea" style="border:2px dashed rgba(255,255,255,0.6); background:transparent; border-radius:10px; box-shadow:0 0 0 9999px rgba(0,0,0,0.5)"></div>
+					</div>
+				</div>
+
+				<!-- Controls -->
+				<div class="img-editor-controls">
+					<label data-text-ko="확대" data-text-en="Zoom">확대</label>
+					<input type="range" id="imgZoom" min="50" max="400" value="100"/>
+					<span id="imgZoomVal">100%</span>
+				</div>
+				<input type="hidden" id="imgKeyType" value="medium"/>
+
+				<div class="img-editor-controls">
+					<label data-text-ko="품질" data-text-en="Quality">품질</label>
+					<input type="range" id="imgQuality" min="30" max="100" value="70"/>
+					<span id="imgQualityVal">70%</span>
+					<span class="help" style="margin-left:8px" id="imgSizeInfo"></span>
+				</div>
+
+				<!-- Preview: Small / Medium / Large -->
+				<div class="help" style="margin-bottom:8px" data-text-ko="미리보기 (작은/중간/큰 칩)" data-text-en="Preview (Small/Medium/Large Chip)">미리보기 (작은/중간/큰 칩)</div>
+				<div class="img-editor-preview" id="editorPreviewContainer" style="gap:16px; align-items:flex-end">
+					<div style="text-align:center">
+						<div class="editor-preview-chip" id="previewChipSmall">A</div>
+						<div class="help" style="font-size:10px; margin-top:4px" data-text-ko="작은" data-text-en="Small">작은</div>
+					</div>
+					<div style="text-align:center">
+						<div class="editor-preview-chip" id="previewChipMedium">TAB</div>
+						<div class="help" style="font-size:10px; margin-top:4px" data-text-ko="중간" data-text-en="Medium">중간</div>
+					</div>
+					<div style="text-align:center">
+						<div class="editor-preview-chip" id="previewChipLarge">LSHIFT</div>
+						<div class="help" style="font-size:10px; margin-top:4px" data-text-ko="큰" data-text-en="Large">큰</div>
+					</div>
+				</div>
+
+				<!-- Text Visibility -->
+				<div style="margin-top:14px; padding:12px; background:var(--panel2); border-radius:8px">
+					<div class="form-row" style="margin:0">
+						<label data-text-ko="텍스트 숨김" data-text-en="Hide Text">텍스트 숨김</label>
+						<input type="checkbox" id="imgHideText"/>
+						<span class="help" data-text-ko="체크하면 이미지만 표시" data-text-en="Check to show image only">체크하면 이미지만 표시</span>
+					</div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<div class="actions">
+					<button id="imgEditorSave" class="primary" data-text-ko="적용" data-text-en="Apply">적용</button>
+					<span class="spacer"></span>
+					<button id="imgEditorCancel" data-text-ko="취소" data-text-en="Cancel">취소</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Import Modal -->
+	<div class="modal-backdrop" id="modalImport">
+		<div class="modal" style="width:520px">
+			<div class="modal-header">
+				<h3 data-text-ko="프리셋 불러오기" data-text-en="Import Preset">프리셋 불러오기</h3>
+			</div>
+			<div class="modal-content">
+				<!-- Gist List (if logged in) -->
+				<div id="importGistSection">
+					<div class="help" style="margin-bottom:10px" data-text-ko="내 저장된 프리셋" data-text-en="My Saved Presets">내 저장된 프리셋</div>
+					<div id="gistListContainer" class="key-img-list" style="max-height:200px">
+						<div class="help" style="text-align:center; padding:12px" data-text-ko="로그인이 필요합니다" data-text-en="Login required">로그인이 필요합니다</div>
+					</div>
+					
+					<!-- Selected Gist Preview -->
+					<div id="gistPreviewSection" style="display:none; margin-top:12px; padding:12px; background:var(--panel2); border-radius:8px">
+						<div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:8px">
+							<div>
+								<div id="gistPreviewName" style="font-weight:600; margin-bottom:4px"></div>
+								<div id="gistPreviewDate" class="help" style="font-size:11px"></div>
+							</div>
+							<button id="loadSelectedGist" class="primary" style="padding:6px 12px; font-size:12px" data-text-ko="불러오기" data-text-en="Load">불러오기</button>
+						</div>
+						<div id="gistPreviewInfo" class="help" style="font-size:12px"></div>
+					</div>
+				</div>
+
+				<div class="or-divider" data-text-ko="또는" data-text-en="or">또는</div>
+
+				<!-- Gist ID Import -->
+				<div class="gist-section" style="border-top:none; padding-top:0; margin-top:0">
+					<label data-text-ko="Gist ID로 불러오기" data-text-en="Import from Gist ID">Gist ID로 불러오기</label>
+					<div style="display:flex; gap:8px; margin-top:6px">
+						<input id="gistImportId" type="text" placeholder="abc123def456..." style="flex:1"/>
+						<button id="gistImportBtn" class="primary" data-text-ko="불러오기" data-text-en="Import">불러오기</button>
+					</div>
+				</div>
+
+				<!-- JSON Import -->
+				<div class="gist-section">
+					<label data-text-ko="JSON 붙여넣기" data-text-en="Paste JSON">JSON 붙여넣기</label>
+					<div style="margin-top:6px">
+						<button id="jsonImportBtn" style="width:100%" data-text-ko="📋 클립보드에서 붙여넣기" data-text-en="📋 Paste from Clipboard">📋 클립보드에서 붙여넣기</button>
+					</div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<div class="actions">
+					<button id="refreshGistList" data-text-ko="새로고침" data-text-en="Refresh">새로고침</button>
+					<span class="spacer"></span>
+					<button id="closeImport" data-text-ko="닫기" data-text-en="Close">닫기</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Export Modal -->
+	<div class="modal-backdrop" id="modalExport">
+		<div class="modal" style="width:480px">
+			<div class="modal-header">
+				<h3 data-text-ko="프리셋 내보내기" data-text-en="Export Preset">프리셋 내보내기</h3>
+			</div>
+			<div class="modal-content">
+				<!-- Current Settings Preview -->
+				<div style="padding:12px; background:var(--panel2); border-radius:8px; margin-bottom:14px">
+					<div class="help" style="margin-bottom:8px; font-weight:600" data-text-ko="📦 현재 설정 미리보기" data-text-en="📦 Current Settings Preview">📦 현재 설정 미리보기</div>
+					<div id="exportPreviewInfo" class="help" style="font-size:12px; line-height:1.6"></div>
+				</div>
+
+				<!-- Gist Export (if logged in) -->
+				<div id="exportGistSection">
+					<div class="gist-section" style="border-top:none; padding-top:0">
+						<label data-text-ko="GitHub Gist로 저장" data-text-en="Save to GitHub Gist">GitHub Gist로 저장</label>
+						<div style="display:flex; gap:8px; margin-top:6px">
+							<input id="gistExportDesc" type="text" placeholder="My KeyViewer Preset" data-placeholder-ko="프리셋 이름" data-placeholder-en="Preset name" style="flex:1"/>
+							<button id="gistExportBtn" class="primary" data-text-ko="저장" data-text-en="Save">저장</button>
+						</div>
+						<div id="gistExportResult" class="help" style="margin-top:8px; display:none"></div>
+					</div>
+				</div>
+
+				<div id="exportLoginRequired" style="display:none; padding:12px; background:var(--panel2); border-radius:8px; margin-bottom:14px">
+					<div class="help" data-text-ko="Gist 저장을 위해 로그인이 필요합니다" data-text-en="Login required to save to Gist">Gist 저장을 위해 로그인이 필요합니다</div>
+				</div>
+
+				<div class="or-divider" data-text-ko="또는" data-text-en="or">또는</div>
+
+				<!-- JSON Export -->
+				<div class="gist-section" style="border-top:none; padding-top:0; margin-top:0">
+					<label data-text-ko="JSON으로 복사" data-text-en="Copy as JSON">JSON으로 복사</label>
+					<div style="margin-top:6px">
+						<button id="jsonExportBtn" style="width:100%" data-text-ko="📋 클립보드에 복사" data-text-en="📋 Copy to Clipboard">📋 클립보드에 복사</button>
+					</div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<div class="actions">
+					<span class="spacer"></span>
+					<button id="closeExport" data-text-ko="닫기" data-text-en="Close">닫기</button>
 				</div>
 			</div>
 		</div>
@@ -953,6 +1483,75 @@
 		const ov_align = document.getElementById('ov_align');
 		const ov_direction = document.getElementById('ov_direction');
 
+
+		// ========== Unified Style Modal elements ==========
+		const modalUnifiedStyle = document.getElementById('modalUnifiedStyle');
+		const openUnifiedStyle = document.getElementById('openUnifiedStyle');
+		const usStyleSave = document.getElementById('usStyleSave');
+		const usStyleReset = document.getElementById('usStyleReset');
+		const usStyleClose = document.getElementById('usStyleClose');
+		
+		// Tab buttons
+		const usTabBg = document.getElementById('usTabBg');
+		const usTabChip = document.getElementById('usTabChip');
+		const usTabFont = document.getElementById('usTabFont');
+		
+		// Tab panels
+		const usPanelBg = document.getElementById('usPanelBg');
+		const usPanelChip = document.getElementById('usPanelChip');
+		const usPanelFont = document.getElementById('usPanelFont');
+		
+		// Background tab elements
+		const us_bg_transparent = document.getElementById('us_bg_transparent');
+		const us_bg_mode = document.getElementById('us_bg_mode');
+		const us_bg_color = document.getElementById('us_bg_color');
+		const usBgColorSection = document.getElementById('usBgColorSection');
+		const usBgSolid = document.getElementById('usBgSolid');
+		const usBgGradient = document.getElementById('usBgGradient');
+		const usBgImage = document.getElementById('usBgImage');
+		
+		// Chip tab elements
+		const us_chip_gap = document.getElementById('us_chip_gap');
+		const us_chip_pad_v = document.getElementById('us_chip_pad_v');
+		const us_chip_pad_h = document.getElementById('us_chip_pad_h');
+		const us_chip_radius = document.getElementById('us_chip_radius');
+		const usGroupList = document.getElementById('usGroupList');
+		const usAddGroup = document.getElementById('usAddGroup');
+		const usNoGroups = document.getElementById('usNoGroups');
+		const usGroupEditor = document.getElementById('usGroupEditor');
+		
+		// Group editor elements
+		const usGroupEditId = document.getElementById('usGroupEditId');
+		const usGroupName = document.getElementById('usGroupName');
+		const usGroupType = document.getElementById('usGroupType');
+		const usGroupKeysSection = document.getElementById('usGroupKeysSection');
+		const usRecordKeys = document.getElementById('usRecordKeys');
+		const usRecordedKeys = document.getElementById('usRecordedKeys');
+		const usGroupBgMode = document.getElementById('usGroupBgMode');
+		const usGroupBgSolid = document.getElementById('usGroupBgSolid');
+		const usGroupBgGrad = document.getElementById('usGroupBgGrad');
+		const usGroupBgImage = document.getElementById('usGroupBgImage');
+		const usGroupSave = document.getElementById('usGroupSave');
+		const usGroupCancel = document.getElementById('usGroupCancel');
+		
+		// Font tab elements
+		const us_font_family = document.getElementById('us_font_family');
+		const us_font_url = document.getElementById('us_font_url');
+		const usFontUrlSection = document.getElementById('usFontUrlSection');
+		const us_font_size = document.getElementById('us_font_size');
+		const us_font_weight = document.getElementById('us_font_weight');
+		const us_font_color = document.getElementById('us_font_color');
+		const us_font_shadow = document.getElementById('us_font_shadow');
+		
+		// Preview
+		const us_preview = document.getElementById('us_preview');
+		const us_preview_queue = document.getElementById('us_preview_queue');
+		
+		// Style groups data storage
+		let styleGroups = [];
+		let usRecording = false;
+		let usRecordedKeysList = [];
+
 		const debugMode = document.getElementById('debugMode');
 		const debugValue = document.getElementById('debugValue');
 		const debugStatus = document.getElementById('debugStatus');
@@ -1003,6 +1602,18 @@
 					element.title = koTitle;
 				} else if (lang === 'en' && enTitle) {
 					element.title = enTitle;
+				}
+			});
+
+			// Update placeholders
+			document.querySelectorAll('[data-placeholder-ko], [data-placeholder-en]').forEach(element => {
+				const koPlaceholder = element.getAttribute('data-placeholder-ko');
+				const enPlaceholder = element.getAttribute('data-placeholder-en');
+				
+				if (lang === 'ko' && koPlaceholder) {
+					element.placeholder = koPlaceholder;
+				} else if (lang === 'en' && enPlaceholder) {
+					element.placeholder = enPlaceholder;
 				}
 			});
 
@@ -1071,8 +1682,826 @@
 		function openModalOverlay(){ modalOverlay.style.display = 'flex'; }
 		function closeModalOverlay(){ modalOverlay.style.display = 'none'; }
 
-		function isValidHex(h){ return /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/.test(h); }
-		function setPickBtn(btn, val){ if (isValidHex(val)) { btn.style.background = val; } }
+		
+		// ========== Unified Style Modal Functions ==========
+		function openModalUnifiedStyle() {
+			modalUnifiedStyle.style.display = 'flex';
+			loadUnifiedStyleConfig();
+			switchUnifiedTab('bg');
+			renderBgGradStops();
+			updateUnifiedPreview();
+		}
+		
+		function closeModalUnifiedStyle() {
+			modalUnifiedStyle.style.display = 'none';
+			usGroupEditor.style.display = 'none';
+		}
+		
+		function switchUnifiedTab(tab) {
+			// Update tab button states
+			[usTabBg, usTabChip, usTabFont].forEach(t => t && t.classList.remove('active'));
+			
+			// Hide all panels
+			if (usPanelBg) usPanelBg.style.display = 'none';
+			if (usPanelChip) usPanelChip.style.display = 'none';
+			if (usPanelFont) usPanelFont.style.display = 'none';
+			
+			// Show selected panel
+			switch(tab) {
+				case 'bg':
+					if (usTabBg) usTabBg.classList.add('active');
+					if (usPanelBg) usPanelBg.style.display = 'block';
+					break;
+				case 'chip':
+					if (usTabChip) usTabChip.classList.add('active');
+					if (usPanelChip) usPanelChip.style.display = 'block';
+					renderStyleGroupsList();
+					break;
+				case 'font':
+					if (usTabFont) usTabFont.classList.add('active');
+					if (usPanelFont) usPanelFont.style.display = 'block';
+					renderStyleGroupsList();
+					break;
+			}
+		}
+		
+		// Tab click handlers
+		if (usTabBg) usTabBg.addEventListener('click', () => switchUnifiedTab('bg'));
+		if (usTabChip) usTabChip.addEventListener('click', () => switchUnifiedTab('chip'));
+		if (usTabFont) usTabFont.addEventListener('click', () => switchUnifiedTab('font'));
+		
+		// Background transparency toggle
+		if (us_bg_transparent) {
+			us_bg_transparent.addEventListener('change', () => {
+				if (usBgColorSection) {
+					usBgColorSection.style.display = us_bg_transparent.checked ? 'none' : 'block';
+				}
+				updateUnifiedPreview();
+			});
+		}
+		
+		// Background mode toggle
+		if (us_bg_mode) {
+			us_bg_mode.addEventListener('change', () => {
+				const mode = us_bg_mode.value;
+				if (usBgSolid) usBgSolid.style.display = mode === 'solid' ? 'block' : 'none';
+				if (usBgGradient) usBgGradient.style.display = mode === 'gradient' ? 'block' : 'none';
+				if (usBgImage) usBgImage.style.display = mode === 'image' ? 'block' : 'none';
+				if (mode === 'gradient') renderBgGradStops();
+				updateUnifiedPreview();
+			});
+		}
+		
+		// Font family toggle for custom URL
+		if (us_font_family) {
+			us_font_family.addEventListener('change', () => {
+				if (usFontUrlSection) {
+					usFontUrlSection.style.display = us_font_family.value === 'custom' ? 'block' : 'none';
+				}
+				updateUnifiedPreview();
+			});
+		}
+		
+		// Group type toggle
+		if (usGroupType) {
+			usGroupType.addEventListener('change', () => {
+				if (usGroupKeysSection) {
+					usGroupKeysSection.style.display = usGroupType.value === 'all' ? 'none' : 'block';
+				}
+			});
+		}
+		
+		// Group background mode toggle
+		if (usGroupBgMode) {
+			usGroupBgMode.addEventListener('change', () => {
+				const mode = usGroupBgMode.value;
+				if (usGroupBgSolid) usGroupBgSolid.style.display = mode === 'solid' ? 'block' : 'none';
+				if (usGroupBgGrad) usGroupBgGrad.style.display = mode === 'gradient' ? 'block' : 'none';
+				if (usGroupBgImage) usGroupBgImage.style.display = mode === 'image' ? 'block' : 'none';
+			});
+		}
+		
+		// Add new group button
+		if (usAddGroup) {
+			usAddGroup.addEventListener('click', () => {
+				usGroupEditId.value = '';
+				usGroupName.value = '';
+				usGroupType.value = 'individual';
+				usRecordedKeysList = [];
+				usRecordedKeys.textContent = '';
+				usGroupBgMode.value = 'solid';
+				usGroupImageData = null;
+				usGroupTextOpacity = 1;
+				resetGroupGrad();
+				if (usGroupImagePreview) usGroupImagePreview.style.display = 'none';
+				if (usGroupBgSolid) usGroupBgSolid.style.display = 'block';
+				if (usGroupBgGrad) usGroupBgGrad.style.display = 'none';
+				if (usGroupBgImage) usGroupBgImage.style.display = 'none';
+				usGroupEditor.style.display = 'block';
+				updateMouseButtonStates();
+			});
+		}
+		
+		// Group save button
+		if (usGroupSave) {
+			usGroupSave.addEventListener('click', () => {
+				const name = usGroupName.value.trim() || 'Unnamed Group';
+				const type = usGroupType.value;
+				const keys = type === 'all' ? ['*'] : usRecordedKeysList;
+				const bgMode = usGroupBgMode.value;
+				
+				const group = {
+					id: usGroupEditId.value || Date.now().toString(),
+					name,
+					type,
+					keys,
+					bgMode,
+					bgColor: document.getElementById('usGroupBgColor')?.value || '#000000',
+					gradStops: groupGradEditor.getStops(),
+					gradAngle: groupGradEditor.getAngle(),
+					image: usGroupImageData,
+					textOpacity: usGroupTextOpacity
+				};
+				
+				// Find and update or add
+				const existingIdx = styleGroups.findIndex(g => g.id === group.id);
+				if (existingIdx >= 0) {
+					styleGroups[existingIdx] = group;
+				} else {
+					styleGroups.push(group);
+				}
+				
+				// Save to localStorage immediately
+				localStorage.setItem('keyviewer_style_groups', JSON.stringify(styleGroups));
+				
+				usGroupEditor.style.display = 'none';
+				renderStyleGroupsList();
+				updateUnifiedPreview();
+			});
+		}
+		
+		// Group cancel button
+		if (usGroupCancel) {
+			usGroupCancel.addEventListener('click', () => {
+				usGroupEditor.style.display = 'none';
+			});
+		}
+		
+		// Key recording for groups (unified modal)
+		function handleUnifiedKeydown(event) {
+			if (!usRecording) return;
+			event.preventDefault();
+			const key = event.key.toUpperCase();
+			// Normalize special keys
+			let normalizedKey = key;
+			if (event.code === 'ShiftLeft') normalizedKey = 'LSHIFT';
+			else if (event.code === 'ShiftRight') normalizedKey = 'RSHIFT';
+			else if (event.code === 'ControlLeft') normalizedKey = 'LCTRL';
+			else if (event.code === 'ControlRight') normalizedKey = 'RCTRL';
+			else if (event.code === 'AltLeft') normalizedKey = 'LALT';
+			else if (event.code === 'AltRight') normalizedKey = 'RALT';
+			else if (key === ' ') normalizedKey = 'SPACE';
+			else if (key === 'ESCAPE') normalizedKey = 'ESC';
+			
+			if (!usRecordedKeysList.includes(normalizedKey)) {
+				usRecordedKeysList.push(normalizedKey);
+				if (usRecordedKeys) usRecordedKeys.textContent = usRecordedKeysList.join(', ');
+				
+				// For individual key type, stop recording after first key
+				if (usGroupType && usGroupType.value === 'individual') {
+					stopUnifiedRecording();
+				}
+			}
+		}
+		
+		function stopUnifiedRecording() {
+			usRecording = false;
+			if (usRecordKeys) {
+				usRecordKeys.textContent = currentLanguage === 'ko' ? '🎤 녹화' : '🎤 Record';
+				usRecordKeys.classList.remove('primary');
+			}
+			document.removeEventListener('keydown', handleUnifiedKeydown);
+		}
+		
+		if (usRecordKeys) {
+			usRecordKeys.addEventListener('click', () => {
+				if (usRecording) {
+					// Stop recording
+					stopUnifiedRecording();
+				} else {
+					// Start recording
+					usRecording = true;
+					usRecordedKeysList = [];
+					if (usRecordedKeys) usRecordedKeys.textContent = '';
+					usRecordKeys.textContent = currentLanguage === 'ko' ? '⏹️ 중지' : '⏹️ Stop';
+					usRecordKeys.classList.add('primary');
+					document.addEventListener('keydown', handleUnifiedKeydown);
+				}
+			});
+		}
+		
+		// Toggle mouse button in recorded keys
+		function toggleMouseButton(btn) {
+			const idx = usRecordedKeysList.indexOf(btn);
+			if (idx >= 0) {
+				// Remove if exists
+				usRecordedKeysList.splice(idx, 1);
+			} else {
+				// Add if not exists
+				usRecordedKeysList.push(btn);
+			}
+			if (usRecordedKeys) usRecordedKeys.textContent = usRecordedKeysList.join(', ');
+			updateMouseButtonStates();
+		}
+		window.toggleMouseButton = toggleMouseButton;
+		
+		// Update mouse button visual states
+		function updateMouseButtonStates() {
+			const mouseButtons = {
+				'LMB': document.getElementById('usMouseLMB'),
+				'RMB': document.getElementById('usMouseRMB'),
+				'MMB': document.getElementById('usMouseMMB'),
+				'MOUSE4': document.getElementById('usMouseM4'),
+				'MOUSE5': document.getElementById('usMouseM5')
+			};
+			for (const [key, btn] of Object.entries(mouseButtons)) {
+				if (btn) {
+					if (usRecordedKeysList.includes(key)) {
+						btn.classList.add('selected');
+					} else {
+						btn.classList.remove('selected');
+					}
+				}
+			}
+		}
+		
+		
+		// ========== Image Upload for Unified Style Modal ==========
+		const usBgImageDrop = document.getElementById('usBgImageDrop');
+		const usBgImageFile = document.getElementById('usBgImageFile');
+		const usBgImagePreview = document.getElementById('usBgImagePreview');
+		const usBgImagePreviewImg = document.getElementById('usBgImagePreviewImg');
+		const usBgImageClear = document.getElementById('usBgImageClear');
+		const usGroupImageDrop = document.getElementById('usGroupImageDrop');
+		const usGroupImageFile = document.getElementById('usGroupImageFile');
+		const usGroupImagePreview = document.getElementById('usGroupImagePreview');
+		
+		let usBgImageData = null;
+		let usGroupImageData = null;
+		let usGroupTextOpacity = 1;
+		
+		// Background image upload
+		if (usBgImageDrop && usBgImageFile) {
+			usBgImageDrop.addEventListener('click', () => usBgImageFile.click());
+			usBgImageDrop.addEventListener('dragover', (e) => { e.preventDefault(); usBgImageDrop.classList.add('dragover'); });
+			usBgImageDrop.addEventListener('dragleave', () => usBgImageDrop.classList.remove('dragover'));
+			usBgImageDrop.addEventListener('drop', (e) => {
+				e.preventDefault();
+				usBgImageDrop.classList.remove('dragover');
+				const file = e.dataTransfer.files[0];
+				if (file && file.type.startsWith('image/')) handleBgImageFile(file);
+			});
+			usBgImageFile.addEventListener('change', (e) => {
+				const file = e.target.files[0];
+				if (file) {
+					handleBgImageFile(file);
+					e.target.value = ''; // Reset to allow same file selection
+				}
+			});
+		}
+		
+		function handleBgImageFile(file) {
+			const reader = new FileReader();
+			reader.onload = (e) => {
+				const imageSrc = e.target.result;
+				// Open image editor
+				openImageEditor(imageSrc, 'wide', (result) => {
+					usBgImageData = result.image;
+					if (usBgImagePreviewImg) usBgImagePreviewImg.src = usBgImageData;
+					if (usBgImagePreview) usBgImagePreview.style.display = 'flex';
+					updateUnifiedPreview();
+				});
+			};
+			reader.readAsDataURL(file);
+		}
+		
+		if (usBgImageClear) {
+			usBgImageClear.addEventListener('click', () => {
+				usBgImageData = null;
+				if (usBgImagePreview) usBgImagePreview.style.display = 'none';
+				updateUnifiedPreview();
+			});
+		}
+		
+		// Group image upload
+		if (usGroupImageDrop && usGroupImageFile) {
+			usGroupImageDrop.addEventListener('click', () => usGroupImageFile.click());
+			usGroupImageDrop.addEventListener('dragover', (e) => { e.preventDefault(); usGroupImageDrop.classList.add('dragover'); });
+			usGroupImageDrop.addEventListener('dragleave', () => usGroupImageDrop.classList.remove('dragover'));
+			usGroupImageDrop.addEventListener('drop', (e) => {
+				e.preventDefault();
+				usGroupImageDrop.classList.remove('dragover');
+				const file = e.dataTransfer.files[0];
+				if (file && file.type.startsWith('image/')) handleGroupImageFile(file);
+			});
+			usGroupImageFile.addEventListener('change', (e) => {
+				const file = e.target.files[0];
+				if (file) {
+					handleGroupImageFile(file);
+					e.target.value = ''; // Reset to allow same file selection
+				}
+			});
+		}
+		
+		function handleGroupImageFile(file) {
+			const reader = new FileReader();
+			reader.onload = (e) => {
+				const imageSrc = e.target.result;
+				openImageEditor(imageSrc, 'wide', (result) => {
+					usGroupImageData = result.image;
+					usGroupTextOpacity = result.textOpacity;
+					if (usGroupImagePreview) {
+						usGroupImagePreview.src = usGroupImageData;
+						usGroupImagePreview.style.display = 'block';
+					}
+				});
+			};
+			reader.readAsDataURL(file);
+		}
+		
+		// Render style groups list
+		function renderStyleGroupsList() {
+			if (!usGroupList) return;
+			
+			const usGroupFontList = document.getElementById('usGroupFontList');
+			
+			if (styleGroups.length === 0) {
+				usGroupList.innerHTML = '';
+				if (usNoGroups) usNoGroups.style.display = 'block';
+				// Show empty message in font tab
+				if (usGroupFontList) {
+					usGroupFontList.innerHTML = `<div class="help" style="text-align:center; padding:16px; color:var(--muted)" data-text-ko="칩 탭에서 스타일 그룹을 먼저 추가하세요" data-text-en="Add style groups in Chip tab first">${currentLanguage === 'ko' ? '칩 탭에서 스타일 그룹을 먼저 추가하세요' : 'Add style groups in Chip tab first'}</div>`;
+				}
+				return;
+			}
+			
+			if (usNoGroups) usNoGroups.style.display = 'none';
+			
+			usGroupList.innerHTML = styleGroups.map(g => {
+				let previewStyle = '';
+				if (g.bgMode === 'image' && g.image) {
+					previewStyle = `background-image:url(${g.image});background-size:cover;background-position:center`;
+				} else if (g.bgMode === 'gradient') {
+					if (g.gradStops && g.gradStops.length >= 2) {
+						const sorted = [...g.gradStops].sort((a, b) => a.position - b.position);
+						const stops = sorted.map(s => `${s.color} ${s.position}%`).join(', ');
+						previewStyle = `background:linear-gradient(${g.gradAngle || 180}deg, ${stops})`;
+					} else {
+						previewStyle = `background:linear-gradient(180deg, ${g.gradColor1 || '#000'}, ${g.gradColor2 || '#333'})`;
+					}
+				} else {
+					previewStyle = `background:${g.bgColor || '#000000'}`;
+				}
+				return `
+				<div class="key-img-item" data-id="${g.id}">
+					<div style="width:40px;height:40px;${previewStyle};border-radius:6px"></div>
+					<div class="keys">
+						<span style="font-weight:600">${g.name}</span>
+						<span style="opacity:0.6;font-size:11px">${g.type === 'all' ? (currentLanguage === 'ko' ? '모든 키' : 'All Keys') : g.keys.slice(0, 5).join(', ') + (g.keys.length > 5 ? '...' : '')}</span>
+					</div>
+					<div class="key-img-actions">
+						<button onclick="editStyleGroup('${g.id}')">${currentLanguage === 'ko' ? '수정' : 'Edit'}</button>
+						<button class="danger" onclick="deleteStyleGroup('${g.id}')">${currentLanguage === 'ko' ? '삭제' : 'Delete'}</button>
+					</div>
+				</div>`;
+			}).join('');
+			
+			// Render font override list in Font tab
+			if (usGroupFontList) {
+				usGroupFontList.innerHTML = styleGroups.map(g => {
+					const fontFamily = g.fontFamily || (currentLanguage === 'ko' ? '기본값' : 'Default');
+					const fontSize = g.fontSize || '-';
+					const fontWeight = g.fontWeight || '-';
+					const fontColor = g.fontColor || '#ffffff';
+					return `
+					<div class="key-img-item" data-id="${g.id}" style="padding:10px 12px">
+						<div style="width:36px;height:36px;background:${fontColor};border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:bold;color:${isLightColor(fontColor) ? '#000' : '#fff'}">A</div>
+						<div class="keys" style="flex:1">
+							<span style="font-weight:600">${g.name}</span>
+							<span style="opacity:0.6;font-size:11px">${fontFamily} / ${fontSize}px / ${fontWeight}</span>
+						</div>
+						<div class="key-img-actions">
+							<button onclick="editGroupFont('${g.id}')">${currentLanguage === 'ko' ? '폰트 설정' : 'Font Settings'}</button>
+						</div>
+					</div>`;
+				}).join('');
+			}
+		}
+		
+		// isLightColor is now in utils.js
+		
+		// Group Font Editor elements
+		const usGroupFontEditor = document.getElementById('usGroupFontEditor');
+		const usGroupFontEditId = document.getElementById('usGroupFontEditId');
+		const usGroupFontEditTitle = document.getElementById('usGroupFontEditTitle');
+		const usGroupFontFamily = document.getElementById('usGroupFontFamily');
+		const usGroupFontSize = document.getElementById('usGroupFontSize');
+		const usGroupFontWeight = document.getElementById('usGroupFontWeight');
+		const usGroupFontColor = document.getElementById('usGroupFontColor');
+		const usGroupFontColorText = document.getElementById('usGroupFontColorText');
+		const usGroupFontSave = document.getElementById('usGroupFontSave');
+		const usGroupFontCancel = document.getElementById('usGroupFontCancel');
+		
+		// Sync color picker and text input
+		if (usGroupFontColor && usGroupFontColorText) {
+			usGroupFontColor.addEventListener('input', () => {
+				usGroupFontColorText.value = usGroupFontColor.value;
+			});
+			usGroupFontColorText.addEventListener('input', () => {
+				if (/^#[0-9A-Fa-f]{6}$/.test(usGroupFontColorText.value)) {
+					usGroupFontColor.value = usGroupFontColorText.value;
+				}
+			});
+		}
+		
+		// Edit group font settings
+		window.editGroupFont = function(id) {
+			const group = styleGroups.find(g => g.id === id);
+			if (!group) return;
+			
+			usGroupFontEditId.value = id;
+			usGroupFontEditTitle.textContent = `${currentLanguage === 'ko' ? '폰트 설정:' : 'Font Settings:'} ${group.name}`;
+			usGroupFontFamily.value = group.fontFamily || '';
+			usGroupFontSize.value = group.fontSize || '';
+			usGroupFontWeight.value = group.fontWeight || '';
+			usGroupFontColor.value = group.fontColor || '#ffffff';
+			usGroupFontColorText.value = group.fontColor || '#ffffff';
+			
+			usGroupFontEditor.style.display = 'block';
+		};
+		
+		// Save group font
+		if (usGroupFontSave) {
+			usGroupFontSave.addEventListener('click', () => {
+				const id = usGroupFontEditId.value;
+				const group = styleGroups.find(g => g.id === id);
+				if (!group) return;
+				
+				group.fontFamily = usGroupFontFamily.value || null;
+				group.fontSize = usGroupFontSize.value ? parseInt(usGroupFontSize.value) : null;
+				group.fontWeight = usGroupFontWeight.value ? parseInt(usGroupFontWeight.value) : null;
+				group.fontColor = usGroupFontColorText.value || null;
+				
+				usGroupFontEditor.style.display = 'none';
+				renderStyleGroupsList();
+				updateUnifiedPreview();
+			});
+		}
+		
+		// Cancel group font edit
+		if (usGroupFontCancel) {
+			usGroupFontCancel.addEventListener('click', () => {
+				usGroupFontEditor.style.display = 'none';
+			});
+		}
+		
+		// Edit style group
+		window.editStyleGroup = function(id) {
+			const group = styleGroups.find(g => g.id === id);
+			if (!group) return;
+			
+			usGroupEditId.value = group.id;
+			usGroupName.value = group.name;
+			usGroupType.value = group.type;
+			usRecordedKeysList = group.type === 'all' ? [] : [...group.keys];
+			usRecordedKeys.textContent = usRecordedKeysList.join(', ');
+			usGroupBgMode.value = group.bgMode || 'solid';
+			
+			// Set colors
+			const bgColorEl = document.getElementById('usGroupBgColor');
+			if (bgColorEl) bgColorEl.value = group.bgColor || '#000000';
+			const bgColorPicker = document.getElementById('usGroupBgColor_picker');
+			if (bgColorPicker) bgColorPicker.value = group.bgColor || '#000000';
+			
+			// Load gradient data using GradientEditor
+			let gradStops = group.gradStops;
+			if (!gradStops || gradStops.length < 2) {
+				// Legacy support for gradColor1/gradColor2
+				gradStops = [
+					{ color: group.gradColor1 || '#000000', position: 0 },
+					{ color: group.gradColor2 || '#333333', position: 100 }
+				];
+			}
+			groupGradEditor.setData(gradStops, group.gradAngle || 180);
+			
+			// Load image data
+			usGroupImageData = group.image || null;
+			usGroupTextOpacity = group.textOpacity !== undefined ? group.textOpacity : 1;
+			if (usGroupImagePreview) {
+				if (usGroupImageData) {
+					usGroupImagePreview.src = usGroupImageData;
+					usGroupImagePreview.style.display = 'block';
+				} else {
+					usGroupImagePreview.style.display = 'none';
+				}
+			}
+			
+			// Toggle sections
+			if (usGroupBgSolid) usGroupBgSolid.style.display = group.bgMode === 'solid' ? 'block' : 'none';
+			if (usGroupBgGrad) usGroupBgGrad.style.display = group.bgMode === 'gradient' ? 'block' : 'none';
+			if (usGroupBgImage) usGroupBgImage.style.display = group.bgMode === 'image' ? 'block' : 'none';
+			if (usGroupKeysSection) usGroupKeysSection.style.display = group.type === 'all' ? 'none' : 'block';
+			
+			usGroupEditor.style.display = 'block';
+			updateMouseButtonStates();
+		};
+		
+		// Delete style group
+		window.deleteStyleGroup = function(id) {
+			const confirmMsg = currentLanguage === 'ko' ? '이 스타일 그룹을 삭제하시겠습니까?' : 'Delete this style group?';
+			if (confirm(confirmMsg)) {
+				styleGroups = styleGroups.filter(g => g.id !== id);
+				renderStyleGroupsList();
+				updateUnifiedPreview();
+			}
+		};
+		
+		// Update unified preview
+		function updateUnifiedPreview() {
+			if (!us_preview_queue) return;
+			
+			// Get values
+			const gap = Number(us_chip_gap?.value) || 8;
+			const padV = Number(us_chip_pad_v?.value) || 10;
+			const padH = Number(us_chip_pad_h?.value) || 14;
+			const radius = Number(us_chip_radius?.value) || 10;
+			const fontSize = Number(us_font_size?.value) || 24;
+			const fontWeight = us_font_weight?.value || '700';
+			const fontColor = us_font_color?.value || '#ffffff';
+			const fontFamily = us_font_family?.value === 'custom' ? 'system-ui' : (us_font_family?.value || 'system-ui');
+			const textShadow = us_font_shadow?.checked ? '0 1px 2px rgba(0,0,0,0.5)' : 'none';
+			
+			// Get background
+			let bgStyle = 'transparent';
+			if (!us_bg_transparent?.checked) {
+				const bgMode = us_bg_mode?.value || 'solid';
+				if (bgMode === 'solid') {
+					bgStyle = us_bg_color?.value || '#000000';
+				} else if (bgMode === 'gradient') {
+					bgStyle = getBgGradientCSS();
+				}
+			}
+			
+			us_preview.style.background = bgStyle;
+			us_preview_queue.style.gap = gap + 'px';
+			
+			// Get default chip style (from "all" type group, or fallback)
+			let defaultChipBg = '#000000';
+			let defaultChipImage = null;
+			const allGroup = styleGroups.find(g => g.type === 'all');
+			if (allGroup) {
+				if (allGroup.bgMode === 'image' && allGroup.image) {
+					defaultChipImage = allGroup.image;
+				} else if (allGroup.bgMode === 'gradient') {
+					if (allGroup.gradStops && allGroup.gradStops.length >= 2) {
+						const sorted = [...allGroup.gradStops].sort((a, b) => a.position - b.position);
+						const stops = sorted.map(s => `${s.color} ${s.position}%`).join(', ');
+						defaultChipBg = `linear-gradient(${allGroup.gradAngle || 180}deg, ${stops})`;
+					} else {
+						defaultChipBg = `linear-gradient(180deg, ${allGroup.gradColor1 || '#000'}, ${allGroup.gradColor2 || '#333'})`;
+					}
+				} else if (allGroup.bgMode === 'solid') {
+					defaultChipBg = allGroup.bgColor;
+				}
+			}
+			
+			// Render sample chips - match actual overlay style exactly
+			const samples = ['A', 'TAB', 'LSHIFT'];
+			us_preview_queue.innerHTML = '';
+			
+			samples.forEach(label => {
+				const chip = document.createElement('div');
+				chip.className = 'chip';
+				chip.textContent = label;
+				
+				// Apply background (image or color)
+				if (defaultChipImage) {
+					chip.style.backgroundImage = `url(${defaultChipImage})`;
+					chip.style.backgroundSize = 'cover';
+					chip.style.backgroundPosition = 'center';
+					chip.style.backgroundColor = 'transparent';
+				} else {
+					chip.style.background = defaultChipBg;
+				}
+				
+				chip.style.color = fontColor;
+				chip.style.padding = `${padV}px ${padH}px`;
+				chip.style.borderRadius = `${radius}px`;
+				chip.style.fontSize = `${fontSize}px`;
+				chip.style.fontWeight = fontWeight;
+				chip.style.fontFamily = fontFamily;
+				chip.style.textShadow = textShadow;
+				chip.style.minWidth = '44px';
+				chip.style.textAlign = 'center';
+				chip.style.display = 'inline-flex';
+				chip.style.alignItems = 'center';
+				chip.style.justifyContent = 'center';
+				// Match overlay keycap effect from chip.css
+				chip.style.boxShadow = 'inset 0 0 0 2px rgba(255,255,255,0.12), inset 0 -2px 4px rgba(0,0,0,0.25), inset 0 2px 4px rgba(255,255,255,0.08)';
+				us_preview_queue.appendChild(chip);
+			});
+		}
+		
+		// Load unified style config from server
+		async function loadUnifiedStyleConfig() {
+			try {
+				// Load from existing overlay config for now
+				const res = await fetch('/api/overlay-config');
+				const c = await res.json();
+				
+				// Map to new unified structure
+				if (us_bg_transparent) {
+					us_bg_transparent.checked = c.background === 'rgba(0,0,0,0)' || c.background === 'transparent';
+					if (usBgColorSection) usBgColorSection.style.display = us_bg_transparent.checked ? 'none' : 'block';
+				}
+				if (us_bg_color) us_bg_color.value = c.background?.startsWith('#') ? c.background : '#000000';
+				if (us_chip_gap) us_chip_gap.value = c.chip_gap ?? 8;
+				if (us_chip_pad_v) us_chip_pad_v.value = c.chip_pad_v ?? 10;
+				if (us_chip_pad_h) us_chip_pad_h.value = c.chip_pad_h ?? 14;
+				if (us_chip_radius) us_chip_radius.value = c.chip_radius ?? 10;
+				if (us_font_size) us_font_size.value = c.chip_font_px ?? 24;
+				if (us_font_weight) us_font_weight.value = String(c.chip_font_weight ?? 700);
+				if (us_font_color) us_font_color.value = c.chip_fg ?? '#ffffff';
+				
+				// Load style groups from localStorage first
+				const storedGroups = localStorage.getItem('keyviewer_style_groups');
+				if (storedGroups) {
+					try {
+						styleGroups = JSON.parse(storedGroups);
+					} catch(e) {
+						styleGroups = [];
+					}
+				} else {
+					styleGroups = [];
+					
+					// Convert existing all keys to a style group
+					if (allKeysData && allKeysData.image) {
+						styleGroups.push({
+							id: 'all-keys',
+							name: currentLanguage === 'ko' ? '모든 키 (이미지)' : 'All Keys (Image)',
+							type: 'all',
+							keys: ['*'],
+							bgMode: 'image',
+							bgColor: '#000000',
+							image: allKeysData.image,
+							textOpacity: allKeysData.textOpacity
+						});
+					} else if (c.chip_bg) {
+						// Use chip_bg as default all keys style
+						const isGradient = c.color_mode === 'gradient';
+						styleGroups.push({
+							id: 'default-all',
+							name: currentLanguage === 'ko' ? '기본 스타일' : 'Default Style',
+							type: 'all',
+							keys: ['*'],
+							bgMode: isGradient ? 'gradient' : 'solid',
+							bgColor: isGradient ? '#000000' : c.chip_bg,
+							gradColor1: c.grad_color1 || '#000000',
+							gradColor2: c.grad_color2 || '#333333'
+						});
+					}
+				}
+				
+				renderStyleGroupsList();
+				updateUnifiedPreview();
+			} catch(e) {
+				console.error('Failed to load unified style config:', e);
+			}
+		}
+		
+		// Save unified style config
+		async function saveUnifiedStyleConfig() {
+			// Build config from unified modal values
+			const bgTransparent = us_bg_transparent?.checked;
+			let background = 'rgba(0,0,0,0)';
+			if (!bgTransparent) {
+				const mode = us_bg_mode?.value || 'solid';
+				if (mode === 'solid') {
+					background = us_bg_color?.value || '#000000';
+				} else if (mode === 'gradient') {
+					background = getBgGradientCSS();
+				}
+			}
+			
+			// Get chip style from all-type group
+			let chipBg = '#000000';
+			
+			const allGroup = styleGroups.find(g => g.type === 'all');
+			if (allGroup) {
+				if (allGroup.bgMode === 'gradient') {
+					if (allGroup.gradStops && allGroup.gradStops.length >= 2) {
+						const sorted = [...allGroup.gradStops].sort((a, b) => a.position - b.position);
+						const stops = sorted.map(s => `${s.color} ${s.position}%`).join(', ');
+						chipBg = `linear-gradient(${allGroup.gradAngle || 180}deg, ${stops})`;
+					} else {
+						chipBg = `linear-gradient(180deg, ${allGroup.gradColor1 || '#000'}, ${allGroup.gradColor2 || '#333'})`;
+					}
+				} else if (allGroup.bgMode === 'solid') {
+					chipBg = allGroup.bgColor;
+				}
+			}
+			
+			const payload = {
+				fade_in_ms: Number(ov_fade_in?.value) || 0,
+				fade_out_ms: Number(ov_fade_out?.value) || 0,
+				background: background,
+				chip_bg: chipBg,
+				chip_fg: us_font_color?.value || '#ffffff',
+				chip_gap: Number(us_chip_gap?.value) || 8,
+				chip_pad_v: Number(us_chip_pad_v?.value) || 10,
+				chip_pad_h: Number(us_chip_pad_h?.value) || 14,
+				chip_radius: Number(us_chip_radius?.value) || 10,
+				chip_font_px: Number(us_font_size?.value) || 24,
+				chip_font_weight: Number(us_font_weight?.value) || 700,
+				cols: Number(ov_cols?.value) || 8,
+				rows: Number(ov_rows?.value) || 1,
+				align: ov_align?.value || 'left',
+				direction: ov_direction?.value || 'ltr'
+			};
+			
+			try {
+				await fetch('/api/overlay-config', { 
+					method: 'POST', 
+					headers: { 'Content-Type': 'application/json' }, 
+					body: JSON.stringify(payload) 
+				});
+				
+				// Save style groups to localStorage
+				localStorage.setItem('keyviewer_style_groups', JSON.stringify(styleGroups));
+				
+				// Also save to key images format for overlay compatibility
+				keyGroupsData = styleGroups.filter(g => g.type !== 'all' && g.bgMode === 'image' && g.image).map(g => ({
+					keys: g.keys,
+					image: g.image,
+					textOpacity: g.textOpacity
+				}));
+				const allGroup = styleGroups.find(g => g.type === 'all');
+				if (allGroup && allGroup.bgMode === 'image' && allGroup.image) {
+					allKeysData = { image: allGroup.image, textOpacity: allGroup.textOpacity };
+				} else {
+					allKeysData = null; // Clear if not using image
+				}
+				saveKeyImagesToStorage();
+				
+				closeModalUnifiedStyle();
+				updatePreview();
+			} catch(e) {
+				console.error('Failed to save unified style config:', e);
+			}
+		}
+		
+		// Save button handler
+		if (usStyleSave) {
+			usStyleSave.addEventListener('click', saveUnifiedStyleConfig);
+		}
+		
+		// Reset button handler
+		if (usStyleReset) {
+			usStyleReset.addEventListener('click', () => {
+				if (us_bg_transparent) us_bg_transparent.checked = true;
+				if (usBgColorSection) usBgColorSection.style.display = 'none';
+				if (us_chip_gap) us_chip_gap.value = 8;
+				if (us_chip_pad_v) us_chip_pad_v.value = 10;
+				if (us_chip_pad_h) us_chip_pad_h.value = 14;
+				if (us_chip_radius) us_chip_radius.value = 10;
+				if (us_font_size) us_font_size.value = 24;
+				if (us_font_weight) us_font_weight.value = '700';
+				if (us_font_color) us_font_color.value = '#ffffff';
+				if (us_font_shadow) us_font_shadow.checked = true;
+				
+				styleGroups = [{
+					id: 'default-all',
+					name: currentLanguage === 'ko' ? '기본 스타일' : 'Default Style',
+					type: 'all',
+					keys: ['*'],
+					bgMode: 'solid',
+					bgColor: '#000000'
+				}];
+				
+				renderStyleGroupsList();
+				updateUnifiedPreview();
+			});
+		}
+		
+		// Update preview on input changes
+		['input', 'change'].forEach(evt => {
+			[us_chip_gap, us_chip_pad_v, us_chip_pad_h, us_chip_radius, us_font_size, us_font_weight, us_font_color, us_bg_color].forEach(el => {
+				if (el) el.addEventListener(evt, updateUnifiedPreview);
+			});
+		});
+
+		// isValidHex is now in utils.js
+		function setPickBtn(btn, val){ if (btn && isValidHex(val)) { btn.style.background = val; } }
         function hookColorPair(textEl, pickBtn, picker){
             pickBtn.addEventListener('click', (ev)=> {
                 // Try native picker first
@@ -1120,36 +2549,52 @@
         }
 
 		function updatePreview(){
+			if (!ov_preview || !ov_preview_queue) return;
 			const root = ov_preview;
-			root.style.setProperty('--chip-bg', ov_chip_bg.value || 'rgba(0,0,0,0.6)');
-			root.style.setProperty('--chip-fg', ov_chip_fg.value || '#ffffff');
-			const bgVal = ov_bg_trans.checked ? 'rgba(0,0,0,0)' : (ov_bg.value || 'rgba(0,0,0,0)');
-			root.style.setProperty('--bg', bgVal);
-			root.style.setProperty('--chip-gap', (Number(ov_gap.value)||8) + 'px');
-			root.style.setProperty('--chip-pad-v', (Number(ov_pad_v.value)||10) + 'px');
-			root.style.setProperty('--chip-pad-h', (Number(ov_pad_h.value)||14) + 'px');
-			root.style.setProperty('--chip-radius', (Number(ov_radius.value)||10) + 'px');
-			root.style.setProperty('--chip-font', (Number(ov_font_px.value)||24) + 'px');
-			root.style.setProperty('--chip-font-weight', String(Number(ov_font_w.value)||700));
-			root.style.setProperty('--fade-in', (Number(ov_fade_in.value)||120) + 'ms');
-			root.style.setProperty('--fade-out', (Number(ov_fade_out.value)||120) + 'ms');
-			const colsVal = Number(ov_cols.value)||8;
-			const rowsVal = Number(ov_rows.value)||1;
-			root.style.setProperty('--cols', String(colsVal));
-			root.style.setProperty('--rows', String(rowsVal));
-			root.style.setProperty('--single-scale', '1');
-			const alignMap = { left: 'left', center: 'center', right: 'right' };
-			root.style.setProperty('--align', alignMap[ov_align.value] || 'left');
-			root.style.setProperty('--dir', (ov_direction.value === 'rtl') ? 'rtl' : 'ltr');
+			
+			// Check for image from styleGroups (all keys)
+			const allGroup = styleGroups.find(g => g.type === 'all');
+			let chipImage = null;
+			let chipBg = ov_chip_bg?.value || '#000000';
+			if (allGroup && allGroup.bgMode === 'image' && allGroup.image) {
+				chipImage = allGroup.image;
+			} else if (allGroup && allGroup.bgMode === 'gradient') {
+				if (allGroup.gradStops && allGroup.gradStops.length >= 2) {
+					const sorted = [...allGroup.gradStops].sort((a, b) => a.position - b.position);
+					const stops = sorted.map(s => `${s.color} ${s.position}%`).join(', ');
+					chipBg = `linear-gradient(${allGroup.gradAngle || 180}deg, ${stops})`;
+				} else {
+					chipBg = `linear-gradient(180deg, ${allGroup.gradColor1 || '#000'}, ${allGroup.gradColor2 || '#333'})`;
+				}
+			} else if (allGroup && allGroup.bgMode === 'solid') {
+				chipBg = allGroup.bgColor;
+			}
+			const chipFg = ov_chip_fg?.value || '#ffffff';
+			const gap = Number(ov_gap?.value) || 8;
+			const padV = Number(ov_pad_v?.value) || 10;
+			const padH = Number(ov_pad_h?.value) || 14;
+			const radius = Number(ov_radius?.value) || 10;
+			const fontSize = Number(ov_font_px?.value) || 24;
+			const fontWeight = Number(ov_font_w?.value) || 700;
+			const bgVal = ov_bg_trans?.checked ? 'rgba(0,0,0,0)' : (ov_bg?.value || 'rgba(0,0,0,0)');
+			const colsVal = Number(ov_cols?.value) || 8;
+			const rowsVal = Number(ov_rows?.value) || 1;
+			const alignMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
+			
+			root.style.background = bgVal;
 
-			// Rebuild preview chips: Q,W,E,R but obey capacity when rows>0
-			const labels = ['Q','W','E','R'];
+			// Set queue to flex row (horizontal)
+			ov_preview_queue.style.display = 'flex';
+			ov_preview_queue.style.flexWrap = 'wrap';
+			ov_preview_queue.style.gap = gap + 'px';
+			ov_preview_queue.style.justifyContent = alignMap[ov_align?.value] || 'flex-start';
+			ov_preview_queue.style.direction = (ov_direction?.value === 'rtl') ? 'rtl' : 'ltr';
+
+			// Rebuild preview chips: always Q,W,E,R but obey capacity when rows>0
+			const labels = ['Q','W','E','R','A','S','D','F'];
 			const cols = colsVal; const rows = rowsVal;
 			let count = labels.length;
 			if (rows > 0) { const cap = Math.max(1, cols * rows); count = Math.min(count, cap); }
-			ov_preview_queue.style.gridTemplateColumns = `repeat(${cols}, max-content)`;
-			ov_preview_queue.style.justifyContent = alignMap[ov_align.value] || 'left';
-			ov_preview_queue.style.direction = (ov_direction.value === 'rtl') ? 'rtl' : 'ltr';
 			ov_preview_queue.innerHTML = '';
 			
 			// Get key image settings for preview
@@ -1160,29 +2605,33 @@
 				const k = labels[i];
 				const chip = document.createElement('div');
 				chip.className = 'chip';
-				chip.style.backgroundSize = 'cover';
-				chip.style.backgroundPosition = 'center';
-				
-				// Apply key image if exists
-				const img = keyImages[k] || keyImages['default'];
-				if (img) {
-					chip.style.backgroundImage = `url(${img})`;
+				chip.textContent = labels[i];
+				if (chipImage) {
+					chip.style.backgroundImage = `url(${chipImage})`;
+					chip.style.backgroundSize = 'cover';
+					chip.style.backgroundPosition = 'center';
+				} else {
+					chip.style.background = chipBg;
 				}
-				
-				// Apply text (transparent if hidden)
-				chip.textContent = k;
-				const hideText = hideKeyText[k] !== undefined ? hideKeyText[k] : hideKeyText['default'];
-				if (hideText) {
-					chip.style.color = 'transparent';
-				}
-				
+				chip.style.color = chipFg;
+				chip.style.padding = padV + 'px ' + padH + 'px';
+				chip.style.borderRadius = radius + 'px';
+				chip.style.fontSize = fontSize + 'px';
+				chip.style.fontWeight = fontWeight;
+				chip.style.minWidth = '44px';
+				chip.style.textAlign = 'center';
+				chip.style.fontFamily = 'ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial';
+				chip.style.display = 'inline-flex';
+				chip.style.alignItems = 'center';
+				chip.style.justifyContent = 'center';
+				chip.style.boxShadow = 'inset 0 0 0 2px rgba(255,255,255,0.12), inset 0 -2px 4px rgba(0,0,0,0.25), inset 0 2px 4px rgba(255,255,255,0.08)';
 				ov_preview_queue.appendChild(chip);
 			}
 		}
 
 		['input','change'].forEach(evt=>{
 			[ov_fade_in,ov_fade_out,ov_chip_bg,ov_chip_fg,ov_bg,ov_gap,ov_pad_v,ov_pad_h,ov_radius,ov_font_px,ov_font_w,ov_cols,ov_rows,ov_align,ov_direction].forEach(el=>{
-				el.addEventListener(evt, updatePreview);
+				if (el) el.addEventListener(evt, updatePreview);
 			});
 		});
 
@@ -1190,59 +2639,81 @@
 			try{
 				const res = await fetch('/api/overlay-config');
 				const c = await res.json();
-				ov_fade_in.value = c.fade_in_ms ?? 120;
-				ov_fade_out.value = c.fade_out_ms ?? 120;
-				// Check if background is transparent (rgba(0,0,0,0), transparent, or #00000000)
+				
+				// Helper to convert rgba to hex or use default
+				function toHex(val, def) {
+					if (!val) return def;
+					if (val.startsWith('#')) return val;
+					// Try to parse rgba
+					const match = val.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+					if (match) {
+						const r = parseInt(match[1]).toString(16).padStart(2, '0');
+						const g = parseInt(match[2]).toString(16).padStart(2, '0');
+						const b = parseInt(match[3]).toString(16).padStart(2, '0');
+						return '#' + r + g + b;
+					}
+					return def;
+				}
+				
+				if (ov_fade_in) ov_fade_in.value = c.fade_in_ms ?? 0;
+				if (ov_fade_out) ov_fade_out.value = c.fade_out_ms ?? 0;
+				
+				// Check if background is transparent
 				const isTrans = (typeof c.background === 'string') && (
 					c.background.toLowerCase() === 'transparent' || 
 					c.background === 'rgba(0,0,0,0)' ||
 					c.background === 'rgba(0, 0, 0, 0)' ||
 					c.background === '#00000000'
 				);
-				ov_bg_trans.checked = !!isTrans;
-				ov_bg.disabled = !!isTrans; ov_bg_pickBtn.disabled = !!isTrans;
-				ov_bg.value = (!isTrans && c.background && c.background.startsWith('#')) ? c.background : '#000000';
-				ov_chip_bg.value = (c.chip_bg && c.chip_bg.startsWith('#')) ? c.chip_bg : '#000000';
-				ov_chip_fg.value = (c.chip_fg && c.chip_fg.startsWith('#')) ? c.chip_fg : '#ffffff';
-				ov_gap.value = c.chip_gap ?? 8;
-				ov_pad_v.value = c.chip_pad_v ?? 10;
-				ov_pad_h.value = c.chip_pad_h ?? 14;
-				ov_radius.value = c.chip_radius ?? 10;
-				ov_font_px.value = c.chip_font_px ?? 24;
-				ov_font_w.value = c.chip_font_weight ?? 700;
-				ov_cols.value = c.cols ?? 8;
-				ov_rows.value = c.rows ?? 1;
-				ov_align.value = (c.align || 'left'); // Default to left
-				ov_direction.value = (c.direction || 'ltr');
-				setPickBtn(ov_bg_pickBtn, ov_bg.value);
-				setPickBtn(ov_chip_bg_pickBtn, ov_chip_bg.value);
-				setPickBtn(ov_chip_fg_pickBtn, ov_chip_fg.value);
+				if (ov_bg_trans) ov_bg_trans.checked = !!isTrans;
+				if (ov_bg) { ov_bg.disabled = !!isTrans; ov_bg.value = isTrans ? '#000000' : toHex(c.background, '#000000'); }
+				if (ov_bg_pickBtn) ov_bg_pickBtn.disabled = !!isTrans;
+				
+				// Chip colors
+				if (ov_chip_bg) ov_chip_bg.value = toHex(c.chip_bg, '#000000');
+				if (ov_chip_fg) ov_chip_fg.value = toHex(c.chip_fg, '#ffffff');
+				
+				// Use defaults if values are 0 or missing
+				if (ov_gap) ov_gap.value = c.chip_gap || 8;
+				if (ov_pad_v) ov_pad_v.value = c.chip_pad_v || 10;
+				if (ov_pad_h) ov_pad_h.value = c.chip_pad_h || 14;
+				if (ov_radius) ov_radius.value = c.chip_radius || 10;
+				if (ov_font_px) ov_font_px.value = c.chip_font_px || 24;
+				if (ov_font_w) ov_font_w.value = c.chip_font_weight || 700;
+				if (ov_cols) ov_cols.value = c.cols || 8;
+				if (ov_rows) ov_rows.value = c.rows || 1;
+				if (ov_align) ov_align.value = c.align || 'left';
+				if (ov_direction) ov_direction.value = c.direction || 'ltr';
+				
+				if (ov_bg_pickBtn && ov_bg) setPickBtn(ov_bg_pickBtn, ov_bg.value);
+				if (ov_chip_bg_pickBtn && ov_chip_bg) setPickBtn(ov_chip_bg_pickBtn, ov_chip_bg.value);
+				if (ov_chip_fg_pickBtn && ov_chip_fg) setPickBtn(ov_chip_fg_pickBtn, ov_chip_fg.value);
 				updatePreview();
-			}catch(e){}
+			}catch(e){ console.error('Failed to load overlay config:', e); }
 		}
 
-		async function saveOverlayConfig(){
-			const payload = {
-				fade_in_ms: Number(ov_fade_in.value),
-				fade_out_ms: Number(ov_fade_out.value),
-				background: (ov_bg_trans.checked ? 'rgba(0,0,0,0)' : ov_bg.value),
-				chip_bg: ov_chip_bg.value,
-				chip_fg: ov_chip_fg.value,
-				chip_gap: Number(ov_gap.value),
-				chip_pad_v: Number(ov_pad_v.value),
-				chip_pad_h: Number(ov_pad_h.value),
-				chip_radius: Number(ov_radius.value),
-				chip_font_px: Number(ov_font_px.value),
-				chip_font_weight: Number(ov_font_w.value),
-				cols: Number(ov_cols.value),
-				rows: Number(ov_rows.value),
-				align: ov_align.value,
-				direction: ov_direction.value
+		async function saveOverlayConfig(overridePayload = null){
+			const payload = overridePayload || {
+				fade_in_ms: Number(ov_fade_in?.value) || 0,
+				fade_out_ms: Number(ov_fade_out?.value) || 0,
+				background: (ov_bg_trans?.checked !== false ? 'rgba(0,0,0,0)' : (ov_bg?.value || 'rgba(0,0,0,0)')),
+				chip_bg: ov_chip_bg?.value || '#000000',
+				chip_fg: ov_chip_fg?.value || '#ffffff',
+				chip_gap: Number(ov_gap?.value) || 8,
+				chip_pad_v: Number(ov_pad_v?.value) || 10,
+				chip_pad_h: Number(ov_pad_h?.value) || 14,
+				chip_radius: Number(ov_radius?.value) || 10,
+				chip_font_px: Number(ov_font_px?.value) || 24,
+				chip_font_weight: Number(ov_font_w?.value) || 700,
+				cols: Number(ov_cols?.value) || 8,
+				rows: Number(ov_rows?.value) || 1,
+				align: ov_align?.value || 'left',
+				direction: ov_direction?.value || 'ltr'
 			};
 			try{
 				await fetch('/api/overlay-config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-				closeModalOverlay();
 			}catch(e){}
+			if (!overridePayload) closeModalOverlay();
 		}
 
 		async function refreshTarget(){
@@ -1498,11 +2969,33 @@
 		closeOverlay.addEventListener('click', ()=> closeModalOverlay());
 		saveOverlay.addEventListener('click', saveOverlayConfig);
 		
-		// Open key image settings from overlay settings modal
-		document.getElementById('ov_open_key_image').addEventListener('click', () => {
-			closeModalOverlay();
-			openModalKeyImage();
-		});
+		// Reset to default overlay settings
+		const resetOverlayBtn = document.getElementById('resetOverlay');
+		if (resetOverlayBtn) {
+			resetOverlayBtn.addEventListener('click', () => {
+				if (ov_fade_in) ov_fade_in.value = 0;
+				if (ov_fade_out) ov_fade_out.value = 0;
+				if (ov_bg_trans) ov_bg_trans.checked = true;
+				if (ov_bg) { ov_bg.value = '#000000'; ov_bg.disabled = true; }
+				if (ov_bg_pickBtn) ov_bg_pickBtn.disabled = true;
+				if (ov_chip_bg) ov_chip_bg.value = '#000000';
+				if (ov_chip_fg) ov_chip_fg.value = '#ffffff';
+				if (ov_gap) ov_gap.value = 8;
+				if (ov_pad_v) ov_pad_v.value = 10;
+				if (ov_pad_h) ov_pad_h.value = 14;
+				if (ov_radius) ov_radius.value = 10;
+				if (ov_font_px) ov_font_px.value = 24;
+				if (ov_font_w) ov_font_w.value = 700;
+				if (ov_cols) ov_cols.value = 8;
+				if (ov_rows) ov_rows.value = 1;
+				if (ov_align) ov_align.value = 'left';
+				if (ov_direction) ov_direction.value = 'ltr';
+				if (ov_bg_pickBtn && ov_bg) setPickBtn(ov_bg_pickBtn, ov_bg.value);
+				if (ov_chip_bg_pickBtn && ov_chip_bg) setPickBtn(ov_chip_bg_pickBtn, ov_chip_bg.value);
+				if (ov_chip_fg_pickBtn && ov_chip_fg) setPickBtn(ov_chip_fg_pickBtn, ov_chip_fg.value);
+				updatePreview();
+			});
+		}
 
 		cancelAll.addEventListener('click', ()=>{ closeModalAll(); });
 		saveAll.addEventListener('click', async ()=>{
@@ -1510,10 +3003,1081 @@
 			closeModalAll();
 		});
 
-		hookColorPair(ov_bg, ov_bg_pickBtn, ov_bg_picker);
-		hookColorPair(ov_chip_bg, ov_chip_bg_pickBtn, ov_chip_bg_picker);
-		hookColorPair(ov_chip_fg, ov_chip_fg_pickBtn, ov_chip_fg_picker);
-		ov_bg_trans.addEventListener('change', ()=> { ov_bg.disabled = ov_bg_trans.checked; ov_bg_pickBtn.disabled = ov_bg_trans.checked; updatePreview(); });
+		if (ov_bg && ov_bg_pickBtn && ov_bg_picker) hookColorPair(ov_bg, ov_bg_pickBtn, ov_bg_picker);
+		if (ov_chip_bg && ov_chip_bg_pickBtn && ov_chip_bg_picker) hookColorPair(ov_chip_bg, ov_chip_bg_pickBtn, ov_chip_bg_picker);
+		if (ov_chip_fg && ov_chip_fg_pickBtn && ov_chip_fg_picker) hookColorPair(ov_chip_fg, ov_chip_fg_pickBtn, ov_chip_fg_picker);
+		if (ov_bg_trans) ov_bg_trans.addEventListener('change', ()=> { if (ov_bg) ov_bg.disabled = ov_bg_trans.checked; if (ov_bg_pickBtn) ov_bg_pickBtn.disabled = ov_bg_trans.checked; updatePreview(); });
+		
+		// Simple color sync for Unified Style Modal (color picker + text input)
+		function syncColorPair(picker, text) {
+			if (!picker || !text) return;
+			picker.addEventListener('input', () => { text.value = picker.value; updateUnifiedPreview(); });
+			text.addEventListener('input', () => { if (/^#[0-9A-Fa-f]{6}$/.test(text.value)) picker.value = text.value; updateUnifiedPreview(); });
+		}
+		
+		const us_bg_color_picker = document.getElementById('us_bg_color_picker');
+		const us_font_color_picker = document.getElementById('us_font_color_picker');
+		const usGroupBgColor_picker = document.getElementById('usGroupBgColor_picker');
+		syncColorPair(us_bg_color_picker, us_bg_color);
+		syncColorPair(us_font_color_picker, us_font_color);
+		syncColorPair(usGroupBgColor_picker, document.getElementById('usGroupBgColor'));
+		
+		// ========== Gradient Editors (using GradientEditor class from gradient-editor.js) ==========
+		
+		// Group Gradient Editor
+		const groupGradEditor = new GradientEditor({
+			containerId: 'usGroupBgGrad',
+			previewId: 'usGroupGradPreview',
+			angleId: 'usGroupGradAngle',
+			angleNumId: 'usGroupGradAngleNum',
+			stopsId: 'usGroupGradStops',
+			addBtnId: 'usGroupGradAdd',
+			onChange: () => {} // Group changes are saved on button click
+		});
+		
+		// Background Gradient Editor
+		const bgGradEditor = new GradientEditor({
+			containerId: 'usBgGradient',
+			previewId: 'us_bg_grad_preview',
+			angleId: 'us_bg_grad_angle',
+			angleNumId: 'us_bg_grad_angle_num',
+			stopsId: 'us_bg_grad_stops',
+			addBtnId: 'us_bg_grad_add',
+			onChange: updateUnifiedPreview
+		});
+		
+		// Wrapper functions for compatibility
+		function resetGroupGrad() {
+			groupGradEditor.reset();
+		}
+		
+		function renderBgGradStops() {
+			bgGradEditor.render();
+		}
+		
+		function renderGroupGradStops() {
+			groupGradEditor.render();
+		}
+		
+		function getBgGradientCSS() {
+			return bgGradEditor.getCSS();
+		}
+		
+		function getGroupGradientCSS() {
+			return groupGradEditor.getCSS();
+		}
+
+		// Unified Style Modal events
+		openUnifiedStyle.addEventListener('click', openModalUnifiedStyle);
+		usStyleClose.addEventListener('click', closeModalUnifiedStyle);
+		modalUnifiedStyle.addEventListener('click', (e) => { if (e.target === modalUnifiedStyle) closeModalUnifiedStyle(); });
+		
+
+		// ==================== Image Editor ====================
+		const modalImageEditor = document.getElementById('modalImageEditor');
+		const imgEditorCanvas = document.getElementById('imgEditorCanvas');
+		const imgEditorCtx = imgEditorCanvas.getContext('2d');
+		const imgZoom = document.getElementById('imgZoom');
+		const imgZoomVal = document.getElementById('imgZoomVal');
+		const imgKeyType = document.getElementById('imgKeyType');
+		const imgQuality = document.getElementById('imgQuality');
+		const imgQualityVal = document.getElementById('imgQualityVal');
+		const imgSizeInfo = document.getElementById('imgSizeInfo');
+		const imgHideText = document.getElementById('imgHideText');
+		const imgEditorSave = document.getElementById('imgEditorSave');
+		const imgEditorCancel = document.getElementById('imgEditorCancel');
+		const editorPreviewContainer = document.getElementById('editorPreviewContainer');
+		const imgChipMask = document.getElementById('imgChipMask');
+		const imgChipArea = document.getElementById('imgChipArea');
+		// New preview chips: Small, Medium, Large
+		const previewChipSmall = document.getElementById('previewChipSmall');
+		const previewChipMedium = document.getElementById('previewChipMedium');
+		const previewChipLarge = document.getElementById('previewChipLarge');
+
+		let editorImage = null;
+		let editorHasChanges = false;
+		let editorOffsetX = 0;
+		let editorOffsetY = 0;
+		let editorZoom = 1;
+		let editorDragging = false;
+		let editorLastX = 0;
+		let editorLastY = 0;
+		let editorCallback = null;
+		let editorKeyType = 'normal';
+
+		// Key type dimensions (for cropping)
+		const KEY_SIZES = {
+			normal: { w: 52, h: 52, ratio: 1 },
+			wide: { w: 78, h: 52, ratio: 1.5 },
+			'extra-wide': { w: 120, h: 52, ratio: 2.3 }
+		};
+
+		function openImageEditor(imageSrc, keyType, callback) {
+			editorCallback = callback;
+			editorKeyType = 'wide'; // Always use wide (medium) key type
+			imgKeyType.value = editorKeyType;
+			editorHasChanges = false;
+			editorZoom = 1;
+			editorOffsetX = 0;
+			editorOffsetY = 0;
+			imgZoom.value = 100;
+			imgZoomVal.textContent = '100%';
+			imgQuality.value = 70;
+			imgQualityVal.textContent = '70%';
+			imgHideText.checked = false;
+
+			editorImage = new Image();
+			editorImage.onload = () => {
+				// Set canvas size based on key type
+				const size = KEY_SIZES[editorKeyType];
+				const canvasW = 400;
+				const canvasH = Math.round(canvasW / size.ratio);
+				imgEditorCanvas.width = canvasW;
+				imgEditorCanvas.height = canvasH;
+				
+				// Center image initially
+				editorOffsetX = (canvasW - editorImage.width) / 2;
+				editorOffsetY = (canvasH - editorImage.height) / 2;
+				
+				drawEditor();
+				updateEditorPreview();
+				modalImageEditor.style.display = 'flex';
+			};
+			editorImage.src = imageSrc;
+		}
+
+		function drawEditor() {
+			if (!editorImage) return;
+			const ctx = imgEditorCtx;
+			const w = imgEditorCanvas.width;
+			const h = imgEditorCanvas.height;
+
+			// Clear
+			ctx.fillStyle = '#1a1a1a';
+			ctx.fillRect(0, 0, w, h);
+
+			// Draw image
+			const imgW = editorImage.width * editorZoom;
+			const imgH = editorImage.height * editorZoom;
+			ctx.drawImage(editorImage, editorOffsetX, editorOffsetY, imgW, imgH);
+
+			// Draw crop overlay (darken outside area)
+			const cropSize = KEY_SIZES[editorKeyType];
+			const cropW = w * 0.7;
+			const cropH = cropW / cropSize.ratio;
+			const cropX = (w - cropW) / 2;
+			const cropY = (h - cropH) / 2;
+
+			// Darken outside
+			ctx.fillStyle = 'rgba(0,0,0,0.6)';
+			ctx.fillRect(0, 0, w, cropY); // top
+			ctx.fillRect(0, cropY + cropH, w, h - cropY - cropH); // bottom
+			ctx.fillRect(0, cropY, cropX, cropH); // left
+			ctx.fillRect(cropX + cropW, cropY, w - cropX - cropW, cropH); // right
+
+			// Draw crop border with key shape effect
+			ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+			ctx.lineWidth = 2;
+			ctx.beginPath();
+			roundRect(ctx, cropX, cropY, cropW, cropH, 8);
+			ctx.stroke();
+
+			// Inner highlight (key shape effect)
+			ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+			ctx.lineWidth = 4;
+			ctx.beginPath();
+			roundRect(ctx, cropX + 4, cropY + 4, cropW - 8, cropH - 8, 6);
+			ctx.stroke();
+		}
+
+		function roundRect(ctx, x, y, w, h, r) {
+			ctx.moveTo(x + r, y);
+			ctx.lineTo(x + w - r, y);
+			ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+			ctx.lineTo(x + w, y + h - r);
+			ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+			ctx.lineTo(x + r, y + h);
+			ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+			ctx.lineTo(x, y + r);
+			ctx.quadraticCurveTo(x, y, x + r, y);
+		}
+
+		function getCroppedImage() {
+			if (!editorImage) return null;
+			
+			const w = imgEditorCanvas.width;
+			const h = imgEditorCanvas.height;
+			const cropSize = KEY_SIZES[editorKeyType];
+			const cropW = w * 0.7;
+			const cropH = cropW / cropSize.ratio;
+			const cropX = (w - cropW) / 2;
+			const cropY = (h - cropH) / 2;
+
+			// Create temp canvas for cropped area
+			const tempCanvas = document.createElement('canvas');
+			const outputW = cropSize.w * 2; // 2x for quality
+			const outputH = cropSize.h * 2;
+			tempCanvas.width = outputW;
+			tempCanvas.height = outputH;
+			const tempCtx = tempCanvas.getContext('2d');
+
+			// Calculate source coordinates
+			const imgW = editorImage.width * editorZoom;
+			const imgH = editorImage.height * editorZoom;
+			
+			// Source rect in original image coordinates
+			const srcX = (cropX - editorOffsetX) / editorZoom;
+			const srcY = (cropY - editorOffsetY) / editorZoom;
+			const srcW = cropW / editorZoom;
+			const srcH = cropH / editorZoom;
+
+			tempCtx.drawImage(editorImage, srcX, srcY, srcW, srcH, 0, 0, outputW, outputH);
+
+			// Compress with quality
+			const quality = imgQuality.value / 100;
+			return tempCanvas.toDataURL('image/webp', quality);
+		}
+
+		function updateEditorPreview() {
+			const croppedUrl = getCroppedImage();
+			if (!croppedUrl) return;
+
+			editorHasChanges = true;
+
+			// Update size info
+			const sizeKB = Math.round(croppedUrl.length * 0.75 / 1024);
+			if (imgSizeInfo) imgSizeInfo.textContent = `~${sizeKB}KB`;
+
+			// Get actual style values from overlay/unified settings
+			const chipFg = ov_chip_fg?.value || us_font_color?.value || '#ffffff';
+			const padV = Number(ov_pad_v?.value) || Number(us_chip_pad_v?.value) || 10;
+			const padH = Number(ov_pad_h?.value) || Number(us_chip_pad_h?.value) || 14;
+			const radius = Number(ov_radius?.value) || Number(us_chip_radius?.value) || 10;
+			const fontSize = Number(ov_font_px?.value) || Number(us_font_size?.value) || 24;
+			const fontWeight = Number(ov_font_w?.value) || Number(us_font_weight?.value) || 700;
+			const hideText = imgHideText?.checked;
+
+			// Update chip mask area in canvas
+			if (imgChipArea) {
+				const canvasW = imgEditorCanvas.width;
+				const canvasH = imgEditorCanvas.height;
+				const cropSize = KEY_SIZES[editorKeyType];
+				const cropW = canvasW * 0.7;
+				const cropH = cropW / cropSize.ratio;
+				imgChipArea.style.width = `${cropW}px`;
+				imgChipArea.style.height = `${cropH}px`;
+				imgChipArea.style.borderRadius = `${radius}px`;
+			}
+
+			// Update all three preview chips: Small / Medium / Large
+			const chips = [
+				{ el: previewChipSmall, label: 'A', scale: 0.8 },
+				{ el: previewChipMedium, label: 'TAB', scale: 1.0 },
+				{ el: previewChipLarge, label: 'LSHIFT', scale: 1.3 }
+			];
+			
+			chips.forEach(({ el: chip, label, scale }) => {
+				if (!chip) return;
+				
+				// Clear existing content
+				chip.innerHTML = '';
+				
+				// Apply all dynamic styles explicitly with scale
+				chip.style.backgroundImage = `url(${croppedUrl})`;
+				chip.style.backgroundSize = 'cover';
+				chip.style.backgroundPosition = 'center';
+				chip.style.backgroundRepeat = 'no-repeat';
+				chip.style.padding = `${padV * scale}px ${padH * scale}px`;
+				chip.style.borderRadius = `${radius}px`;
+				chip.style.fontSize = `${fontSize * scale}px`;
+				chip.style.fontWeight = fontWeight;
+				chip.style.boxShadow = 'inset 0 0 0 2px rgba(255,255,255,0.12), inset 0 -2px 4px rgba(0,0,0,0.25), inset 0 2px 4px rgba(255,255,255,0.08)';
+				chip.style.display = 'inline-flex';
+				chip.style.alignItems = 'center';
+				chip.style.justifyContent = 'center';
+				chip.style.minWidth = `${44 * scale}px`;
+				chip.style.textAlign = 'center';
+				chip.style.fontFamily = 'ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial';
+				
+				// Create text span
+				const textSpan = document.createElement('span');
+				textSpan.textContent = label;
+				textSpan.style.color = hideText ? 'transparent' : chipFg;
+				textSpan.style.textShadow = hideText ? 'none' : '0 1px 2px rgba(0,0,0,0.5)';
+				chip.appendChild(textSpan);
+			});
+		}
+
+		// Editor mouse events
+		imgEditorCanvas.addEventListener('mousedown', e => {
+			editorDragging = true;
+			editorLastX = e.clientX;
+			editorLastY = e.clientY;
+		});
+
+		window.addEventListener('mousemove', e => {
+			if (!editorDragging) return;
+			const dx = e.clientX - editorLastX;
+			const dy = e.clientY - editorLastY;
+			editorOffsetX += dx;
+			editorOffsetY += dy;
+			editorLastX = e.clientX;
+			editorLastY = e.clientY;
+			drawEditor();
+			updateEditorPreview();
+		});
+
+		window.addEventListener('mouseup', () => {
+			editorDragging = false;
+		});
+
+		// Scroll to zoom on canvas
+		imgEditorCanvas.addEventListener('wheel', e => {
+			e.preventDefault();
+			const delta = e.deltaY > 0 ? -10 : 10;
+			let newZoom = parseInt(imgZoom.value) + delta;
+			newZoom = Math.max(100, Math.min(300, newZoom));
+			imgZoom.value = newZoom;
+			editorZoom = newZoom / 100;
+			imgZoomVal.textContent = newZoom + '%';
+			drawEditor();
+			updateEditorPreview();
+		}, { passive: false });
+
+		imgZoom.addEventListener('input', () => {
+			editorZoom = imgZoom.value / 100;
+			imgZoomVal.textContent = imgZoom.value + '%';
+			drawEditor();
+			updateEditorPreview();
+		});
+
+		// Key type is now fixed to 'wide'
+
+		imgQuality.addEventListener('input', () => {
+			imgQualityVal.textContent = imgQuality.value + '%';
+			updateEditorPreview();
+		});
+
+		// Text visibility checkbox
+		imgHideText.addEventListener('change', () => {
+			updateEditorPreview();
+		});
+
+		imgEditorSave.addEventListener('click', () => {
+			const croppedImage = getCroppedImage();
+			const textOpacity = imgHideText.checked ? 0 : 1;
+			
+			if (editorCallback) {
+				editorCallback({
+					image: croppedImage,
+					keyType: editorKeyType,
+					textOpacity: textOpacity
+				});
+			}
+			editorHasChanges = false;
+			modalImageEditor.style.display = 'none';
+		});
+
+		// Close editor with confirmation
+		function closeImageEditor() {
+			if (editorHasChanges) {
+				const msg = currentLanguage === 'ko' 
+					? '변경사항이 있습니다. 저장하지 않고 닫으시겠습니까?' 
+					: 'You have unsaved changes. Close without saving?';
+				if (!confirm(msg)) return;
+			}
+			editorHasChanges = false;
+			modalImageEditor.style.display = 'none';
+		}
+
+		imgEditorCancel.addEventListener('click', closeImageEditor);
+
+		// Click outside modal to close
+		modalImageEditor.addEventListener('click', (e) => {
+			if (e.target === modalImageEditor) {
+				closeImageEditor();
+			}
+		});
+
+		// ==================== Key Image Data Management ====================
+		// (UI moved to Unified Style Modal, this section handles data persistence only)
+
+		// Key image data storage (used by export/import and overlay)
+		let keyImagesData = {};
+		let keyGroupsData = [];
+		let allKeysData = null;
+
+		// Load key images from localStorage
+		function loadKeyImagesFromStorage() {
+			try {
+				const stored = localStorage.getItem('keyviewer_key_images');
+				if (stored) {
+					const data = JSON.parse(stored);
+					keyImagesData = data.individual || {};
+					keyGroupsData = data.groups || [];
+					allKeysData = data.allKeys || null;
+				}
+			} catch (e) {
+				console.error('Failed to load key images:', e);
+			}
+		}
+
+		// Save key images to localStorage
+		function saveKeyImagesToStorage() {
+			try {
+				const data = { individual: keyImagesData, groups: keyGroupsData, allKeys: allKeysData };
+				localStorage.setItem('keyviewer_key_images', JSON.stringify(data));
+				// Also notify server
+				saveKeyImagesToServer();
+			} catch (e) {
+				console.error('Failed to save key images:', e);
+			}
+		}
+
+		// Save to server
+		async function saveKeyImagesToServer() {
+			try {
+				const payload = { individual: keyImagesData, groups: keyGroupsData, allKeys: allKeysData };
+				await fetch('/api/key-images', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(payload)
+				});
+			} catch (e) {
+				console.error('Failed to save key images to server:', e);
+			}
+		}
+
+		// ==================== GitHub OAuth ====================
+		const OAUTH_PROXY_URL = 'https://keyviewer-oauth.rudghrnt.workers.dev';
+		
+		// Header elements
+		const headerLoginBtn = document.getElementById('headerLoginBtn');
+		const headerLogoutBtn = document.getElementById('headerLogoutBtn');
+		const headerLoggedOut = document.getElementById('headerLoggedOut');
+		const headerLoggedIn = document.getElementById('headerLoggedIn');
+		const headerAvatar = document.getElementById('headerAvatar');
+		const headerUsername = document.getElementById('headerUsername');
+		const headerImportBtn = document.getElementById('headerImportBtn');
+		const headerExportBtn = document.getElementById('headerExportBtn');
+
+		// Import/Export modals
+		const modalImport = document.getElementById('modalImport');
+		const modalExport = document.getElementById('modalExport');
+		const closeImport = document.getElementById('closeImport');
+		const closeExport = document.getElementById('closeExport');
+
+		// Gist elements (in import modal)
+		const gistListContainer = document.getElementById('gistListContainer');
+		const gistPreviewSection = document.getElementById('gistPreviewSection');
+		const gistPreviewName = document.getElementById('gistPreviewName');
+		const gistPreviewDate = document.getElementById('gistPreviewDate');
+		const gistPreviewInfo = document.getElementById('gistPreviewInfo');
+		const loadSelectedGist = document.getElementById('loadSelectedGist');
+		const refreshGistList = document.getElementById('refreshGistList');
+		const gistImportId = document.getElementById('gistImportId');
+		const gistImportBtn = document.getElementById('gistImportBtn');
+		const jsonImportBtn = document.getElementById('jsonImportBtn');
+
+		// Export elements
+		const exportGistSection = document.getElementById('exportGistSection');
+		const exportLoginRequired = document.getElementById('exportLoginRequired');
+		const gistExportDesc = document.getElementById('gistExportDesc');
+		const gistExportBtn = document.getElementById('gistExportBtn');
+		const gistExportResult = document.getElementById('gistExportResult');
+		const jsonExportBtn = document.getElementById('jsonExportBtn');
+
+		let githubUser = null;
+		let userGists = [];
+		let selectedGist = null;
+		let selectedGistData = null;
+
+		// Check for token in URL (returned from OAuth)
+		function checkOAuthCallback() {
+			const urlParams = new URLSearchParams(window.location.search);
+			const token = urlParams.get('github_token');
+			
+			if (token) {
+				// Save token and clean URL
+				localStorage.setItem('github_token', token);
+				
+				// Remove token from URL for security
+				const cleanUrl = window.location.pathname;
+				window.history.replaceState({}, document.title, cleanUrl);
+				
+				// Validate and show user info
+				validateGitHubToken(token);
+				
+				console.log('[OAuth] Token received from callback');
+			} else {
+				// Check for saved token
+				const savedToken = localStorage.getItem('github_token');
+				if (savedToken) {
+					validateGitHubToken(savedToken);
+				}
+			}
+		}
+
+		// Validate token and get user info
+		async function validateGitHubToken(token) {
+			try {
+				const res = await fetch('https://api.github.com/user', {
+					headers: {
+						'Authorization': `token ${token}`,
+						'Accept': 'application/vnd.github.v3+json'
+					}
+				});
+				
+				if (res.ok) {
+					githubUser = await res.json();
+					showGitHubUser(githubUser);
+					console.log('[OAuth] User validated:', githubUser.login);
+				} else {
+					// Token invalid, clear it
+					localStorage.removeItem('github_token');
+					showGitHubLoggedOut();
+					console.log('[OAuth] Token invalid, cleared');
+				}
+			} catch (e) {
+				console.error('[OAuth] Validation error:', e);
+				showGitHubLoggedOut();
+			}
+		}
+
+		function showGitHubUser(user) {
+			// Update header
+			headerAvatar.src = user.avatar_url;
+			headerUsername.textContent = user.name || user.login;
+			headerLoggedIn.style.display = 'flex';
+			headerLoggedOut.style.display = 'none';
+			
+			// Update export modal
+			exportGistSection.style.display = 'block';
+			exportLoginRequired.style.display = 'none';
+		}
+
+		// Load user's gists that contain keyviewer preset
+		async function loadUserGists() {
+			const token = localStorage.getItem('github_token');
+			if (!token) {
+				gistListContainer.innerHTML = `<div class="help" style="text-align:center; padding:12px">${currentLanguage === 'ko' ? '로그인이 필요합니다' : 'Login required'}</div>`;
+				return;
+			}
+
+			gistListContainer.innerHTML = `<div class="help" style="text-align:center; padding:12px">${currentLanguage === 'ko' ? '불러오는 중...' : 'Loading...'}</div>`;
+			gistPreviewSection.style.display = 'none';
+
+			try {
+				const res = await fetch('https://api.github.com/gists?per_page=100', {
+					headers: {
+						'Authorization': `token ${token}`,
+						'Accept': 'application/vnd.github.v3+json'
+					},
+					cache: 'no-store'
+				});
+
+				if (!res.ok) throw new Error('Failed to fetch gists');
+
+				const gists = await res.json();
+				console.log('[Gist] Total gists:', gists.length);
+				
+				// Filter gists that have keyviewer-preset.json
+				userGists = gists.filter(g => {
+					if (!g.files) return false;
+					return Object.keys(g.files).some(name => 
+						name.toLowerCase() === 'keyviewer-preset.json'
+					);
+				});
+				
+				console.log('[Gist] KeyViewer presets found:', userGists.length);
+				renderGistList();
+			} catch (e) {
+				console.error('[Gist] Failed to load:', e);
+				gistListContainer.innerHTML = `<div class="help" style="text-align:center; padding:12px; color:#ff5b5b">${currentLanguage === 'ko' ? '불러오기 실패' : 'Failed to load'}</div>`;
+			}
+		}
+
+		// Render gist list
+		function renderGistList() {
+			if (userGists.length === 0) {
+				gistListContainer.innerHTML = `<div class="help" style="text-align:center; padding:12px">${currentLanguage === 'ko' ? '저장된 프리셋이 없습니다' : 'No saved presets'}</div>`;
+				return;
+			}
+
+			gistListContainer.innerHTML = userGists.map((g, idx) => {
+				const date = new Date(g.updated_at).toLocaleDateString(currentLanguage === 'ko' ? 'ko-KR' : 'en-US');
+				const desc = g.description || (currentLanguage === 'ko' ? '(설명 없음)' : '(No description)');
+				return `<div class="gist-item" data-idx="${idx}">
+					<div style="flex:1">
+						<div class="gist-name">${desc}</div>
+						<div class="gist-date">${date}</div>
+					</div>
+				</div>`;
+			}).join('');
+
+			// Add click handlers
+			gistListContainer.querySelectorAll('.gist-item').forEach(item => {
+				item.addEventListener('click', () => selectGist(parseInt(item.dataset.idx)));
+			});
+		}
+
+		// Select a gist and show preview
+		async function selectGist(idx) {
+			// Update UI selection
+			gistListContainer.querySelectorAll('.gist-item').forEach((item, i) => {
+				item.classList.toggle('selected', i === idx);
+			});
+
+			selectedGist = userGists[idx];
+			selectedGistData = null;
+			
+			// Show preview section
+			gistPreviewSection.style.display = 'block';
+			gistPreviewName.textContent = selectedGist.description || (currentLanguage === 'ko' ? '(설명 없음)' : '(No description)');
+			gistPreviewDate.textContent = new Date(selectedGist.updated_at).toLocaleString(currentLanguage === 'ko' ? 'ko-KR' : 'en-US');
+			gistPreviewInfo.textContent = currentLanguage === 'ko' ? '정보 불러오는 중...' : 'Loading info...';
+
+			// Fetch full gist data to show preview
+			try {
+				const token = localStorage.getItem('github_token');
+				const res = await fetch(`https://api.github.com/gists/${selectedGist.id}`, {
+					headers: token ? { 'Authorization': `token ${token}` } : {}
+				});
+
+				if (!res.ok) throw new Error('Failed to fetch gist');
+
+				const gist = await res.json();
+				const file = gist.files['keyviewer-preset.json'];
+				if (file) {
+					selectedGistData = JSON.parse(file.content);
+					
+					// Build preview info
+					let info = [];
+					if (selectedGistData.version >= 3) {
+						// Version 3: styleGroups format
+						const keyCount = Object.keys(selectedGistData.keyImages?.individual || {}).length;
+						const styleGroupCount = (selectedGistData.styleGroups || []).length;
+						const hasAllKeysImage = selectedGistData.keyImages?.allKeys?.image ? 1 : 0;
+						info.push(`${currentLanguage === 'ko' ? '개별 키' : 'Individual keys'}: ${keyCount}`);
+						info.push(`${currentLanguage === 'ko' ? '스타일 그룹' : 'Style groups'}: ${styleGroupCount}`);
+						if (hasAllKeysImage) info.push(`${currentLanguage === 'ko' ? '전체 키 이미지' : 'All keys image'}`);
+						if (selectedGistData.overlay) {
+							info.push(`${currentLanguage === 'ko' ? '오버레이 설정' : 'Overlay settings'}`);
+						}
+						info.push('(v3)');
+					} else if (selectedGistData.version === 2) {
+						const keyCount = Object.keys(selectedGistData.keyImages?.individual || {}).length;
+						const groupCount = (selectedGistData.keyImages?.groups || []).length;
+						info.push(`${currentLanguage === 'ko' ? '키 이미지' : 'Key images'}: ${keyCount}`);
+						info.push(`${currentLanguage === 'ko' ? '그룹' : 'Groups'}: ${groupCount}`);
+						if (selectedGistData.overlay) {
+							info.push(`${currentLanguage === 'ko' ? '오버레이 설정 포함' : 'Includes overlay settings'}`);
+						}
+						info.push('(v2)');
+					} else {
+						const keyCount = Object.keys(selectedGistData.individual || {}).length;
+						const groupCount = (selectedGistData.groups || []).length;
+						info.push(`${currentLanguage === 'ko' ? '키 이미지' : 'Key images'}: ${keyCount}`);
+						info.push(`${currentLanguage === 'ko' ? '그룹' : 'Groups'}: ${groupCount}`);
+						info.push('(v1)');
+					}
+					gistPreviewInfo.textContent = info.join(' · ');
+				}
+			} catch (e) {
+				console.error('Failed to fetch gist details:', e);
+				gistPreviewInfo.textContent = currentLanguage === 'ko' ? '정보 불러오기 실패' : 'Failed to load info';
+			}
+		}
+
+		// Load selected gist
+		loadSelectedGist.addEventListener('click', async () => {
+			if (!selectedGistData) {
+				alert(currentLanguage === 'ko' ? '프리셋을 선택하세요' : 'Please select a preset');
+				return;
+			}
+
+			await processImportedData(selectedGistData);
+			alert(currentLanguage === 'ko' ? '불러오기 성공!' : 'Import successful!');
+		});
+
+		function showGitHubLoggedOut() {
+			githubUser = null;
+			userGists = [];
+			selectedGist = null;
+			selectedGistData = null;
+			
+			// Update header
+			headerLoggedIn.style.display = 'none';
+			headerLoggedOut.style.display = 'block';
+			
+			// Update export modal
+			exportGistSection.style.display = 'none';
+			exportLoginRequired.style.display = 'block';
+			
+			// Update gist list
+			gistListContainer.innerHTML = `<div class="help" style="text-align:center; padding:12px">${currentLanguage === 'ko' ? '로그인이 필요합니다' : 'Login required'}</div>`;
+		}
+
+		// Modal open/close handlers
+		headerImportBtn.addEventListener('click', () => {
+			modalImport.style.display = 'flex';
+			if (githubUser) loadUserGists();
+		});
+		
+		headerExportBtn.addEventListener('click', () => {
+			modalExport.style.display = 'flex';
+			updateExportPreview();
+		});
+		
+		// Update export preview with current settings info
+		function updateExportPreview() {
+			const previewEl = document.getElementById('exportPreviewInfo');
+			if (!previewEl) return;
+			
+			// Count from styleGroups (new system)
+			const styleGroupCount = styleGroups.length;
+			const imageGroupCount = styleGroups.filter(g => g.bgMode === 'image' && g.image).length;
+			const allKeysGroup = styleGroups.find(g => g.type === 'all');
+			
+			// Also count legacy key images
+			const keyCount = Object.keys(keyImagesData).length;
+			const groupCount = keyGroupsData.length;
+			const hasAllKeys = allKeysData && allKeysData.image;
+			
+			// Get overlay settings summary
+			const cols = Number(ov_cols?.value) || 8;
+			const rows = Number(ov_rows?.value) || 1;
+			
+			// Get chip colors from styleGroups or overlay settings
+			let chipBg = '#000000';
+			if (allKeysGroup) {
+				if (allKeysGroup.bgMode === 'image' && allKeysGroup.image) {
+					chipBg = '🖼️ 이미지';
+				} else if (allKeysGroup.bgMode === 'gradient') {
+					chipBg = `gradient`;
+				} else {
+					chipBg = allKeysGroup.bgColor || '#000000';
+				}
+			} else {
+				chipBg = ov_chip_bg?.value || '#000000';
+			}
+			const chipFg = ov_chip_fg?.value || '#ffffff';
+			
+			const lines = [];
+			
+			// Style groups info
+			lines.push(`<div style="margin-bottom:6px"><strong>${currentLanguage === 'ko' ? '🎨 스타일 그룹' : '🎨 Style Groups'}</strong></div>`);
+			if (styleGroupCount > 0) {
+				lines.push(`<div style="margin-left:12px">• ${currentLanguage === 'ko' ? '총 그룹' : 'Total groups'}: ${styleGroupCount}${currentLanguage === 'ko' ? '개' : ''}</div>`);
+				if (imageGroupCount > 0) {
+					lines.push(`<div style="margin-left:12px">• ${currentLanguage === 'ko' ? '이미지 사용' : 'With images'}: ${imageGroupCount}${currentLanguage === 'ko' ? '개' : ''}</div>`);
+				}
+			} else {
+				lines.push(`<div style="margin-left:12px; color:var(--muted)">${currentLanguage === 'ko' ? '설정된 그룹 없음' : 'No groups configured'}</div>`);
+			}
+			
+			// Overlay settings info
+			lines.push(`<div style="margin-top:8px; margin-bottom:6px"><strong>${currentLanguage === 'ko' ? '⚙️ 오버레이 설정' : '⚙️ Overlay Settings'}</strong></div>`);
+			lines.push(`<div style="margin-left:12px">• ${currentLanguage === 'ko' ? '레이아웃' : 'Layout'}: ${cols} × ${rows}</div>`);
+			
+			// Chip background display
+			if (chipBg === '🖼️ 이미지' || chipBg === 'gradient') {
+				lines.push(`<div style="margin-left:12px">• ${currentLanguage === 'ko' ? '칩 배경' : 'Chip BG'}: ${chipBg === 'gradient' ? '그라데이션' : chipBg}</div>`);
+			} else {
+				lines.push(`<div style="margin-left:12px">• ${currentLanguage === 'ko' ? '칩 색상' : 'Chip colors'}: <span style="display:inline-block;width:14px;height:14px;background:${chipBg};border-radius:3px;vertical-align:middle;border:1px solid var(--border)"></span> / <span style="display:inline-block;width:14px;height:14px;background:${chipFg};border-radius:3px;vertical-align:middle;border:1px solid var(--border)"></span></div>`);
+			}
+			lines.push(`<div style="margin-left:12px">• ${currentLanguage === 'ko' ? '정렬' : 'Align'}: ${ov_align?.value || 'left'}</div>`);
+			
+			previewEl.innerHTML = lines.join('');
+		}
+		
+		closeImport.addEventListener('click', () => {
+			modalImport.style.display = 'none';
+		});
+		
+		closeExport.addEventListener('click', () => {
+			modalExport.style.display = 'none';
+		});
+
+		// Header GitHub Login button
+		headerLoginBtn.addEventListener('click', () => {
+			const port = window.location.port || '8000';
+			const path = window.location.pathname || '/control';
+			const authUrl = `${OAUTH_PROXY_URL}/auth?port=${port}&path=${encodeURIComponent(path)}`;
+			
+			window.location.href = authUrl;
+		});
+
+		// Header GitHub Logout button
+		headerLogoutBtn.addEventListener('click', () => {
+			localStorage.removeItem('github_token');
+			showGitHubLoggedOut();
+		});
+
+		// Refresh gist list button
+		refreshGistList.addEventListener('click', () => {
+			if (githubUser) loadUserGists();
+		});
+
+		// Initialize OAuth on page load
+		checkOAuthCallback();
+
+		// ==================== Gist Import/Export ====================
+		// Get current overlay config for export
+		function getOverlayConfigForExport() {
+			return {
+				fade_in_ms: Number(ov_fade_in?.value) || 0,
+				fade_out_ms: Number(ov_fade_out?.value) || 0,
+				background: ov_bg_trans?.checked !== false ? 'rgba(0,0,0,0)' : (ov_bg?.value || 'rgba(0,0,0,0)'),
+				chip_bg: ov_chip_bg?.value || '#000000',
+				chip_fg: ov_chip_fg?.value || '#ffffff',
+				chip_gap: Number(ov_gap?.value) || 8,
+				chip_pad_v: Number(ov_pad_v?.value) || 10,
+				chip_pad_h: Number(ov_pad_h?.value) || 14,
+				chip_radius: Number(ov_radius?.value) || 10,
+				chip_font_px: Number(ov_font_px?.value) || 24,
+				chip_font_weight: Number(ov_font_w?.value) || 700,
+				cols: Number(ov_cols?.value) || 8,
+				rows: Number(ov_rows?.value) || 1,
+				align: ov_align?.value || 'left',
+				direction: ov_direction?.value || 'ltr'
+			};
+		}
+		
+		// Get style groups for export
+		function getStyleGroupsForExport() {
+			return styleGroups.map(g => ({
+				id: g.id,
+				name: g.name,
+				type: g.type,
+				keys: g.keys,
+				bgMode: g.bgMode,
+				bgColor: g.bgColor,
+				gradStops: g.gradStops,
+				gradAngle: g.gradAngle,
+				gradColor1: g.gradColor1, // Legacy
+				gradColor2: g.gradColor2, // Legacy
+				image: g.image
+			}));
+		}
+
+		// Apply imported overlay config
+		async function applyImportedOverlayConfig(overlay) {
+			if (!overlay) return;
+			
+			const isTrans = overlay.background === 'rgba(0,0,0,0)' || overlay.background === 'transparent';
+			
+			// Apply values with null checks
+			if (ov_fade_in) ov_fade_in.value = overlay.fade_in_ms ?? 0;
+			if (ov_fade_out) ov_fade_out.value = overlay.fade_out_ms ?? 0;
+			if (ov_bg_trans) ov_bg_trans.checked = isTrans;
+			if (ov_bg) {
+				ov_bg.disabled = isTrans;
+				ov_bg.value = isTrans ? '#000000' : (overlay.background || '#000000');
+			}
+			if (ov_bg_pickBtn) ov_bg_pickBtn.disabled = isTrans;
+			if (ov_chip_bg) ov_chip_bg.value = overlay.chip_bg || '#000000';
+			if (ov_chip_fg) ov_chip_fg.value = overlay.chip_fg || '#ffffff';
+			if (ov_gap) ov_gap.value = overlay.chip_gap ?? 8;
+			if (ov_pad_v) ov_pad_v.value = overlay.chip_pad_v ?? 10;
+			if (ov_pad_h) ov_pad_h.value = overlay.chip_pad_h ?? 14;
+			if (ov_radius) ov_radius.value = overlay.chip_radius ?? 10;
+			if (ov_font_px) ov_font_px.value = overlay.chip_font_px ?? 24;
+			if (ov_font_w) ov_font_w.value = overlay.chip_font_weight ?? 700;
+			if (ov_cols) ov_cols.value = overlay.cols ?? 8;
+			if (ov_rows) ov_rows.value = overlay.rows ?? 1;
+			if (ov_align) ov_align.value = overlay.align || 'left';
+			if (ov_direction) ov_direction.value = overlay.direction || 'ltr';
+			
+			if (ov_bg_pickBtn && ov_bg) setPickBtn(ov_bg_pickBtn, ov_bg.value);
+			if (ov_chip_bg_pickBtn && ov_chip_bg) setPickBtn(ov_chip_bg_pickBtn, ov_chip_bg.value);
+			if (ov_chip_fg_pickBtn && ov_chip_fg) setPickBtn(ov_chip_fg_pickBtn, ov_chip_fg.value);
+			updatePreview();
+			
+			// Save to server with the imported overlay data directly
+			await saveOverlayConfig({
+				fade_in_ms: overlay.fade_in_ms ?? 0,
+				fade_out_ms: overlay.fade_out_ms ?? 0,
+				background: overlay.background || 'rgba(0,0,0,0)',
+				chip_bg: overlay.chip_bg || '#000000',
+				chip_fg: overlay.chip_fg || '#ffffff',
+				chip_gap: overlay.chip_gap ?? 8,
+				chip_pad_v: overlay.chip_pad_v ?? 10,
+				chip_pad_h: overlay.chip_pad_h ?? 14,
+				chip_radius: overlay.chip_radius ?? 10,
+				chip_font_px: overlay.chip_font_px ?? 24,
+				chip_font_weight: overlay.chip_font_weight ?? 700,
+				cols: overlay.cols ?? 8,
+				rows: overlay.rows ?? 1,
+				align: overlay.align || 'left',
+				direction: overlay.direction || 'ltr'
+			});
+		}
+
+		gistExportBtn.addEventListener('click', async () => {
+			const token = localStorage.getItem('github_token');
+			if (!token) {
+				alert(currentLanguage === 'ko' ? '로그인이 필요합니다' : 'Login required');
+				return;
+			}
+			const desc = gistExportDesc.value.trim() || 'KeyViewer Preset';
+			const data = { 
+				keyImages: { 
+					individual: keyImagesData, 
+					groups: keyGroupsData,
+					allKeys: allKeysData
+				},
+				styleGroups: getStyleGroupsForExport(),
+				overlay: getOverlayConfigForExport(),
+				version: 3  // Bump version to 3 for style groups support
+			};
+			
+			try {
+				const response = await fetch('https://api.github.com/gists', {
+					method: 'POST',
+					headers: {
+						'Authorization': `token ${token}`,
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({
+						description: desc,
+						public: false,
+						files: {
+							'keyviewer-preset.json': { content: JSON.stringify(data, null, 2) }
+						}
+					})
+				});
+				
+				if (response.ok) {
+					const result = await response.json();
+					gistExportResult.style.display = 'block';
+					gistExportResult.innerHTML = `${currentLanguage === 'ko' ? '성공! Gist ID:' : 'Success! Gist ID:'} <code style="background:#2a3040; padding:2px 6px; border-radius:4px">${result.id}</code>`;
+				} else {
+					throw new Error('Failed to create gist');
+				}
+			} catch (e) {
+				alert(currentLanguage === 'ko' ? 'Gist 생성 실패: ' + e.message : 'Failed to create gist: ' + e.message);
+			}
+		});
+
+		gistImportBtn.addEventListener('click', async () => {
+			const gistId = gistImportId.value.trim();
+			if (!gistId) {
+				alert(currentLanguage === 'ko' ? 'Gist ID를 입력하세요' : 'Please enter Gist ID');
+				return;
+			}
+			
+			try {
+				const response = await fetch(`https://api.github.com/gists/${gistId}`);
+				if (!response.ok) throw new Error('Gist not found');
+				
+				const result = await response.json();
+				const file = result.files['keyviewer-preset.json'];
+				if (!file) throw new Error('Invalid preset file');
+				
+				const data = JSON.parse(file.content);
+				
+				// Support both v1 (flat) and v2 (nested) formats
+				if (data.version === 2) {
+					// Version 2: nested format
+					keyImagesData = data.keyImages?.individual || {};
+					keyGroupsData = data.keyImages?.groups || [];
+					if (data.overlay) {
+						await applyImportedOverlayConfig(data.overlay);
+					}
+				} else {
+					// Version 1: flat format (backward compatibility)
+					keyImagesData = data.individual || {};
+					keyGroupsData = data.groups || [];
+				}
+				
+				saveKeyImagesToStorage();
+				renderStyleGroupsList(); // Refresh style groups list
+				alert(currentLanguage === 'ko' ? '불러오기 성공! (키 이미지 + 오버레이 설정)' : 'Import successful! (Key images + Overlay settings)');
+			} catch (e) {
+				alert(currentLanguage === 'ko' ? '불러오기 실패: ' + e.message : 'Import failed: ' + e.message);
+			}
+		});
+
+		// JSON Export/Import
+		jsonExportBtn.addEventListener('click', async () => {
+			const data = { 
+				keyImages: { 
+					individual: keyImagesData, 
+					groups: keyGroupsData,
+					allKeys: allKeysData
+				},
+				styleGroups: getStyleGroupsForExport(),
+				overlay: getOverlayConfigForExport(),
+				version: 3  // Bump version to 3 for style groups support
+			};
+			const json = JSON.stringify(data, null, 2);
+			try {
+				await navigator.clipboard.writeText(json);
+				alert(currentLanguage === 'ko' ? 'JSON이 클립보드에 복사되었습니다! (키 이미지 + 스타일 그룹 + 오버레이 설정)' : 'JSON copied to clipboard! (Key images + Style groups + Overlay settings)');
+			} catch (e) {
+				// Fallback: show in prompt
+				prompt(currentLanguage === 'ko' ? 'JSON을 복사하세요:' : 'Copy the JSON:', json);
+			}
+		});
+
+		// Helper function to process imported JSON data
+		async function processImportedData(data) {
+			if (data.version >= 3) {
+				// Version 3+: includes style groups
+				keyImagesData = data.keyImages?.individual || {};
+				keyGroupsData = data.keyImages?.groups || [];
+				allKeysData = data.keyImages?.allKeys || null;
+				styleGroups = data.styleGroups || [];
+				
+				// Save to localStorage
+				localStorage.setItem('keyviewer_style_groups', JSON.stringify(styleGroups));
+				saveKeyImagesToStorage();
+				
+				if (data.overlay) {
+					await applyImportedOverlayConfig(data.overlay);
+				}
+				renderStyleGroupsList();
+				updateUnifiedPreview();
+			} else if (data.version === 2) {
+				// Version 2: nested format with overlay
+				keyImagesData = data.keyImages?.individual || {};
+				keyGroupsData = data.keyImages?.groups || [];
+				allKeysData = data.keyImages?.allKeys || null;
+				saveKeyImagesToStorage();
+				if (data.overlay) {
+					await applyImportedOverlayConfig(data.overlay);
+				}
+			} else {
+				// Version 1: flat format (backward compatibility)
+				keyImagesData = data.individual || {};
+				keyGroupsData = data.groups || [];
+				allKeysData = data.allKeys || null;
+			}
+			saveKeyImagesToStorage();
+			renderStyleGroupsList(); // Refresh style groups list
+		}
+
+		jsonImportBtn.addEventListener('click', async () => {
+			try {
+				const json = await navigator.clipboard.readText();
+				const data = JSON.parse(json);
+				await processImportedData(data);
+				alert(currentLanguage === 'ko' ? '불러오기 성공! (키 이미지 + 오버레이 설정)' : 'Import successful! (Key images + Overlay settings)');
+			} catch (e) {
+				// Fallback: prompt input
+				const json = prompt(currentLanguage === 'ko' ? 'JSON을 붙여넣으세요:' : 'Paste JSON:');
+				if (json) {
+					try {
+						const data = JSON.parse(json);
+						await processImportedData(data);
+						alert(currentLanguage === 'ko' ? '불러오기 성공! (키 이미지 + 오버레이 설정)' : 'Import successful! (Key images + Overlay settings)');
+					} catch (e2) {
+						alert(currentLanguage === 'ko' ? 'JSON 파싱 실패: ' + e2.message : 'Failed to parse JSON: ' + e2.message);
+					}
+				}
+			}
+		});
 
 		// 언어 설정 먼저 로드 (다른 것보다 우선)
 		await loadLanguageSettings();

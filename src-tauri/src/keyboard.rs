@@ -199,8 +199,7 @@ fn keycode_to_label(keycode: u16) -> String {
         50 => "`".to_string(),
         51 => "BKSP".to_string(),
         53 => "ESC".to_string(),
-        54 => "RCMD".to_string(),
-        55 => "LCMD".to_string(),
+        55 => "CMD".to_string(),
         56 => "LSHIFT".to_string(),
         57 => "CAPS".to_string(),
         58 => "LOPT".to_string(),
@@ -694,8 +693,8 @@ fn validate_key_state_loop(state: Arc<RwLock<AppState>>) {
         (0xA1, "RSHIFT"), // VK_RSHIFT  
         (0xA2, "LCTRL"),  // VK_LCONTROL
         (0xA3, "RCTRL"),  // VK_RCONTROL
-        (0xA4, "LALT"),   // VK_LMENU
-        (0xA5, "RALT"),   // VK_RMENU
+        (0xA4, "LALT"),  // VK_LMENU
+        (0xA5, "RALT"),  // VK_RMENU
         (0x14, "CAPS"),
         (0x5B, "LWIN"),   // VK_LWIN
         (0x5C, "RWIN"),   // VK_RWIN

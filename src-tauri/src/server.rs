@@ -1,4 +1,4 @@
-use crate::state::{AppState, TargetConfig};
+use crate::state::{AppState, TargetConfig, KeyImagesConfig, KeyStyleConfig};
 use crate::window_info;
 use axum::{
     body::Body,
@@ -26,7 +26,13 @@ const OVERLAY_CSS: &str = include_str!("../../ui/overlay.css");
 const CONTROL_HTML: &str = include_str!("../../ui/control.html");
 const CONTROL_CSS: &str = include_str!("../../ui/control.css");
 const LAUNCHER_CSS: &str = include_str!("../../ui/launcher.css");
+const CHIP_CSS: &str = include_str!("../../ui/chip.css");
 const FAVICON: &[u8] = include_bytes!("../../ui/favicon.ico");
+
+// JavaScript modules
+const JS_UTILS: &str = include_str!("../../ui/js/utils.js");
+const JS_GRADIENT_EDITOR: &str = include_str!("../../ui/js/gradient-editor.js");
+const JS_CHIP_PREVIEW: &str = include_str!("../../ui/js/chip-preview.js");
 
 type SharedState = Arc<RwLock<AppState>>;
 
@@ -36,6 +42,7 @@ pub struct ServerController {
     handle: Option<tokio::task::AbortHandle>,
     running: Arc<parking_lot::Mutex<bool>>,
     state_ref: Option<SharedState>,
+    shutdown_tx: Option<tokio::sync::oneshot::Sender<()>>,
 }
 
 impl ServerController {
@@ -45,6 +52,7 @@ impl ServerController {
             handle: None,
             running: Arc::new(parking_lot::Mutex::new(false)),
             state_ref: None,
+            shutdown_tx: None,
         }
     }
 
@@ -76,6 +84,11 @@ impl ServerController {
         let running_clone = self.running.clone();
         // Keep a reference for stop()
         self.state_ref = Some(state.clone());
+        
+        // Create shutdown channel
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        self.shutdown_tx = Some(shutdown_tx);
+        
         let handle = self.runtime.spawn(async move {
             // Mark server alive in shared state and bump cache buster
             {
@@ -97,7 +110,14 @@ impl ServerController {
 
             match tokio::net::TcpListener::bind(addr).await {
                 Ok(listener) => {
-                    if let Err(e) = axum::serve(listener, app).await {
+                    // Use graceful shutdown
+                    let server = axum::serve(listener, app)
+                        .with_graceful_shutdown(async move {
+                            let _ = shutdown_rx.await;
+                            println!("Server shutdown signal received");
+                        });
+                    
+                    if let Err(e) = server.await {
                         eprintln!("Server error: {}", e);
                     }
                 }
@@ -112,6 +132,7 @@ impl ServerController {
                 s.server_alive = false;
             }
             *running_clone.lock() = false;
+            println!("Server fully stopped");
         });
 
         self.handle = Some(handle.abort_handle());
@@ -133,6 +154,13 @@ impl ServerController {
             if let Some(tx) = &s.event_tx { let _ = tx.send(Vec::new()); }
         }
 
+        // Send shutdown signal to gracefully stop the server
+        if let Some(tx) = self.shutdown_tx.take() {
+            let _ = tx.send(());
+            println!("Shutdown signal sent to server");
+        }
+
+        // Also abort the handle as a fallback
         if let Some(handle) = self.handle.take() {
             handle.abort();
         }
@@ -163,7 +191,11 @@ fn create_router(state: SharedState) -> Router {
         .route("/static/overlay.css", get(get_overlay_css))
         .route("/static/control.css", get(get_control_css))
         .route("/static/launcher.css", get(get_launcher_css))
+        .route("/static/chip.css", get(get_chip_css))
         .route("/static/favicon.ico", get(get_favicon))
+        .route("/js/utils.js", get(get_js_utils))
+        .route("/js/gradient-editor.js", get(get_js_gradient_editor))
+        .route("/js/chip-preview.js", get(get_js_chip_preview))
         .route("/ws", get(websocket_handler))
         .route("/api/windows", get(api_windows))
         .route("/api/foreground", get(api_foreground))
@@ -175,6 +207,10 @@ fn create_router(state: SharedState) -> Router {
         .route("/api/overlay-config", axum::routing::post(api_set_overlay_config))
         .route("/api/launcher-language", get(api_get_launcher_language))
         .route("/api/focus", axum::routing::post(api_focus_window))
+        .route("/api/key-images", get(api_get_key_images))
+        .route("/api/key-images", axum::routing::post(api_set_key_images))
+        .route("/api/key-style", get(api_get_key_style))
+        .route("/api/key-style", axum::routing::post(api_set_key_style))
         .layer(cors)
         .with_state(state)
 }
@@ -212,6 +248,41 @@ async fn get_overlay_css() -> impl IntoResponse {
         .header(header::PRAGMA, "no-cache")
         .header(header::EXPIRES, "0")
         .body(Body::from(OVERLAY_CSS))
+        .unwrap()
+}
+
+async fn get_chip_css() -> impl IntoResponse {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "text/css; charset=utf-8")
+        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate, max-age=0")
+        .header(header::PRAGMA, "no-cache")
+        .header(header::EXPIRES, "0")
+        .body(Body::from(CHIP_CSS))
+        .unwrap()
+}
+
+// JavaScript module handlers
+async fn get_js_utils() -> impl IntoResponse {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/javascript; charset=utf-8")
+        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate, max-age=0")
+        .body(Body::from(JS_UTILS))
+        .unwrap()
+}
+
+async fn get_js_gradient_editor() -> impl IntoResponse {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/javascript; charset=utf-8")
+        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate, max-age=0")
+        .body(Body::from(JS_GRADIENT_EDITOR))
+        .unwrap()
+}
+
+async fn get_js_chip_preview() -> impl IntoResponse {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/javascript; charset=utf-8")
+        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate, max-age=0")
+        .body(Body::from(JS_CHIP_PREVIEW))
         .unwrap()
 }
 
@@ -433,6 +504,18 @@ async fn api_set_overlay_config(
     if let Some(v) = payload.get("direction").and_then(|x| x.as_str()) {
         overlay.direction = v.to_string();
     }
+    if let Some(v) = payload.get("color_mode").and_then(|x| x.as_str()) {
+        overlay.color_mode = v.to_string();
+    }
+    if let Some(v) = payload.get("grad_color1").and_then(|x| x.as_str()) {
+        overlay.grad_color1 = v.to_string();
+    }
+    if let Some(v) = payload.get("grad_color2").and_then(|x| x.as_str()) {
+        overlay.grad_color2 = v.to_string();
+    }
+    if let Some(v) = payload.get("grad_dir").and_then(|x| x.as_str()) {
+        overlay.grad_dir = v.to_string();
+    }
 
     // Save overlay config to registry
     let _ = crate::settings::save_overlay_config(
@@ -451,6 +534,10 @@ async fn api_set_overlay_config(
         overlay.rows,
         &overlay.align,
         &overlay.direction,
+        &overlay.color_mode,
+        &overlay.grad_color1,
+        &overlay.grad_color2,
+        &overlay.grad_dir,
     );
 
     Json(json!({ "ok": true }))
@@ -488,5 +575,45 @@ async fn api_focus_window(Json(payload): Json<FocusRequest>) -> impl IntoRespons
     } else {
         Json(json!({ "ok": false, "error": "Invalid HWND" }))
     }
+}
+
+async fn api_get_key_images(AxumState(state): AxumState<SharedState>) -> impl IntoResponse {
+    let state_lock = state.read();
+    Json(json!({
+        "individual": state_lock.app_config.key_images.individual,
+        "groups": state_lock.app_config.key_images.groups,
+        "allKeys": state_lock.app_config.key_images.all_keys,
+    }))
+}
+
+async fn api_set_key_images(
+    AxumState(state): AxumState<SharedState>,
+    Json(payload): Json<KeyImagesConfig>,
+) -> impl IntoResponse {
+    let mut state_lock = state.write();
+    state_lock.app_config.key_images = payload.clone();
+    
+    // Save to persistent storage
+    let _ = crate::settings::save_key_images_config(&payload);
+    
+    Json(json!({ "ok": true }))
+}
+
+async fn api_get_key_style(AxumState(state): AxumState<SharedState>) -> impl IntoResponse {
+    let state_lock = state.read();
+    Json(serde_json::to_value(&state_lock.app_config.key_style).unwrap_or(json!({})))
+}
+
+async fn api_set_key_style(
+    AxumState(state): AxumState<SharedState>,
+    Json(payload): Json<KeyStyleConfig>,
+) -> impl IntoResponse {
+    let mut state_lock = state.write();
+    state_lock.app_config.key_style = payload.clone();
+    
+    // Save to persistent storage
+    let _ = crate::settings::save_key_style_config(&payload);
+    
+    Json(json!({ "ok": true }))
 }
 
