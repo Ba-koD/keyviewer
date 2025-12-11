@@ -29,6 +29,13 @@ if (!(Get-Command cargo-tauri -ErrorAction SilentlyContinue)) {
 }
 Write-Host "✓ Tauri CLI found" -ForegroundColor Green
 
+# Format code before build
+Write-Host "`nFormatting code..." -ForegroundColor Yellow
+cd src-tauri
+cargo fmt
+cd ..
+Write-Host "✓ Code formatted" -ForegroundColor Green
+
 # Read version from version.txt
 Write-Host "`nReading version..." -ForegroundColor Yellow
 $version = Get-Content "version.txt" -Raw | ForEach-Object { $_.Trim() }

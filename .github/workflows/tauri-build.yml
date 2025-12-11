@@ -6,9 +6,8 @@ on:
   workflow_dispatch:
 
 # Optimize build speed with caching
-# - Rust toolchain and dependencies are cached
-# - Tauri CLI is cached to avoid reinstalling (saves ~3-5 minutes per build)
-# - Linux apt packages are cached
+# - Rust dependencies are cached (swatinem/rust-cache)
+# - Tauri CLI is cached to avoid reinstalling
 # - All platform builds run in parallel
 
 jobs:
@@ -60,6 +59,16 @@ jobs:
           cargo binstall tauri-cli --no-confirm
         }
 
+    - name: Sync version to tauri.conf.json
+      shell: pwsh
+      run: |
+        $version = "${{ needs.prepare.outputs.version }}"
+        $configPath = "src-tauri/tauri.conf.json"
+        $config = Get-Content $configPath -Raw | ConvertFrom-Json
+        $config.version = $version
+        $config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
+        Write-Host "Updated tauri.conf.json version to: $version"
+
     - name: Generate icon.png
       shell: pwsh
       run: |
@@ -100,13 +109,6 @@ jobs:
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
 
-    - name: Cache apt packages
-      uses: actions/cache@v4
-      id: cache-apt
-      with:
-        path: /var/cache/apt/archives
-        key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/tauri-build.yml') }}
-
     - name: Install dependencies
       run: |
         sudo apt-get update
@@ -145,6 +147,13 @@ jobs:
           sudo apt-get update && sudo apt-get install -y imagemagick
           convert -size 256x256 xc:blue -fill white -gravity center -pointsize 48 -annotate +0+0 "KV" src-tauri/icons/icon.png
         fi
+
+    - name: Sync version to tauri.conf.json
+      run: |
+        VERSION="${{ needs.prepare.outputs.version }}"
+        sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" src-tauri/tauri.conf.json
+        echo "Updated tauri.conf.json version to: $VERSION"
+        grep '"version"' src-tauri/tauri.conf.json
 
     - name: Build Linux
       working-directory: src-tauri
@@ -199,78 +208,17 @@ jobs:
           cargo binstall tauri-cli --no-confirm
         fi
 
-    - name: Import Code Signing Certificate
-      if: ${{ env.MACOS_SIGNING_CERT != '' }}
-      env:
-        MACOS_SIGNING_CERT: ${{ secrets.MACOS_SIGNING_CERT }}
-        MACOS_SIGNING_CERT_PWD: ${{ secrets.MACOS_SIGNING_CERT_PWD }}
+    - name: Sync version to tauri.conf.json
       run: |
-        # Create temporary keychain
-        KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
-        KEYCHAIN_PWD="build-$(date +%s)"
-        
-        echo "Creating temporary keychain..."
-        security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
-        security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-        security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
-        
-        # Decode and import certificate
-        echo "Importing certificate..."
-        echo "$MACOS_SIGNING_CERT" | base64 --decode > $RUNNER_TEMP/cert.p12
-        security import $RUNNER_TEMP/cert.p12 -k "$KEYCHAIN_PATH" \
-          -P "$MACOS_SIGNING_CERT_PWD" \
-          -T /usr/bin/codesign \
-          -T /usr/bin/security
-        
-        # Allow codesign to access the keychain
-        security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
-        
-        # Add keychain to search list
-        security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
-        
-        # Verify certificate
-        echo "Verifying certificate..."
-        security find-identity -v -p codesigning "$KEYCHAIN_PATH"
-        
-        # Save keychain path for later steps
-        echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
-        echo "SIGNING_IDENTITY=KeyViewer Signing" >> $GITHUB_ENV
-        
-        # Cleanup temp file
-        rm -f $RUNNER_TEMP/cert.p12
+        VERSION="${{ needs.prepare.outputs.version }}"
+        sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" src-tauri/tauri.conf.json
+        echo "Updated tauri.conf.json version to: $VERSION"
+        grep '"version"' src-tauri/tauri.conf.json
 
     - name: Build macOS
       env:
         CARGO_INCREMENTAL: 1
       run: cargo tauri build
-
-    - name: Sign macOS App
-      if: ${{ env.SIGNING_IDENTITY != '' }}
-      run: |
-        echo "Signing .app bundle..."
-        for app in src-tauri/target/release/bundle/macos/*.app; do
-          if [ -d "$app" ]; then
-            echo "Signing: $app"
-            codesign --force --deep --sign "$SIGNING_IDENTITY" "$app"
-            echo "Verifying signature..."
-            codesign --verify --verbose "$app"
-          fi
-        done
-        
-        echo "Signing .dmg..."
-        for dmg in src-tauri/target/release/bundle/dmg/*.dmg; do
-          if [ -f "$dmg" ]; then
-            echo "Signing: $dmg"
-            codesign --force --sign "$SIGNING_IDENTITY" "$dmg"
-          fi
-        done
-
-    - name: Cleanup Keychain
-      if: always()
-      run: |
-        if [ -n "$KEYCHAIN_PATH" ] && [ -f "$KEYCHAIN_PATH" ]; then
-          security delete-keychain "$KEYCHAIN_PATH" || true
-        fi
 
     - name: Upload DMG artifact
       if: success()

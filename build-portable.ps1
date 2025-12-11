@@ -3,6 +3,14 @@ Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "  Building Portable Version" -ForegroundColor Green
 Write-Host "========================================`n" -ForegroundColor Cyan
 
+# Format code before build
+Write-Host "0. Formatting code..." -ForegroundColor Yellow
+cd src-tauri
+cargo fmt
+cd ..
+Write-Host "Code formatted!" -ForegroundColor Green
+Write-Host ""
+
 # Read version from version.txt
 $VERSION = Get-Content version.txt -Raw
 $VERSION = $VERSION.Trim()
