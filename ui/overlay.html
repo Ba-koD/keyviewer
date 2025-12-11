@@ -80,6 +80,9 @@
 		const queueEl = document.getElementById('queue');
 		const wrapEl = document.querySelector('.queue-wrap');
 		let ws; let lastKeys = []; let overlayCfg = null;
+		let keyImagesConfig = null;
+		const STORAGE_KEY_IMAGES = 'keyviewer_key_images';
+		const STORAGE_KEY_HIDE = 'keyviewer_hide_text';
 
 		function applyOverlayConfig(cfg){
 			if (!cfg) return; overlayCfg = cfg; const root = document.documentElement;
@@ -121,6 +124,35 @@
 			}catch(e){}
 		}
 
+		async function loadKeyImagesConfig(){
+			try{
+				const buster = Date.now();
+				const res = await fetch('/api/key-images?cb=' + buster, { cache: 'no-store' });
+				keyImagesConfig = await res.json();
+			}catch(e){}
+		}
+
+		function getKeyImage(key) {
+			if (!keyImagesConfig) return null;
+			// Check individual key image
+			if (keyImagesConfig.individual && keyImagesConfig.individual[key]) {
+				return keyImagesConfig.individual[key];
+			}
+			// Check group images
+			if (keyImagesConfig.groups) {
+				for (const g of keyImagesConfig.groups) {
+					if (g.keys && g.keys.includes(key)) {
+						return g;
+					}
+				}
+			}
+			// Check allKeys image
+			if (keyImagesConfig.allKeys) {
+				return keyImagesConfig.allKeys;
+			}
+			return null;
+		}
+
 		function placeChips(keys){
 			// Avoid unnecessary DOM rebuild if same keys
 			try {
@@ -132,7 +164,30 @@
 			let toShow = keys;
 			if (rows > 0){ const capacity = Math.max(1, cols * rows); toShow = keys.slice(Math.max(0, keys.length - capacity)); }
 			if (overlayCfg?.direction === 'rtl') toShow = Array.from(toShow).reverse();
-			toShow.forEach(k => { const chip = document.createElement('div'); chip.className = 'chip'; chip.dataset.key = k; chip.textContent = k; queueEl.appendChild(chip); });
+			toShow.forEach(k => {
+				const chip = document.createElement('div');
+				chip.className = 'chip';
+				chip.dataset.key = k;
+				chip.textContent = k;
+				
+				// Apply key image if available
+				const imgData = getKeyImage(k);
+				if (imgData && imgData.image) {
+					chip.style.backgroundImage = `url(${imgData.image})`;
+					chip.style.backgroundSize = 'cover';
+					chip.style.backgroundPosition = 'center';
+					// Apply text color/opacity if specified
+					if (imgData.textColor) {
+						chip.style.color = imgData.textColor;
+					}
+					if (typeof imgData.textOpacity === 'number') {
+						chip.style.color = chip.style.color || 'var(--chip-fg)';
+						chip.style.opacity = imgData.textOpacity;
+					}
+				}
+				
+				queueEl.appendChild(chip);
+			});
 		}
 
 		// --- Inline config panel (color pickers + hex) ---
