@@ -81,8 +81,8 @@
 		const wrapEl = document.querySelector('.queue-wrap');
 		let ws; let lastKeys = []; let overlayCfg = null;
 		let keyImagesConfig = null;
-		const STORAGE_KEY_IMAGES = 'keyviewer_key_images';
-		const STORAGE_KEY_HIDE = 'keyviewer_hide_text';
+		const STORAGE_KEY_IMAGES = 'kv_key_images';
+		const STORAGE_KEY_HIDE = 'kv_hide_key_text';
 
 		function applyOverlayConfig(cfg){
 			if (!cfg) return; overlayCfg = cfg; const root = document.documentElement;
@@ -177,17 +177,37 @@
 					chip.style.backgroundSize = 'cover';
 					chip.style.backgroundPosition = 'center';
 					// Apply text color/opacity if specified
-					if (imgData.textColor) {
-						chip.style.color = imgData.textColor;
-					}
+					let textColor = imgData.textColor || 'rgba(255,255,255,1)';
 					if (typeof imgData.textOpacity === 'number') {
-						chip.style.color = chip.style.color || 'var(--chip-fg)';
-						chip.style.opacity = imgData.textOpacity;
+						// Convert hex to rgba with opacity
+						textColor = hexToRgba(textColor, imgData.textOpacity);
 					}
+					chip.style.color = textColor;
 				}
 				
 				queueEl.appendChild(chip);
 			});
+		}
+
+		// --- Helper functions ---
+		function hexToRgba(hex, opacity) {
+			// Convert hex color to rgba with opacity (0-1)
+			if (!hex) return `rgba(255,255,255,${opacity})`;
+			if (hex.startsWith('rgba') || hex.startsWith('rgb')) return hex; // Already rgba
+			let r = 255, g = 255, b = 255;
+			if (hex.startsWith('#')) {
+				const h = hex.slice(1);
+				if (h.length === 3) {
+					r = parseInt(h[0] + h[0], 16);
+					g = parseInt(h[1] + h[1], 16);
+					b = parseInt(h[2] + h[2], 16);
+				} else if (h.length >= 6) {
+					r = parseInt(h.slice(0, 2), 16);
+					g = parseInt(h.slice(2, 4), 16);
+					b = parseInt(h.slice(4, 6), 16);
+				}
+			}
+			return `rgba(${r},${g},${b},${opacity})`;
 		}
 
 		// --- Inline config panel (color pickers + hex) ---
