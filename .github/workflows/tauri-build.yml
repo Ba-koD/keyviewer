@@ -1,10 +1,8 @@
 name: Tauri Build and Release
 
 on:
-  # Trigger after Test workflow completes on main/master
-  workflow_run:
-    workflows: ["Test"]
-    types: [completed]
+  # Run directly on push to main (after merge)
+  push:
     branches: [main, master]
   # Manual trigger
   workflow_dispatch:
@@ -18,8 +16,6 @@ jobs:
   # Read version for all jobs
   prepare:
     runs-on: ubuntu-latest
-    # Only run if Test workflow succeeded (or manual trigger)
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:

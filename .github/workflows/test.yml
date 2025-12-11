@@ -1,10 +1,14 @@
 name: Test
 
 on:
-  push:
-    branches: ['*']
+  # Only run on PR (not on push to main after merge)
   pull_request:
     branches: [master, main]
+  # Run on dev branch push for early feedback
+  push:
+    branches-ignore:
+      - main
+      - master
 
 env:
   CARGO_TERM_COLOR: always
