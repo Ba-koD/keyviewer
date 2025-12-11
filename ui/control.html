@@ -159,6 +159,7 @@
 	<script src="/js/utils.js"></script>
 	<script src="/js/gradient-editor.js"></script>
 	<script src="/js/chip-preview.js"></script>
+	<script src="/js/cloud-auth.js"></script>
 </head>
 <body>
 	<div class="container">
@@ -166,18 +167,24 @@
 			<div class="h1" id="title" style="margin-bottom:0" data-text-ko="Key Queue Viewer 설정" data-text-en="Key Queue Viewer Settings">Key Queue Viewer 설정</div>
 			<div style="flex:1"></div>
 			
-			<!-- GitHub Login (Logged Out) -->
+			<!-- Cloud Login (Logged Out) -->
 			<div id="headerLoggedOut">
-				<button id="headerLoginBtn" class="btn-github" style="padding:6px 12px; font-size:13px">
-					<svg viewBox="0 0 16 16" fill="currentColor" style="width:16px;height:16px"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-					<span data-text-ko="로그인" data-text-en="Login">로그인</span>
+				<button id="headerLoginBtn" style="padding:6px 12px; font-size:13px; background:linear-gradient(135deg, #238636, #1a7f37); border:none; color:#fff; border-radius:6px; cursor:pointer; display:flex; align-items:center; gap:6px">
+					<span>☁️</span>
+					<span data-text-ko="클라우드 로그인" data-text-en="Cloud Login">클라우드 로그인</span>
 				</button>
 			</div>
 			
-			<!-- GitHub Login (Logged In) -->
+			<!-- Cloud Login (Logged In) -->
 			<div id="headerLoggedIn" style="display:none; align-items:center; gap:8px">
-				<img id="headerAvatar" src="" alt="avatar" style="width:28px; height:28px; border-radius:50%; border:2px solid #3fb950"/>
-				<span id="headerUsername" style="font-size:13px; color:#3fb950; font-weight:500"></span>
+				<button id="headerSwitchBtn" style="display:flex; align-items:center; gap:6px; padding:4px 10px; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:6px; cursor:pointer; color:inherit">
+					<span id="headerProviderIcon" style="display:flex; align-items:center">
+						<svg id="iconGithub" viewBox="0 0 16 16" fill="currentColor" style="width:16px;height:16px;display:none"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+						<svg id="iconGoogle" viewBox="0 0 24 24" style="width:16px;height:16px;display:none"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+					</span>
+					<img id="headerAvatar" src="" alt="avatar" style="width:22px; height:22px; border-radius:50%"/>
+					<span id="headerUsername" style="font-size:12px; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap"></span>
+				</button>
 				<button id="headerLogoutBtn" style="padding:4px 8px; font-size:11px; background:transparent; border:1px solid var(--border); color:var(--muted)" data-text-ko="로그아웃" data-text-en="Logout">로그아웃</button>
 			</div>
 			
@@ -800,9 +807,9 @@
 
 				<div class="or-divider" data-text-ko="또는" data-text-en="or">또는</div>
 
-				<!-- Gist ID Import -->
+				<!-- ID/Filename Import -->
 				<div class="gist-section" style="border-top:none; padding-top:0; margin-top:0">
-					<label data-text-ko="Gist ID로 불러오기" data-text-en="Import from Gist ID">Gist ID로 불러오기</label>
+					<label id="importIdLabel" data-text-ko="Gist ID로 불러오기" data-text-en="Import from Gist ID">Gist ID로 불러오기</label>
 					<div style="display:flex; gap:8px; margin-top:6px">
 						<input id="gistImportId" type="text" placeholder="abc123def456..." style="flex:1"/>
 						<button id="gistImportBtn" class="primary" data-text-ko="불러오기" data-text-en="Import">불러오기</button>
@@ -840,10 +847,10 @@
 					<div id="exportPreviewInfo" class="help" style="font-size:12px; line-height:1.6"></div>
 				</div>
 
-				<!-- Gist Export (if logged in) -->
+				<!-- Cloud Export (if logged in) -->
 				<div id="exportGistSection">
 					<div class="gist-section" style="border-top:none; padding-top:0">
-						<label data-text-ko="GitHub Gist로 저장" data-text-en="Save to GitHub Gist">GitHub Gist로 저장</label>
+						<label id="exportCloudLabel" data-text-ko="GitHub Gist로 저장" data-text-en="Save to GitHub Gist">GitHub Gist로 저장</label>
 						<div style="display:flex; gap:8px; margin-top:6px">
 							<input id="gistExportDesc" type="text" placeholder="My KeyViewer Preset" data-placeholder-ko="프리셋 이름" data-placeholder-en="Preset name" style="flex:1"/>
 							<button id="gistExportBtn" class="primary" data-text-ko="저장" data-text-en="Save">저장</button>
@@ -853,7 +860,7 @@
 				</div>
 
 				<div id="exportLoginRequired" style="display:none; padding:12px; background:var(--panel2); border-radius:8px; margin-bottom:14px">
-					<div class="help" data-text-ko="Gist 저장을 위해 로그인이 필요합니다" data-text-en="Login required to save to Gist">Gist 저장을 위해 로그인이 필요합니다</div>
+					<div class="help" data-text-ko="클라우드 저장을 위해 로그인이 필요합니다" data-text-en="Login required to save to cloud">클라우드 저장을 위해 로그인이 필요합니다</div>
 				</div>
 
 				<div class="or-divider" data-text-ko="또는" data-text-en="or">또는</div>
@@ -877,6 +884,19 @@
 
 	<script>
 	(async function(){
+		// ============= Cookie Helpers =============
+		const COOKIE_MAX_AGE = 31536000; // 1 year
+		function getCookie(name) {
+			const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+			return match ? decodeURIComponent(match[2]) : null;
+		}
+		function setCookie(name, value, maxAge = COOKIE_MAX_AGE) {
+			document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}; SameSite=Strict`;
+		}
+		function deleteCookie(name) {
+			document.cookie = `${name}=; path=/; max-age=0; SameSite=Strict`;
+		}
+		
 		const modeEl = document.getElementById('mode');
 		const statusEl = document.getElementById('status');
 		const listEl = null;
@@ -3422,6 +3442,18 @@
 			}
 		}
 
+		// Load style groups from localStorage
+		function loadStyleGroupsFromStorage() {
+			try {
+				const stored = localStorage.getItem('keyviewer_style_groups');
+				if (stored) {
+					styleGroups = JSON.parse(stored);
+				}
+			} catch (e) {
+				console.error('Failed to load style groups:', e);
+			}
+		}
+
 		// Save key images to localStorage
 		function saveKeyImagesToStorage() {
 			try {
@@ -3491,30 +3523,188 @@
 		let userGists = [];
 		let selectedGist = null;
 		let selectedGistData = null;
+		
+		// Google Drive state
+		let googleDriveFiles = [];
+		let selectedDriveFile = null;
+		let selectedDriveFileData = null;
+		let currentCloudProvider = null; // 'github' or 'google'
 
 		// Check for token in URL (returned from OAuth)
 		function checkOAuthCallback() {
 			const urlParams = new URLSearchParams(window.location.search);
-			const token = urlParams.get('github_token');
+			const githubToken = urlParams.get('github_token');
+			const googleToken = urlParams.get('google_token');
 			
-			if (token) {
-				// Save token and clean URL
-				localStorage.setItem('github_token', token);
-				
-				// Remove token from URL for security
-				const cleanUrl = window.location.pathname;
-				window.history.replaceState({}, document.title, cleanUrl);
-				
-				// Validate and show user info
-				validateGitHubToken(token);
-				
-				console.log('[OAuth] Token received from callback');
-			} else {
-				// Check for saved token
-				const savedToken = localStorage.getItem('github_token');
-				if (savedToken) {
-					validateGitHubToken(savedToken);
+			if (githubToken) {
+				// Save GitHub token and clean URL
+				setCookie('kv_github_token', githubToken);
+				window.history.replaceState({}, document.title, window.location.pathname);
+				validateGitHubToken(githubToken);
+				console.log('[OAuth] GitHub token received from callback');
+			} else if (googleToken) {
+				// Handle Google token (CloudAuth will parse it)
+				try {
+					const googleAuth = JSON.parse(atob(googleToken));
+					setCookie('kv_google_auth', JSON.stringify(googleAuth));
+					window.history.replaceState({}, document.title, window.location.pathname);
+					showGoogleUser(googleAuth);
+					console.log('[OAuth] Google token received from callback');
+				} catch (e) {
+					console.error('[OAuth] Failed to parse Google token:', e);
 				}
+			} else {
+				// Check for saved tokens - validate ALL saved tokens
+				const savedGithubToken = getCookie('kv_github_token');
+				const savedGoogleAuth = getCookie('kv_google_auth');
+				const lastProvider = getCookie('kv_last_provider') || 'github';
+				
+				// Validate both tokens in background
+				let githubValid = false;
+				let googleValid = false;
+				
+				// Validate GitHub if exists
+				if (savedGithubToken) {
+					validateGitHubTokenSilent(savedGithubToken).then(valid => {
+						githubValid = valid;
+					});
+				}
+				
+				// Validate Google if exists
+				if (savedGoogleAuth) {
+					try {
+						const auth = JSON.parse(savedGoogleAuth);
+						validateGoogleTokenSilent(auth).then(valid => {
+							googleValid = valid;
+						});
+					} catch (e) {
+						deleteCookie('kv_google_auth');
+					}
+				}
+				
+				// Show the last used provider's UI
+				if (lastProvider === 'google' && savedGoogleAuth) {
+					try {
+						const auth = JSON.parse(savedGoogleAuth);
+						validateGoogleToken(auth);
+					} catch (e) {
+						deleteCookie('kv_google_auth');
+						if (savedGithubToken) validateGitHubToken(savedGithubToken);
+					}
+				} else if (savedGithubToken) {
+					validateGitHubToken(savedGithubToken);
+				} else if (savedGoogleAuth) {
+					try {
+						const auth = JSON.parse(savedGoogleAuth);
+						validateGoogleToken(auth);
+					} catch (e) {
+						deleteCookie('kv_google_auth');
+					}
+				}
+			}
+		}
+		
+		// Show Google user info in header
+		function showGoogleUser(auth) {
+			// Update header with Google icon
+			const iconGithub = document.getElementById('iconGithub');
+			const iconGoogle = document.getElementById('iconGoogle');
+			if (iconGithub) iconGithub.style.display = 'none';
+			if (iconGoogle) iconGoogle.style.display = 'block';
+			// Use Google profile picture if available, fallback to placeholder
+			headerAvatar.src = auth.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(auth.email)}&background=4285f4&color=fff`;
+			headerUsername.textContent = auth.email;
+			headerLoggedIn.style.display = 'flex';
+			headerLoggedOut.style.display = 'none';
+			
+			// Store for later use
+			window.googleAuth = auth;
+			currentCloudProvider = 'google';
+			setCookie('kv_last_provider', 'google');
+			
+			// Show export section (same UI for both providers)
+			exportGistSection.style.display = 'block';
+			exportLoginRequired.style.display = 'none';
+			
+			// Update import UI labels for Google Drive
+			updateImportLabels();
+			
+			// Load presets from Google Drive (auto-creates folder if needed)
+			loadGoogleDrivePresets();
+		}
+		
+		// Update import/export modal labels based on provider
+		function updateImportLabels() {
+			const importIdLabel = document.getElementById('importIdLabel');
+			const gistImportIdInput = document.getElementById('gistImportId');
+			const exportCloudLabel = document.getElementById('exportCloudLabel');
+			
+			if (currentCloudProvider === 'google') {
+				// Update import labels for Google Drive
+				if (importIdLabel) {
+					importIdLabel.textContent = currentLanguage === 'ko' ? '파일명으로 불러오기' : 'Import by Filename';
+					importIdLabel.setAttribute('data-text-ko', '파일명으로 불러오기');
+					importIdLabel.setAttribute('data-text-en', 'Import by Filename');
+				}
+				if (gistImportIdInput) {
+					gistImportIdInput.placeholder = 'preset-name.json';
+				}
+				// Update export label for Google Drive
+				if (exportCloudLabel) {
+					exportCloudLabel.textContent = currentLanguage === 'ko' ? 'Google Drive로 저장' : 'Save to Google Drive';
+					exportCloudLabel.setAttribute('data-text-ko', 'Google Drive로 저장');
+					exportCloudLabel.setAttribute('data-text-en', 'Save to Google Drive');
+				}
+			} else {
+				// Update import labels for GitHub
+				if (importIdLabel) {
+					importIdLabel.textContent = currentLanguage === 'ko' ? 'Gist ID로 불러오기' : 'Import from Gist ID';
+					importIdLabel.setAttribute('data-text-ko', 'Gist ID로 불러오기');
+					importIdLabel.setAttribute('data-text-en', 'Import from Gist ID');
+				}
+				if (gistImportIdInput) {
+					gistImportIdInput.placeholder = 'abc123def456...';
+				}
+				// Update export label for GitHub
+				if (exportCloudLabel) {
+					exportCloudLabel.textContent = currentLanguage === 'ko' ? 'GitHub Gist로 저장' : 'Save to GitHub Gist';
+					exportCloudLabel.setAttribute('data-text-ko', 'GitHub Gist로 저장');
+					exportCloudLabel.setAttribute('data-text-en', 'Save to GitHub Gist');
+				}
+			}
+		}
+
+		// Silent validation - just refresh tokens in background without UI update
+		async function validateGitHubTokenSilent(token) {
+			try {
+				const res = await fetch('https://api.github.com/user', {
+					headers: {
+						'Authorization': `token ${token}`,
+						'Accept': 'application/vnd.github.v3+json'
+					}
+				});
+				return res.ok;
+			} catch (e) {
+				return false;
+			}
+		}
+		
+		async function validateGoogleTokenSilent(auth) {
+			try {
+				const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+					headers: { 'Authorization': `Bearer ${auth.access_token}` }
+				});
+				
+				if (res.ok) {
+					return true;
+				} else if (res.status === 401 && auth.refresh_token) {
+					// Try to refresh
+					const newToken = await CloudAuth.refreshGoogleToken();
+					return !!newToken;
+				}
+				return false;
+			} catch (e) {
+				return false;
 			}
 		}
 
@@ -3534,7 +3724,7 @@
 					console.log('[OAuth] User validated:', githubUser.login);
 				} else {
 					// Token invalid, clear it
-					localStorage.removeItem('github_token');
+					deleteCookie('kv_github_token');
 					showGitHubLoggedOut();
 					console.log('[OAuth] Token invalid, cleared');
 				}
@@ -3544,21 +3734,76 @@
 			}
 		}
 
+		// Validate Google token and refresh if needed
+		async function validateGoogleToken(auth) {
+			try {
+				// Try to get user info with current access token
+				const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+					headers: { 'Authorization': `Bearer ${auth.access_token}` }
+				});
+				
+				if (res.ok) {
+					const userData = await res.json();
+					// Update auth with fresh user data
+					auth.email = userData.email;
+					auth.picture = userData.picture;
+					setCookie('kv_google_auth', JSON.stringify(auth));
+					showGoogleUser(auth);
+					console.log('[OAuth] Google token valid:', auth.email);
+				} else if (res.status === 401 && auth.refresh_token) {
+					// Token expired, try to refresh
+					console.log('[OAuth] Google token expired, refreshing...');
+					const newToken = await CloudAuth.refreshGoogleToken();
+					if (newToken) {
+						// Re-validate with new token
+						const updatedAuth = JSON.parse(getCookie('kv_google_auth'));
+						showGoogleUser(updatedAuth);
+						console.log('[OAuth] Google token refreshed successfully');
+					} else {
+						// Refresh failed, logout
+						deleteCookie('kv_google_auth');
+						showGitHubLoggedOut();
+						console.log('[OAuth] Google token refresh failed');
+					}
+				} else {
+					// Token invalid and no refresh token
+					deleteCookie('kv_google_auth');
+					showGitHubLoggedOut();
+					console.log('[OAuth] Google token invalid, cleared');
+				}
+			} catch (e) {
+				console.error('[OAuth] Google validation error:', e);
+				showGitHubLoggedOut();
+			}
+		}
+
 		function showGitHubUser(user) {
-			// Update header
+			// Update header with GitHub icon
+			const iconGithub = document.getElementById('iconGithub');
+			const iconGoogle = document.getElementById('iconGoogle');
+			if (iconGithub) iconGithub.style.display = 'block';
+			if (iconGoogle) iconGoogle.style.display = 'none';
 			headerAvatar.src = user.avatar_url;
 			headerUsername.textContent = user.name || user.login;
 			headerLoggedIn.style.display = 'flex';
 			headerLoggedOut.style.display = 'none';
+			currentCloudProvider = 'github';
+			setCookie('kv_last_provider', 'github');
 			
 			// Update export modal
 			exportGistSection.style.display = 'block';
 			exportLoginRequired.style.display = 'none';
+			
+			// Update import UI labels for GitHub
+			updateImportLabels();
+			
+			// Load gists
+			loadUserGists();
 		}
 
 		// Load user's gists that contain keyviewer preset
 		async function loadUserGists() {
-			const token = localStorage.getItem('github_token');
+			const token = getCookie('kv_github_token');
 			if (!token) {
 				gistListContainer.innerHTML = `<div class="help" style="text-align:center; padding:12px">${currentLanguage === 'ko' ? '로그인이 필요합니다' : 'Login required'}</div>`;
 				return;
@@ -3639,7 +3884,7 @@
 
 			// Fetch full gist data to show preview
 			try {
-				const token = localStorage.getItem('github_token');
+				const token = getCookie('kv_github_token');
 				const res = await fetch(`https://api.github.com/gists/${selectedGist.id}`, {
 					headers: token ? { 'Authorization': `token ${token}` } : {}
 				});
@@ -3689,14 +3934,119 @@
 			}
 		}
 
-		// Load selected gist
+		// ============= Google Drive Functions =============
+		async function loadGoogleDrivePresets() {
+			if (!window.googleAuth) {
+				gistListContainer.innerHTML = `<div class="help" style="text-align:center; padding:12px">${currentLanguage === 'ko' ? '로그인이 필요합니다' : 'Login required'}</div>`;
+				return;
+			}
+			
+			currentCloudProvider = 'google';
+			gistListContainer.innerHTML = `<div class="help" style="text-align:center; padding:12px">${currentLanguage === 'ko' ? '불러오는 중...' : 'Loading...'}</div>`;
+			gistPreviewSection.style.display = 'none';
+			
+			try {
+				// This will auto-create folder if needed
+				const files = await CloudAuth.GoogleDrive.listFiles();
+				console.log('[GoogleDrive] Files found:', files.length);
+				
+				// Filter only JSON files (presets)
+				googleDriveFiles = files.filter(f => f.name.endsWith('.json'));
+				renderGoogleDriveList();
+			} catch (e) {
+				console.error('[GoogleDrive] Failed to load:', e);
+				gistListContainer.innerHTML = `<div class="help" style="text-align:center; padding:12px; color:#ff5b5b">${currentLanguage === 'ko' ? '불러오기 실패' : 'Failed to load'}</div>`;
+			}
+		}
+		
+		function renderGoogleDriveList() {
+			if (googleDriveFiles.length === 0) {
+				gistListContainer.innerHTML = `<div class="help" style="text-align:center; padding:12px">${currentLanguage === 'ko' ? '저장된 프리셋이 없습니다' : 'No saved presets'}</div>`;
+				return;
+			}
+			
+			gistListContainer.innerHTML = googleDriveFiles.map((f, idx) => {
+				const date = new Date(f.modifiedTime).toLocaleDateString(currentLanguage === 'ko' ? 'ko-KR' : 'en-US');
+				const name = f.name.replace('.json', '');
+				return `<div class="gist-item" data-idx="${idx}">
+					<div style="flex:1">
+						<div class="gist-name">${name}</div>
+						<div class="gist-date">${date}</div>
+					</div>
+				</div>`;
+			}).join('');
+			
+			// Add click handlers
+			gistListContainer.querySelectorAll('.gist-item').forEach(item => {
+				item.addEventListener('click', () => selectGoogleDriveFile(parseInt(item.dataset.idx)));
+			});
+		}
+		
+		async function selectGoogleDriveFile(idx) {
+			// Update UI selection
+			gistListContainer.querySelectorAll('.gist-item').forEach((item, i) => {
+				item.classList.toggle('selected', i === idx);
+			});
+			
+			selectedDriveFile = googleDriveFiles[idx];
+			selectedDriveFileData = null;
+			
+			// Show preview section
+			gistPreviewSection.style.display = 'block';
+			const name = selectedDriveFile.name.replace('.json', '');
+			gistPreviewName.textContent = name;
+			gistPreviewDate.textContent = new Date(selectedDriveFile.modifiedTime).toLocaleString(currentLanguage === 'ko' ? 'ko-KR' : 'en-US');
+			gistPreviewInfo.textContent = currentLanguage === 'ko' ? '정보 불러오는 중...' : 'Loading info...';
+			
+			try {
+				// Load file content
+				selectedDriveFileData = await CloudAuth.GoogleDrive.loadFile(selectedDriveFile.name);
+				
+				if (selectedDriveFileData) {
+					// Build preview info (same format as gist)
+					let info = [];
+					if (selectedDriveFileData.version >= 3) {
+						const keyCount = Object.keys(selectedDriveFileData.keyImages?.individual || {}).length;
+						const styleGroupCount = (selectedDriveFileData.styleGroups || []).length;
+						const hasAllKeysImage = selectedDriveFileData.keyImages?.allKeys?.image ? 1 : 0;
+						info.push(`${currentLanguage === 'ko' ? '개별 키' : 'Individual keys'}: ${keyCount}`);
+						info.push(`${currentLanguage === 'ko' ? '스타일 그룹' : 'Style groups'}: ${styleGroupCount}`);
+						if (hasAllKeysImage) info.push(`${currentLanguage === 'ko' ? '전체 키 이미지' : 'All keys image'}`);
+						if (selectedDriveFileData.overlay) info.push(`${currentLanguage === 'ko' ? '오버레이 설정' : 'Overlay settings'}`);
+						info.push('(v3)');
+					} else if (selectedDriveFileData.version === 2) {
+						const keyCount = Object.keys(selectedDriveFileData.keyImages?.individual || {}).length;
+						const groupCount = (selectedDriveFileData.keyImages?.groups || []).length;
+						info.push(`${currentLanguage === 'ko' ? '키 이미지' : 'Key images'}: ${keyCount}`);
+						info.push(`${currentLanguage === 'ko' ? '그룹' : 'Groups'}: ${groupCount}`);
+						if (selectedDriveFileData.overlay) info.push(`${currentLanguage === 'ko' ? '오버레이 설정 포함' : 'Includes overlay settings'}`);
+						info.push('(v2)');
+					} else {
+						const keyCount = Object.keys(selectedDriveFileData.individual || {}).length;
+						const groupCount = (selectedDriveFileData.groups || []).length;
+						info.push(`${currentLanguage === 'ko' ? '키 이미지' : 'Key images'}: ${keyCount}`);
+						info.push(`${currentLanguage === 'ko' ? '그룹' : 'Groups'}: ${groupCount}`);
+						info.push('(v1)');
+					}
+					gistPreviewInfo.textContent = info.join(' · ');
+				}
+			} catch (e) {
+				console.error('[GoogleDrive] Failed to load file:', e);
+				gistPreviewInfo.textContent = currentLanguage === 'ko' ? '정보 불러오기 실패' : 'Failed to load info';
+			}
+		}
+
+		// Load selected preset (works for both GitHub and Google Drive)
 		loadSelectedGist.addEventListener('click', async () => {
-			if (!selectedGistData) {
+			// Check which provider's data to use
+			const dataToLoad = currentCloudProvider === 'google' ? selectedDriveFileData : selectedGistData;
+			
+			if (!dataToLoad) {
 				alert(currentLanguage === 'ko' ? '프리셋을 선택하세요' : 'Please select a preset');
 				return;
 			}
 
-			await processImportedData(selectedGistData);
+			await processImportedData(dataToLoad);
 			alert(currentLanguage === 'ko' ? '불러오기 성공!' : 'Import successful!');
 		});
 
@@ -3706,7 +4056,17 @@
 			selectedGist = null;
 			selectedGistData = null;
 			
-			// Update header
+			// Reset Google Drive state too
+			googleDriveFiles = [];
+			selectedDriveFile = null;
+			selectedDriveFileData = null;
+			currentCloudProvider = null;
+			
+			// Update header - hide both provider icons
+			const iconGithub = document.getElementById('iconGithub');
+			const iconGoogle = document.getElementById('iconGoogle');
+			if (iconGithub) iconGithub.style.display = 'none';
+			if (iconGoogle) iconGoogle.style.display = 'none';
 			headerLoggedIn.style.display = 'none';
 			headerLoggedOut.style.display = 'block';
 			
@@ -3721,7 +4081,12 @@
 		// Modal open/close handlers
 		headerImportBtn.addEventListener('click', () => {
 			modalImport.style.display = 'flex';
-			if (githubUser) loadUserGists();
+			// Load presets based on current provider
+			if (currentCloudProvider === 'google' && window.googleAuth) {
+				loadGoogleDrivePresets();
+			} else if (githubUser) {
+				loadUserGists();
+			}
 		});
 		
 		headerExportBtn.addEventListener('click', () => {
@@ -3799,28 +4164,73 @@
 			modalExport.style.display = 'none';
 		});
 
-		// Header GitHub Login button
+		// Header Cloud Login button - shows modal
 		headerLoginBtn.addEventListener('click', () => {
-			const port = window.location.port || '8000';
-			const path = window.location.pathname || '/control';
-			const authUrl = `${OAUTH_PROXY_URL}/auth?port=${port}&path=${encodeURIComponent(path)}`;
-			
-			window.location.href = authUrl;
+			if (typeof CloudAuth !== 'undefined') {
+				CloudAuth.showModal();
+			} else {
+				// Fallback to GitHub only
+				const port = window.location.port || '8000';
+				const path = window.location.pathname || '/control';
+				const authUrl = `${OAUTH_PROXY_URL}/auth?port=${port}&path=${encodeURIComponent(path)}`;
+				window.location.href = authUrl;
+			}
 		});
 
-		// Header GitHub Logout button
+		// Header Switch button (click on logged-in user to switch accounts)
+		const headerSwitchBtn = document.getElementById('headerSwitchBtn');
+		if (headerSwitchBtn) {
+			headerSwitchBtn.addEventListener('click', () => {
+				if (typeof CloudAuth !== 'undefined') {
+					CloudAuth.showModal();
+				}
+			});
+		}
+
+		// Header Logout button
 		headerLogoutBtn.addEventListener('click', () => {
-			localStorage.removeItem('github_token');
+			deleteCookie('kv_github_token');
+			deleteCookie('kv_google_auth');
+			deleteCookie('kv_last_provider');
+			if (typeof CloudAuth !== 'undefined') {
+				CloudAuth.clearAuth();
+			}
 			showGitHubLoggedOut();
+			window.googleAuth = null;
+			githubUser = null;
 		});
 
-		// Refresh gist list button
+		// Refresh list button (works for both GitHub and Google Drive)
 		refreshGistList.addEventListener('click', () => {
-			if (githubUser) loadUserGists();
+			if (currentCloudProvider === 'google' && window.googleAuth) {
+				loadGoogleDrivePresets();
+			} else if (githubUser) {
+				loadUserGists();
+			}
 		});
 
 		// Initialize OAuth on page load
 		checkOAuthCallback();
+		
+		// Load key images and style groups data from localStorage for export
+		loadKeyImagesFromStorage();
+		loadStyleGroupsFromStorage();
+		
+		// Listen for auth success events from CloudAuth (when existing tokens are used)
+		window.addEventListener('google-auth-success', (e) => {
+			console.log('[OAuth] Google auth success event received');
+			if (e.detail) {
+				showGoogleUser(e.detail);
+			}
+		});
+		
+		window.addEventListener('github-auth-success', (e) => {
+			console.log('[OAuth] GitHub auth success event received');
+			if (e.detail) {
+				githubUser = e.detail;
+				showGitHubUser(e.detail);
+			}
+		});
 
 		// ==================== Gist Import/Export ====================
 		// Get current overlay config for export
@@ -3914,14 +4324,9 @@
 			});
 		}
 
-		gistExportBtn.addEventListener('click', async () => {
-			const token = localStorage.getItem('github_token');
-			if (!token) {
-				alert(currentLanguage === 'ko' ? '로그인이 필요합니다' : 'Login required');
-				return;
-			}
-			const desc = gistExportDesc.value.trim() || 'KeyViewer Preset';
-			const data = { 
+		// Create export data (shared by all export methods)
+		function createExportData() {
+			return {
 				keyImages: { 
 					individual: keyImagesData, 
 					groups: keyGroupsData,
@@ -3929,71 +4334,144 @@
 				},
 				styleGroups: getStyleGroupsForExport(),
 				overlay: getOverlayConfigForExport(),
-				version: 3  // Bump version to 3 for style groups support
+				version: 3
 			};
+		}
+
+		let isExporting = false;
+		
+		function updateExportProgress(percent, message) {
+			gistExportResult.style.display = 'block';
+			gistExportResult.innerHTML = `<div style="display:flex;align-items:center;gap:8px">
+				<div style="flex:1;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden">
+					<div style="width:${percent}%;height:100%;background:linear-gradient(90deg,#238636,#2ea043);transition:width 0.3s"></div>
+				</div>
+				<span style="font-size:12px;color:#888">${percent}%</span>
+			</div>
+			<div style="font-size:12px;color:#aaa;margin-top:4px">${message}</div>`;
+		}
+		
+		gistExportBtn.addEventListener('click', async () => {
+			// Prevent double click
+			if (isExporting) {
+				alert(currentLanguage === 'ko' ? '내보내는 중입니다. 잠시 기다려주세요.' : 'Export in progress. Please wait.');
+				return;
+			}
+			
+			const desc = gistExportDesc.value.trim() || 'KeyViewer Preset';
+			
+			isExporting = true;
+			gistExportBtn.disabled = true;
+			gistExportBtn.style.opacity = '0.6';
 			
 			try {
-				const response = await fetch('https://api.github.com/gists', {
-					method: 'POST',
-					headers: {
-						'Authorization': `token ${token}`,
-						'Content-Type': 'application/json'
-					},
-					body: JSON.stringify({
-						description: desc,
-						public: false,
-						files: {
-							'keyviewer-preset.json': { content: JSON.stringify(data, null, 2) }
-						}
-					})
-				});
+				// Step 1: Prepare data
+				updateExportProgress(10, currentLanguage === 'ko' ? '데이터 준비 중...' : 'Preparing data...');
+				const data = createExportData();
+				await new Promise(r => setTimeout(r, 100)); // Small delay for UI update
 				
-				if (response.ok) {
-					const result = await response.json();
+				// Step 2: Serialize
+				updateExportProgress(30, currentLanguage === 'ko' ? '데이터 직렬화 중...' : 'Serializing data...');
+				const jsonContent = JSON.stringify(data, null, 2);
+				await new Promise(r => setTimeout(r, 100));
+				
+				// Export based on current provider
+				if (currentCloudProvider === 'google' && window.googleAuth) {
+					// Google Drive export
+					updateExportProgress(50, currentLanguage === 'ko' ? 'Google Drive에 업로드 중...' : 'Uploading to Google Drive...');
+					
+					const filename = desc.replace(/[^a-zA-Z0-9가-힣\s]/g, '').trim() + '.json';
+					await CloudAuth.GoogleDrive.saveFile(filename, data);
+					
+					updateExportProgress(100, currentLanguage === 'ko' ? '완료!' : 'Complete!');
+					await new Promise(r => setTimeout(r, 500));
+					
 					gistExportResult.style.display = 'block';
-					gistExportResult.innerHTML = `${currentLanguage === 'ko' ? '성공! Gist ID:' : 'Success! Gist ID:'} <code style="background:#2a3040; padding:2px 6px; border-radius:4px">${result.id}</code>`;
+					gistExportResult.innerHTML = `${currentLanguage === 'ko' ? '✅ 성공! Google Drive에 저장됨:' : '✅ Success! Saved to Google Drive:'} <code style="background:#2a3040; padding:2px 6px; border-radius:4px">${filename}</code>`;
+					// Refresh list
+					loadGoogleDrivePresets();
 				} else {
-					throw new Error('Failed to create gist');
+					// GitHub Gist export
+					const token = getCookie('kv_github_token');
+					if (!token) {
+						throw new Error(currentLanguage === 'ko' ? '로그인이 필요합니다' : 'Login required');
+					}
+					
+					updateExportProgress(50, currentLanguage === 'ko' ? 'GitHub Gist에 업로드 중...' : 'Uploading to GitHub Gist...');
+					
+					const response = await fetch('https://api.github.com/gists', {
+						method: 'POST',
+						headers: {
+							'Authorization': `token ${token}`,
+							'Content-Type': 'application/json'
+						},
+						body: JSON.stringify({
+							description: desc,
+							public: false,
+							files: {
+								'keyviewer-preset.json': { content: jsonContent }
+							}
+						})
+					});
+					
+					updateExportProgress(90, currentLanguage === 'ko' ? '응답 처리 중...' : 'Processing response...');
+					
+					if (response.ok) {
+						const result = await response.json();
+						updateExportProgress(100, currentLanguage === 'ko' ? '완료!' : 'Complete!');
+						await new Promise(r => setTimeout(r, 500));
+						
+						gistExportResult.style.display = 'block';
+						gistExportResult.innerHTML = `${currentLanguage === 'ko' ? '✅ 성공! Gist ID:' : '✅ Success! Gist ID:'} <code style="background:#2a3040; padding:2px 6px; border-radius:4px">${result.id}</code>`;
+						// Refresh list
+						loadUserGists();
+					} else {
+						throw new Error('Failed to create gist');
+					}
 				}
 			} catch (e) {
-				alert(currentLanguage === 'ko' ? 'Gist 생성 실패: ' + e.message : 'Failed to create gist: ' + e.message);
+				gistExportResult.style.display = 'block';
+				gistExportResult.innerHTML = `<span style="color:#ff5b5b">❌ ${currentLanguage === 'ko' ? '실패:' : 'Failed:'} ${e.message}</span>`;
+			} finally {
+				isExporting = false;
+				gistExportBtn.disabled = false;
+				gistExportBtn.style.opacity = '1';
 			}
 		});
 
 		gistImportBtn.addEventListener('click', async () => {
-			const gistId = gistImportId.value.trim();
-			if (!gistId) {
-				alert(currentLanguage === 'ko' ? 'Gist ID를 입력하세요' : 'Please enter Gist ID');
+			const inputValue = gistImportId.value.trim();
+			if (!inputValue) {
+				const placeholder = currentCloudProvider === 'google' 
+					? (currentLanguage === 'ko' ? '파일명을 입력하세요' : 'Please enter filename')
+					: (currentLanguage === 'ko' ? 'Gist ID를 입력하세요' : 'Please enter Gist ID');
+				alert(placeholder);
 				return;
 			}
 			
 			try {
-				const response = await fetch(`https://api.github.com/gists/${gistId}`);
-				if (!response.ok) throw new Error('Gist not found');
+				let data;
 				
-				const result = await response.json();
-				const file = result.files['keyviewer-preset.json'];
-				if (!file) throw new Error('Invalid preset file');
-				
-				const data = JSON.parse(file.content);
-				
-				// Support both v1 (flat) and v2 (nested) formats
-				if (data.version === 2) {
-					// Version 2: nested format
-					keyImagesData = data.keyImages?.individual || {};
-					keyGroupsData = data.keyImages?.groups || [];
-					if (data.overlay) {
-						await applyImportedOverlayConfig(data.overlay);
-					}
+				if (currentCloudProvider === 'google' && window.googleAuth) {
+					// Google Drive: load by filename
+					const filename = inputValue.endsWith('.json') ? inputValue : inputValue + '.json';
+					data = await CloudAuth.GoogleDrive.loadFile(filename);
+					if (!data) throw new Error(currentLanguage === 'ko' ? '파일을 찾을 수 없습니다' : 'File not found');
 				} else {
-					// Version 1: flat format (backward compatibility)
-					keyImagesData = data.individual || {};
-					keyGroupsData = data.groups || [];
+					// GitHub Gist: load by Gist ID
+					const response = await fetch(`https://api.github.com/gists/${inputValue}`);
+					if (!response.ok) throw new Error('Gist not found');
+					
+					const result = await response.json();
+					const file = result.files['keyviewer-preset.json'];
+					if (!file) throw new Error('Invalid preset file');
+					
+					data = JSON.parse(file.content);
 				}
 				
-				saveKeyImagesToStorage();
-				renderStyleGroupsList(); // Refresh style groups list
-				alert(currentLanguage === 'ko' ? '불러오기 성공! (키 이미지 + 오버레이 설정)' : 'Import successful! (Key images + Overlay settings)');
+				// Process imported data using common function
+				await processImportedData(data);
+				alert(currentLanguage === 'ko' ? '불러오기 성공!' : 'Import successful!');
 			} catch (e) {
 				alert(currentLanguage === 'ko' ? '불러오기 실패: ' + e.message : 'Import failed: ' + e.message);
 			}
@@ -4001,16 +4479,7 @@
 
 		// JSON Export/Import
 		jsonExportBtn.addEventListener('click', async () => {
-			const data = { 
-				keyImages: { 
-					individual: keyImagesData, 
-					groups: keyGroupsData,
-					allKeys: allKeysData
-				},
-				styleGroups: getStyleGroupsForExport(),
-				overlay: getOverlayConfigForExport(),
-				version: 3  // Bump version to 3 for style groups support
-			};
+			const data = createExportData();
 			const json = JSON.stringify(data, null, 2);
 			try {
 				await navigator.clipboard.writeText(json);

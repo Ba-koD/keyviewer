@@ -33,6 +33,7 @@ const FAVICON: &[u8] = include_bytes!("../../ui/favicon.ico");
 const JS_UTILS: &str = include_str!("../../ui/js/utils.js");
 const JS_GRADIENT_EDITOR: &str = include_str!("../../ui/js/gradient-editor.js");
 const JS_CHIP_PREVIEW: &str = include_str!("../../ui/js/chip-preview.js");
+const JS_CLOUD_AUTH: &str = include_str!("../../ui/js/cloud-auth.js");
 
 type SharedState = Arc<RwLock<AppState>>;
 
@@ -196,6 +197,7 @@ fn create_router(state: SharedState) -> Router {
         .route("/js/utils.js", get(get_js_utils))
         .route("/js/gradient-editor.js", get(get_js_gradient_editor))
         .route("/js/chip-preview.js", get(get_js_chip_preview))
+        .route("/js/cloud-auth.js", get(get_js_cloud_auth))
         .route("/ws", get(websocket_handler))
         .route("/api/windows", get(api_windows))
         .route("/api/foreground", get(api_foreground))
@@ -316,6 +318,20 @@ async fn get_js_chip_preview() -> impl IntoResponse {
             "no-cache, no-store, must-revalidate, max-age=0",
         )
         .body(Body::from(JS_CHIP_PREVIEW))
+        .unwrap()
+}
+
+async fn get_js_cloud_auth() -> impl IntoResponse {
+    Response::builder()
+        .header(
+            header::CONTENT_TYPE,
+            "application/javascript; charset=utf-8",
+        )
+        .header(
+            header::CACHE_CONTROL,
+            "no-cache, no-store, must-revalidate, max-age=0",
+        )
+        .body(Body::from(JS_CLOUD_AUTH))
         .unwrap()
 }
 
