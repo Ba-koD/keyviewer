@@ -1,10 +1,8 @@
 name: Test
 
 on:
-  # Only run on PR (not on push to main after merge)
-  pull_request:
-    branches: [master, main]
-  # Run on dev branch push for early feedback
+  # Run on push to all branches except main/master
+  # PR will use the push result (no duplicate runs)
   push:
     branches-ignore:
       - main
