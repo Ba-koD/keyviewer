@@ -32,6 +32,14 @@ if ! command -v cargo-tauri &> /dev/null; then
 fi
 echo "✓ Tauri CLI found"
 
+# Format code before build
+echo ""
+echo "Formatting code..."
+cd src-tauri
+cargo fmt
+cd ..
+echo "✓ Code formatted"
+
 # Read version from version.txt
 echo ""
 echo "Reading version..."
