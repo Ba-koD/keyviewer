@@ -46,19 +46,13 @@ jobs:
         workspaces: './src-tauri -> target'
         cache-on-failure: true
 
-    - name: Cache Tauri CLI
-      id: cache-tauri
-      uses: actions/cache@v4
-      with:
-        path: ~/.cargo/bin/cargo-tauri.exe
-        key: ${{ runner.os }}-tauri-cli-2.0
-        restore-keys: |
-          ${{ runner.os }}-tauri-cli-
-
-    - name: Install Tauri CLI
-      if: steps.cache-tauri.outputs.cache-hit != 'true'
+    - name: Install Tauri CLI (binstall)
       shell: pwsh
-      run: cargo install tauri-cli --version "^2.0.0" --locked
+      run: |
+        if (-not (Get-Command cargo-tauri -ErrorAction SilentlyContinue)) {
+          cargo install cargo-binstall --locked
+          cargo binstall tauri-cli --no-confirm
+        }
 
     - name: Generate icon.png
       shell: pwsh
@@ -126,18 +120,12 @@ jobs:
         workspaces: './src-tauri -> target'
         cache-on-failure: true
 
-    - name: Cache Tauri CLI
-      id: cache-tauri
-      uses: actions/cache@v4
-      with:
-        path: ~/.cargo/bin/cargo-tauri
-        key: ${{ runner.os }}-tauri-cli-2.0
-        restore-keys: |
-          ${{ runner.os }}-tauri-cli-
-
-    - name: Install Tauri CLI
-      if: steps.cache-tauri.outputs.cache-hit != 'true'
-      run: cargo install tauri-cli --version "^2.0.0" --locked
+    - name: Install Tauri CLI (binstall)
+      run: |
+        if ! command -v cargo-tauri &> /dev/null; then
+          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+          cargo binstall tauri-cli --no-confirm
+        fi
 
     - name: Ensure icon.png
       run: |
@@ -186,18 +174,12 @@ jobs:
         workspaces: './src-tauri -> target'
         cache-on-failure: true
 
-    - name: Cache Tauri CLI
-      id: cache-tauri
-      uses: actions/cache@v4
-      with:
-        path: ~/.cargo/bin/cargo-tauri
-        key: ${{ runner.os }}-tauri-cli-2.0
-        restore-keys: |
-          ${{ runner.os }}-tauri-cli-
-
-    - name: Install Tauri CLI
-      if: steps.cache-tauri.outputs.cache-hit != 'true'
-      run: cargo install tauri-cli --version "^2.0.0" --locked
+    - name: Install Tauri CLI (binstall)
+      run: |
+        if ! command -v cargo-tauri &> /dev/null; then
+          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+          cargo binstall tauri-cli --no-confirm
+        fi
 
     - name: Import Code Signing Certificate
       if: ${{ env.MACOS_SIGNING_CERT != '' }}
@@ -265,18 +247,6 @@ jobs:
           fi
         done
 
-    - name: Prepare dist folder
-      run: |
-        mkdir -p dist/macos
-        cp -f src-tauri/target/release/bundle/dmg/*.dmg dist/macos/ || true
-        # Copy .app bundle as zip to keep structure in a single file
-        if compgen -G "src-tauri/target/release/bundle/macos/*.app" > /dev/null; then
-          for app in src-tauri/target/release/bundle/macos/*.app; do
-            name=$(basename "$app")
-            zip -rq "dist/macos/${name%.app}.zip" "$app"
-          done
-        fi
-
     - name: Cleanup Keychain
       if: always()
       run: |
@@ -291,22 +261,6 @@ jobs:
         name: macos-dmg-${{ needs.prepare.outputs.version }}
         path: |
           src-tauri/target/release/bundle/dmg/*.dmg
-
-    - name: Upload App artifact
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: macos-app-${{ needs.prepare.outputs.version }}
-        path: |
-          src-tauri/target/release/bundle/macos/*.app
-
-    - name: Upload dist macos bundle
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: macos-dist-${{ needs.prepare.outputs.version }}
-        path: |
-          dist/macos/*
 
   release:
     needs: [prepare, build-windows-portable, build-linux, build-macos]
@@ -368,15 +322,6 @@ jobs:
         else
           checklist="${checklist}- ❌ macOS DMG (Build Failed)\n"
           echo "macos_dmg=false" >> $GITHUB_OUTPUT
-        fi
-        
-        # Check macOS App
-        if [ -d "./artifacts/macos-app-${{ needs.prepare.outputs.version }}" ] && [ "$(ls -A ./artifacts/macos-app-${{ needs.prepare.outputs.version }})" ]; then
-          checklist="${checklist}- ✅ macOS App Bundle\n"
-          echo "macos_app=true" >> $GITHUB_OUTPUT
-        else
-          checklist="${checklist}- ❌ macOS App Bundle (Build Failed)\n"
-          echo "macos_app=false" >> $GITHUB_OUTPUT
         fi
         
         # Save checklist (escape newlines for GitHub Actions)
@@ -449,10 +394,6 @@ jobs:
         
         if [ -d "./artifacts/macos-dmg-${{ needs.prepare.outputs.version }}" ]; then
           cp -r ./artifacts/macos-dmg-${{ needs.prepare.outputs.version }}/* ./release-files/ || true
-        fi
-        
-        if [ -d "./artifacts/macos-app-${{ needs.prepare.outputs.version }}" ]; then
-          cp -r ./artifacts/macos-app-${{ needs.prepare.outputs.version }}/* ./release-files/ || true
         fi
         
         echo "Release files prepared:"
