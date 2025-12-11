@@ -6,9 +6,8 @@ on:
   workflow_dispatch:
 
 # Optimize build speed with caching
-# - Rust toolchain and dependencies are cached
-# - Tauri CLI is cached to avoid reinstalling (saves ~3-5 minutes per build)
-# - Linux apt packages are cached
+# - Rust dependencies are cached (swatinem/rust-cache)
+# - Tauri CLI is cached to avoid reinstalling
 # - All platform builds run in parallel
 
 jobs:
@@ -109,13 +108,6 @@ jobs:
 
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
-
-    - name: Cache apt packages
-      uses: actions/cache@v4
-      id: cache-apt
-      with:
-        path: /var/cache/apt/archives
-        key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/tauri-build.yml') }}
 
     - name: Install dependencies
       run: |
