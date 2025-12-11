@@ -46,6 +46,12 @@ jobs:
         workspaces: './src-tauri -> target'
         cache-on-failure: true
 
+    - name: Cache Cargo bin
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/bin
+        key: ${{ runner.os }}-cargo-bin-tauri-2.0
+
     - name: Install Tauri CLI (binstall)
       shell: pwsh
       run: |
@@ -120,6 +126,12 @@ jobs:
         workspaces: './src-tauri -> target'
         cache-on-failure: true
 
+    - name: Cache Cargo bin
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/bin
+        key: ${{ runner.os }}-cargo-bin-tauri-2.0
+
     - name: Install Tauri CLI (binstall)
       run: |
         if ! command -v cargo-tauri &> /dev/null; then
@@ -173,6 +185,12 @@ jobs:
       with:
         workspaces: './src-tauri -> target'
         cache-on-failure: true
+
+    - name: Cache Cargo bin
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/bin
+        key: ${{ runner.os }}-cargo-bin-tauri-2.0
 
     - name: Install Tauri CLI (binstall)
       run: |
