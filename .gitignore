@@ -42,7 +42,9 @@ Desktop.ini
 *~
 
 # IDE/editor
-.vscode/
+!.vscode/
+.vscode/*
+!.vscode/settings.json
 .idea/
 *.iml
 *.code-workspace
