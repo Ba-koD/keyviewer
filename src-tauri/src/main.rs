@@ -16,7 +16,11 @@ extern "C" {
 
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+use std::process::Command;
 use std::sync::Arc;
+use std::sync::OnceLock;
+use std::time::{Duration, Instant};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, State, Wry};
@@ -48,6 +52,12 @@ struct AppHandle {
 #[derive(Debug, Serialize, Deserialize)]
 struct ServerStatus {
     running: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct PortProcessInfo {
+    pid: u32,
+    name: String,
 }
 
 // macOS permission status
@@ -217,6 +227,139 @@ fn open_url(url: String) -> Result<(), String> {
     open::that(&url).map_err(|e| format!("Failed to open URL: {}", e))
 }
 
+#[cfg(target_os = "windows")]
+fn list_port_processes_windows(port: u16) -> Result<Vec<PortProcessInfo>, String> {
+    let output = Command::new("netstat")
+        .args(["-ano", "-p", "tcp"])
+        .output()
+        .map_err(|e| format!("Failed to run netstat: {}", e))?;
+    if !output.status.success() {
+        return Err("Failed to inspect TCP ports".to_string());
+    }
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut pids = HashSet::new();
+
+    for raw_line in text.lines() {
+        let line = raw_line.trim();
+        if !line.starts_with("TCP") {
+            continue;
+        }
+        let cols: Vec<&str> = line.split_whitespace().collect();
+        if cols.len() < 5 {
+            continue;
+        }
+
+        let local_addr = cols[1];
+        let state = cols[3];
+        let pid_str = cols[4];
+        let suffix = format!(":{}", port);
+        if !local_addr.ends_with(&suffix) || state != "LISTENING" {
+            continue;
+        }
+
+        if let Ok(pid) = pid_str.parse::<u32>() {
+            pids.insert(pid);
+        }
+    }
+
+    let mut result = Vec::new();
+    for pid in pids {
+        let name = process_name_windows(pid).unwrap_or_else(|| "Unknown".to_string());
+        result.push(PortProcessInfo { pid, name });
+    }
+    result.sort_by_key(|p| p.pid);
+    Ok(result)
+}
+
+#[cfg(target_os = "windows")]
+fn process_name_windows(pid: u32) -> Option<String> {
+    let filter = format!("PID eq {}", pid);
+    let output = Command::new("tasklist")
+        .args(["/FI", &filter, "/FO", "CSV", "/NH"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let line = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .next()?
+        .trim()
+        .to_string();
+    if line.is_empty() || line.contains("No tasks are running") || line.contains("정보:") {
+        return None;
+    }
+    let trimmed = line.trim_matches('"');
+    let first = trimmed.split("\",\"").next()?.trim();
+    if first.is_empty() {
+        None
+    } else {
+        Some(first.to_string())
+    }
+}
+
+#[tauri::command]
+fn get_port_processes(port: u16) -> Result<Vec<PortProcessInfo>, String> {
+    #[cfg(target_os = "windows")]
+    {
+        list_port_processes_windows(port)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = port;
+        Err("Port process lookup is currently supported on Windows only.".to_string())
+    }
+}
+
+#[tauri::command]
+fn kill_process(pid: u32) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let status = Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/F"])
+            .status()
+            .map_err(|e| format!("Failed to run taskkill: {}", e))?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!("Failed to terminate PID {}", pid))
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = pid;
+        Err("Process termination is currently supported on Windows only.".to_string())
+    }
+}
+
+fn try_stop_server(app: &tauri::AppHandle<Wry>) {
+    if let Some(state) = app.try_state::<AppHandle>() {
+        let mut controller = state.server_controller.lock();
+        if controller.is_running() {
+            let _ = controller.stop();
+        }
+    }
+}
+
+fn open_service_url(path: &str) {
+    static LAST_OPEN: OnceLock<Mutex<Option<(String, Instant)>>> = OnceLock::new();
+    let gate = LAST_OPEN.get_or_init(|| Mutex::new(None));
+    {
+        let mut last = gate.lock();
+        if let Some((last_path, when)) = &*last {
+            if last_path == path && when.elapsed() < Duration::from_millis(900) {
+                return;
+            }
+        }
+        *last = Some((path.to_string(), Instant::now()));
+    }
+
+    let settings = LauncherSettings::load();
+    let url = format!("http://localhost:{}{}", settings.port, path);
+    let _ = open::that(url);
+}
+
 #[tauri::command]
 fn minimize_to_tray(window: tauri::Window<Wry>) -> Result<(), String> {
     let app = window.app_handle();
@@ -225,10 +368,32 @@ fn minimize_to_tray(window: tauri::Window<Wry>) -> Result<(), String> {
     if app.tray_by_id("main-tray").is_none() {
         let show_item = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)
             .map_err(|e| format!("Failed to create menu item: {}", e))?;
+        let start_server_item =
+            MenuItem::with_id(app, "start_server_tray", "Start Server", true, None::<&str>)
+                .map_err(|e| format!("Failed to create menu item: {}", e))?;
+        let stop_server_item =
+            MenuItem::with_id(app, "stop_server_tray", "Stop Server", true, None::<&str>)
+                .map_err(|e| format!("Failed to create menu item: {}", e))?;
+        let control_item =
+            MenuItem::with_id(app, "open_control_tray", "Web Control", true, None::<&str>)
+                .map_err(|e| format!("Failed to create menu item: {}", e))?;
+        let overlay_item =
+            MenuItem::with_id(app, "open_overlay_tray", "Overlay", true, None::<&str>)
+                .map_err(|e| format!("Failed to create menu item: {}", e))?;
         let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)
             .map_err(|e| format!("Failed to create menu item: {}", e))?;
-        let menu = Menu::with_items(app, &[&show_item, &quit_item])
-            .map_err(|e| format!("Failed to create menu: {}", e))?;
+        let menu = Menu::with_items(
+            app,
+            &[
+                &show_item,
+                &start_server_item,
+                &stop_server_item,
+                &control_item,
+                &overlay_item,
+                &quit_item,
+            ],
+        )
+        .map_err(|e| format!("Failed to create menu: {}", e))?;
 
         TrayIconBuilder::with_id("main-tray")
             .icon(app.default_window_icon().unwrap().clone())
@@ -245,7 +410,29 @@ fn minimize_to_tray(window: tauri::Window<Wry>) -> Result<(), String> {
                         // Remove tray icon
                         let _ = app.remove_tray_by_id("main-tray");
                     }
+                    "start_server_tray" => {
+                        if let Some(state) = app.try_state::<AppHandle>() {
+                            let settings = LauncherSettings::load();
+                            let mut controller = state.server_controller.lock();
+                            let _ = controller.start(state.app_state.clone(), settings.port);
+                        }
+                    }
+                    "stop_server_tray" => {
+                        if let Some(state) = app.try_state::<AppHandle>() {
+                            let mut controller = state.server_controller.lock();
+                            if controller.is_running() {
+                                let _ = controller.stop();
+                            }
+                        }
+                    }
+                    "open_control_tray" => {
+                        open_service_url("/control");
+                    }
+                    "open_overlay_tray" => {
+                        open_service_url("/overlay");
+                    }
                     "quit" => {
+                        try_stop_server(app);
                         app.exit(0);
                     }
                     _ => {}
@@ -253,6 +440,11 @@ fn minimize_to_tray(window: tauri::Window<Wry>) -> Result<(), String> {
             })
             .on_tray_icon_event(|tray, event| {
                 match event {
+                    TrayIconEvent::Click {
+                        button: MouseButton::Right,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } => {}
                     TrayIconEvent::Click {
                         button: MouseButton::Left,
                         button_state: MouseButtonState::Up,
@@ -485,11 +677,11 @@ fn main() {
         .setup(|app| {
             // Setup window event handlers
             if let Some(window) = app.get_webview_window("main") {
+                let app_handle = window.app_handle().clone();
                 window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { .. } = event {
-                        // Just close the app - no tray minimization
-                        // User can use "Minimize to Tray" button if they want
-                        std::process::exit(0);
+                        try_stop_server(&app_handle);
+                        app_handle.exit(0);
                     }
                 });
 
@@ -571,6 +763,8 @@ fn main() {
             get_server_status,
             start_server,
             stop_server,
+            get_port_processes,
+            kill_process,
             open_url,
             minimize_to_tray,
             set_run_on_startup,

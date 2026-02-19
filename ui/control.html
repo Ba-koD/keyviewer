@@ -4170,10 +4170,10 @@
 				CloudAuth.showModal();
 			} else {
 				// Fallback to GitHub only
-				const port = window.location.port || '8000';
-				const path = window.location.pathname || '/control';
-				const authUrl = `${OAUTH_PROXY_URL}/auth?port=${port}&path=${encodeURIComponent(path)}`;
-				window.location.href = authUrl;
+			const port = window.location.port || '8000';
+			const path = window.location.pathname || '/control';
+			const authUrl = `${OAUTH_PROXY_URL}/auth?port=${port}&path=${encodeURIComponent(path)}`;
+			window.location.href = authUrl;
 			}
 		});
 
@@ -4399,34 +4399,34 @@
 					
 					updateExportProgress(50, currentLanguage === 'ko' ? 'GitHub Gist에 업로드 중...' : 'Uploading to GitHub Gist...');
 					
-					const response = await fetch('https://api.github.com/gists', {
-						method: 'POST',
-						headers: {
-							'Authorization': `token ${token}`,
-							'Content-Type': 'application/json'
-						},
-						body: JSON.stringify({
-							description: desc,
-							public: false,
-							files: {
+				const response = await fetch('https://api.github.com/gists', {
+					method: 'POST',
+					headers: {
+						'Authorization': `token ${token}`,
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({
+						description: desc,
+						public: false,
+						files: {
 								'keyviewer-preset.json': { content: jsonContent }
-							}
-						})
-					});
+						}
+					})
+				});
 					
 					updateExportProgress(90, currentLanguage === 'ko' ? '응답 처리 중...' : 'Processing response...');
-					
-					if (response.ok) {
-						const result = await response.json();
+				
+				if (response.ok) {
+					const result = await response.json();
 						updateExportProgress(100, currentLanguage === 'ko' ? '완료!' : 'Complete!');
 						await new Promise(r => setTimeout(r, 500));
 						
-						gistExportResult.style.display = 'block';
+					gistExportResult.style.display = 'block';
 						gistExportResult.innerHTML = `${currentLanguage === 'ko' ? '✅ 성공! Gist ID:' : '✅ Success! Gist ID:'} <code style="background:#2a3040; padding:2px 6px; border-radius:4px">${result.id}</code>`;
 						// Refresh list
 						loadUserGists();
-					} else {
-						throw new Error('Failed to create gist');
+				} else {
+					throw new Error('Failed to create gist');
 					}
 				}
 			} catch (e) {
@@ -4460,12 +4460,12 @@
 				} else {
 					// GitHub Gist: load by Gist ID
 					const response = await fetch(`https://api.github.com/gists/${inputValue}`);
-					if (!response.ok) throw new Error('Gist not found');
-					
-					const result = await response.json();
-					const file = result.files['keyviewer-preset.json'];
-					if (!file) throw new Error('Invalid preset file');
-					
+				if (!response.ok) throw new Error('Gist not found');
+				
+				const result = await response.json();
+				const file = result.files['keyviewer-preset.json'];
+				if (!file) throw new Error('Invalid preset file');
+				
 					data = JSON.parse(file.content);
 				}
 				

@@ -1,11 +1,15 @@
 [package]
 name = "keyviewer"
-version = "1.0.4"
+version = "1.1.0"
 description = "Key Input Monitoring Tool with Web Interface"
 authors = ["KeyViewer Team"]
 license = "MIT"
 repository = "https://github.com/Ba-koD/keyviewer"
 edition = "2021"
+
+[[bin]]
+name = "KBQV"
+path = "src/main.rs"
 
 # Prevent console window on Windows in release builds
 [build-dependencies]
@@ -68,3 +72,4 @@ inherits = "release"
 lto = "thin"          # Faster than full LTO
 codegen-units = 16    # Parallel compilation
 opt-level = 2         # Balance speed/size
+

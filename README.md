@@ -1,83 +1,77 @@
 # KeyViewer
 
-⌨️ **실시간 키 입력 모니터링 도구 - Rust + Tauri로 재탄생**
+Rust + Tauri 기반 키 입력 오버레이 도구입니다.
 
-## ✨ 주요 특징
+## 실행 (소스 코드)
 
-- 🎯 **실시간 키 입력 표시** - 특정 창/프로그램 타겟팅 가능
-- 🌐 **웹 기반 오버레이** - OBS Browser Source 완벽 호환
-- 🎨 **커스터마이징** - 색상, 레이아웃, 애니메이션 자유롭게 설정
-- 🚀 **빠른 성능** - Rust 네이티브 바이너리, 낮은 메모리 사용
-- 🔒 **낮은 오탐률** - 바이러스 백신 오탐 대폭 감소
-- 💻 **크로스 플랫폼** - Windows, macOS, Linux 지원
+### 공통
+```bash
+cd src-tauri
+cargo run --bin keyviewer
+```
 
-## 📦 다운로드
+### OS별 권장 실행
 
-[**Releases**](https://github.com/Ba-koD/keyviewer/releases)에서 최신 버전 다운로드
+#### Windows
+```powershell
+cd src-tauri
+cargo run --bin keyviewer
+```
 
-### Windows
-- `KBQV-Portable-*.zip` - 설치 불필요 (권장)
+#### macOS
+```bash
+cd src-tauri
+cargo run --bin keyviewer
+```
 
-### macOS
-- `KeyQueueViewer_*_x64.dmg` - Intel Mac
-- `KeyQueueViewer_*_aarch64.dmg` - Apple Silicon (M1/M2/M3)
+#### Linux
+```bash
+cd src-tauri
+cargo run --bin keyviewer
+```
 
-### Linux
-- `*.AppImage` - 모든 배포판
-- `*.deb` - Debian/Ubuntu
+## Cargo alias (프로젝트에 추가됨)
 
-## 🚀 빠른 시작
-
-1. 앱 실행 (⚠️ **Windows: 관리자 권한 필요** - UAC 창이 뜨면 '예' 클릭)
-2. 포트 설정 → **서버 시작**
-3. 브라우저에서 `http://localhost:8000/control` 접속
-4. 타겟 창 설정 (모드 선택 후 창 클릭)
-5. OBS에서 Browser Source 추가: `http://localhost:8000/overlay`
-
-### ⚠️ 관리자 권한이 필요한 이유
-전역 키보드 후킹(모든 프로그램의 키 입력 감지)을 위해 관리자 권한이 필요합니다. 권한이 없으면 일부 프로그램에서 키 입력이 감지되지 않을 수 있습니다.
-
-## 📚 문서
-
-- **[사용자 & 개발 가이드](docs/GUIDE.md)** - 설치, 사용법, 빌드 방법
-- **[변경 이력](CHANGELOG.md)** - 최신 업데이트 및 변경사항
-
-## 🛠️ 빌드
+루트에서 아래 명령 사용 가능:
 
 ```bash
-# 개발 모드
-cd src-tauri
-cargo tauri dev
+cargo kv
+cargo kv-win
+cargo kv-mac-intel
+cargo kv-mac-arm
+cargo kv-linux
+```
 
-# 프로덕션 빌드
+참고: `kv-win`, `kv-mac-*`, `kv-linux`는 해당 target toolchain 설치가 필요합니다.
+
+## 개발용 기본 명령
+
+```bash
+# 타입/컴파일 체크
+cd src-tauri
+cargo check
+
+# Tauri 개발 모드
+cargo tauri dev
+```
+
+## 빌드
+
+### GitHub Actions에서 사용하는 스크립트
+- `build-portable.ps1`
+- `convert-icon.ps1`
+
+### 로컬 수동 빌드
+```bash
+cd src-tauri
 cargo tauri build
 ```
 
-## 🔧 기술 스택
+## 실행 후 접속
 
-- **Backend**: Rust + Tauri 2.0
-- **Web Server**: Axum + WebSocket
-- **Keyboard Hook**: rdev
-- **Frontend**: HTML/CSS/JavaScript
+- 컨트롤: `http://localhost:8000/control`
+- 오버레이: `http://localhost:8000/overlay`
 
-## 📊 성능 비교 (Python → Rust)
+## 이슈
 
-| 항목 | 이전 | 현재 | 개선율 |
-|------|------|------|--------|
-| 파일 크기 | ~80MB | ~8MB | **90% ↓** |
-| 메모리 | ~100MB | ~30MB | **70% ↓** |
-| 시작 시간 | ~2-3초 | ~0.5초 | **80% ↓** |
-| 바이러스 오탐 | 높음 | 거의 없음 | **대폭 개선** |
-
-## 📞 문의 및 지원
-
-- **버그 리포트**: [Issues](https://github.com/Ba-koD/keyviewer/issues)
-- **기능 요청**: [Discussions](https://github.com/Ba-koD/keyviewer/discussions)
-
-## 📝 라이선스
-
-MIT License - 자유롭게 사용 가능
-
----
-
-**Made with ❤️ using Rust and Tauri**
+- 버그/요청: `https://github.com/Ba-koD/keyviewer/issues`

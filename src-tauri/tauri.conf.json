@@ -1,59 +1,67 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "KeyQueueViewer",
-  "version": "1.1.0",
-  "identifier": "com.keyviewer",
-  "build": {
-    "beforeDevCommand": "",
-    "beforeBuildCommand": "",
-    "frontendDist": "../ui"
-  },
   "app": {
-    "withGlobalTauri": true,
-    "windows": [
-      {
-        "title": "KeyQueueViewer",
-        "width": 520,
-        "height": 640,
-        "resizable": true,
-        "minWidth": 420,
-        "minHeight": 540,
-        "fullscreen": false,
-        "decorations": true,
-        "alwaysOnTop": false,
-        "visible": true,
-        "center": true,
-        "transparent": false,
-        "skipTaskbar": false
-      }
-    ],
     "security": {
       "csp": null
-    }
+    },
+    "windows": [
+      {
+        "alwaysOnTop": false,
+        "center": true,
+        "decorations": true,
+        "fullscreen": false,
+        "height": 640,
+        "minHeight": 540,
+        "minWidth": 420,
+        "resizable": true,
+        "skipTaskbar": false,
+        "title": "KeyQueueViewer",
+        "transparent": false,
+        "visible": true,
+        "width": 520
+      }
+    ],
+    "withGlobalTauri": true
+  },
+  "build": {
+    "beforeBuildCommand": "",
+    "beforeDevCommand": "",
+    "frontendDist": "../ui"
   },
   "bundle": {
     "active": true,
-    "targets": ["msi", "nsis", "app", "dmg", "deb", "appimage"],
+    "category": "Utility",
+    "copyright": "Copyright (c) 2025 KeyViewer Team",
+    "externalBin": [],
     "icon": [
       "icons/icon.ico",
       "icons/icon.png"
     ],
-    "resources": ["../ui/*"],
-    "externalBin": [],
-    "copyright": "Copyright (c) 2025 KeyViewer Team",
-    "category": "Utility",
-    "shortDescription": "Key Input Monitoring Tool",
-    "longDescription": "A cross-platform key input monitoring tool with web interface for OBS and streaming.",
-    "windows": {
-      "certificateThumbprint": null,
-      "digestAlgorithm": "sha256",
-      "timestampUrl": ""
-    },
     "linux": {
       "deb": {
         "depends": []
       }
+    },
+    "longDescription": "A cross-platform key input monitoring tool with web interface for OBS and streaming.",
+    "resources": [
+      "../ui/*"
+    ],
+    "shortDescription": "Key Input Monitoring Tool",
+    "targets": [
+      "msi",
+      "nsis",
+      "app",
+      "dmg",
+      "deb",
+      "appimage"
+    ],
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
     }
-  }
+  },
+  "identifier": "com.keyviewer",
+  "productName": "KeyQueueViewer",
+  "version": "1.1.0"
 }
-
