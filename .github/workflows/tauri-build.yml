@@ -1,430 +1,131 @@
-name: Tauri Build and Release
+﻿name: Tauri Release
 
 on:
-  # Run directly on push to main (after merge)
-  push:
-    branches: [main, master]
-  # Manual trigger
+  workflow_run:
+    workflows: ["Test and build"]
+    types: [completed]
   workflow_dispatch:
 
-# Optimize build speed with caching
-# - Rust dependencies are cached (swatinem/rust-cache)
-# - Tauri CLI is cached to avoid reinstalling
-# - All platform builds run in parallel
-
 jobs:
-  # Read version for all jobs
-  prepare:
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Read version
-      id: version
-      run: |
-        version=$(cat version.txt | tr -d '\n\r')
-        echo "version=$version" >> $GITHUB_OUTPUT
-        echo "Version: $version"
-
-  # Windows Portable Build
-  build-windows-portable:
-    needs: prepare
-    runs-on: windows-latest
-    continue-on-error: true
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup Rust
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Rust cache
-      uses: swatinem/rust-cache@v2
-      with:
-        workspaces: './src-tauri -> target'
-        cache-on-failure: true
-
-    - name: Cache Cargo bin
-      uses: actions/cache@v4
-      with:
-        path: ~/.cargo/bin
-        key: ${{ runner.os }}-cargo-bin-tauri-2.0
-
-    - name: Install Tauri CLI (binstall)
-      shell: pwsh
-      run: |
-        if (-not (Get-Command cargo-tauri -ErrorAction SilentlyContinue)) {
-          cargo install cargo-binstall --locked
-          cargo binstall tauri-cli --no-confirm
-        }
-
-    - name: Sync version to tauri.conf.json
-      shell: pwsh
-      run: |
-        $version = "${{ needs.prepare.outputs.version }}"
-        $configPath = "src-tauri/tauri.conf.json"
-        $config = Get-Content $configPath -Raw | ConvertFrom-Json
-        $config.version = $version
-        $config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
-        Write-Host "Updated tauri.conf.json version to: $version"
-
-    - name: Generate icon.png
-      shell: pwsh
-      run: |
-        if (-not (Test-Path "src-tauri\icons\icon.png")) {
-          .\convert-icon.ps1
-        }
-
-    - name: Build Windows Portable
-      shell: pwsh
-      run: |
-        .\build-portable.ps1
-
-    - name: Upload EXE artifact (standalone)
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: windows-portable-exe-${{ needs.prepare.outputs.version }}
-        path: |
-          dist/KBQV-Portable-*.exe
-    
-    - name: Upload ZIP artifact (with README)
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: windows-portable-zip-${{ needs.prepare.outputs.version }}
-        path: |
-          dist/KBQV-Portable-*.zip
-
-  # Linux Build
-  build-linux:
-    needs: prepare
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup Rust
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          libgtk-3-dev \
-          libwebkit2gtk-4.1-dev \
-          libayatana-appindicator3-dev \
-          librsvg2-dev \
-          patchelf \
-          libx11-dev \
-          libxdo-dev \
-          libxcb1-dev 
-
-    - name: Rust cache
-      uses: swatinem/rust-cache@v2
-      with:
-        workspaces: './src-tauri -> target'
-        cache-on-failure: true
-
-    - name: Cache Cargo bin
-      uses: actions/cache@v4
-      with:
-        path: ~/.cargo/bin
-        key: ${{ runner.os }}-cargo-bin-tauri-2.0
-
-    - name: Install Tauri CLI (binstall)
-      run: |
-        if ! command -v cargo-tauri &> /dev/null; then
-          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
-          cargo binstall tauri-cli --no-confirm
-        fi
-
-    - name: Ensure icon.png
-      run: |
-        if [ ! -f "src-tauri/icons/icon.png" ]; then
-          sudo apt-get update && sudo apt-get install -y imagemagick
-          convert -size 256x256 xc:blue -fill white -gravity center -pointsize 48 -annotate +0+0 "KV" src-tauri/icons/icon.png
-        fi
-
-    - name: Sync version to tauri.conf.json
-      run: |
-        VERSION="${{ needs.prepare.outputs.version }}"
-        sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" src-tauri/tauri.conf.json
-        echo "Updated tauri.conf.json version to: $VERSION"
-        grep '"version"' src-tauri/tauri.conf.json
-
-    - name: Build Linux
-      working-directory: src-tauri
-      env:
-        CARGO_INCREMENTAL: 1
-      run: cargo tauri build
-
-    - name: Upload AppImage artifact
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: linux-appimage-${{ needs.prepare.outputs.version }}
-        path: |
-          src-tauri/target/release/bundle/appimage/*.AppImage
-
-    - name: Upload Deb artifact
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: linux-deb-${{ needs.prepare.outputs.version }}
-        path: |
-          src-tauri/target/release/bundle/deb/*.deb
-
-  # macOS Build (with Code Signing)
-  build-macos:
-    needs: prepare
-    runs-on: macos-latest
-    continue-on-error: true
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup Rust
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Rust cache
-      uses: swatinem/rust-cache@v2
-      with:
-        workspaces: './src-tauri -> target'
-        cache-on-failure: true
-
-    - name: Cache Cargo bin
-      uses: actions/cache@v4
-      with:
-        path: ~/.cargo/bin
-        key: ${{ runner.os }}-cargo-bin-tauri-2.0
-
-    - name: Install Tauri CLI (binstall)
-      run: |
-        if ! command -v cargo-tauri &> /dev/null; then
-          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
-          cargo binstall tauri-cli --no-confirm
-        fi
-
-    - name: Sync version to tauri.conf.json
-      run: |
-        VERSION="${{ needs.prepare.outputs.version }}"
-        sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" src-tauri/tauri.conf.json
-        echo "Updated tauri.conf.json version to: $VERSION"
-        grep '"version"' src-tauri/tauri.conf.json
-
-    - name: Build macOS
-      env:
-        CARGO_INCREMENTAL: 1
-      run: cargo tauri build
-
-    - name: Upload DMG artifact
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: macos-dmg-${{ needs.prepare.outputs.version }}
-        path: |
-          src-tauri/target/release/bundle/dmg/*.dmg
-
   release:
-    needs: [prepare, build-windows-portable, build-linux, build-macos]
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'master')
+      )
     runs-on: ubuntu-latest
-    if: always() && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
 
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: ./artifacts
-      continue-on-error: true
+      - name: Read version from Cargo.toml
+        id: version
+        run: |
+          version=$(grep -m1 '^version\s*=' src-tauri/Cargo.toml | sed -E 's/version\s*=\s*"([^"]+)"/\1/')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Version: $version"
 
-    - name: Check build results and create checklist
-      id: check_builds
-      run: |
-        echo "Checking downloaded artifacts..."
-        ls -R ./artifacts || echo "No artifacts directory"
-        
-        # Initialize checklist
-        checklist=""
-        
-        # Check Windows Portable EXE
-        if [ -d "./artifacts/windows-portable-exe-${{ needs.prepare.outputs.version }}" ] && [ "$(ls -A ./artifacts/windows-portable-exe-${{ needs.prepare.outputs.version }})" ]; then
-          checklist="${checklist}- ✅ Windows Portable\n"
-          echo "windows_portable=true" >> $GITHUB_OUTPUT
-        else
-          checklist="${checklist}- ❌ Windows Portable (Build Failed)\n"
-          echo "windows_portable=false" >> $GITHUB_OUTPUT
-        fi
-        
-        # Check Linux AppImage
-        if [ -d "./artifacts/linux-appimage-${{ needs.prepare.outputs.version }}" ] && [ "$(ls -A ./artifacts/linux-appimage-${{ needs.prepare.outputs.version }})" ]; then
-          checklist="${checklist}- ✅ Linux AppImage\n"
-          echo "linux_appimage=true" >> $GITHUB_OUTPUT
-        else
-          checklist="${checklist}- ❌ Linux AppImage (Build Failed)\n"
-          echo "linux_appimage=false" >> $GITHUB_OUTPUT
-        fi
-        
-        # Check Linux Deb
-        if [ -d "./artifacts/linux-deb-${{ needs.prepare.outputs.version }}" ] && [ "$(ls -A ./artifacts/linux-deb-${{ needs.prepare.outputs.version }})" ]; then
-          checklist="${checklist}- ✅ Linux Deb Package\n"
-          echo "linux_deb=true" >> $GITHUB_OUTPUT
-        else
-          checklist="${checklist}- ❌ Linux Deb Package (Build Failed)\n"
-          echo "linux_deb=false" >> $GITHUB_OUTPUT
-        fi
-        
-        # Check macOS DMG
-        if [ -d "./artifacts/macos-dmg-${{ needs.prepare.outputs.version }}" ] && [ "$(ls -A ./artifacts/macos-dmg-${{ needs.prepare.outputs.version }})" ]; then
-          checklist="${checklist}- ✅ macOS DMG\n"
-          echo "macos_dmg=true" >> $GITHUB_OUTPUT
-        else
-          checklist="${checklist}- ❌ macOS DMG (Build Failed)\n"
-          echo "macos_dmg=false" >> $GITHUB_OUTPUT
-        fi
-        
-        # Save checklist (escape newlines for GitHub Actions)
-        echo "checklist<<EOF" >> $GITHUB_OUTPUT
-        echo -e "$checklist" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
+      - name: Download artifacts from Test and build
+        if: github.event_name == 'workflow_run'
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          run_id: ${{ github.event.workflow_run.id }}
+          path: ./artifacts
+          if_no_artifact_found: warn
 
-    - name: Generate Changelog
-      id: changelog
-      run: |
-        version="${{ needs.prepare.outputs.version }}"
-        currentTag="v$version"
-        
-        # Find previous tag
-        tags=$(git tag --sort=-version:refname | grep -v "^$currentTag$" | head -n 1)
-        if [ ! -z "$tags" ]; then
-            previousTag=$tags
-            echo "Previous tag found: $previousTag"
-            echo "previous_tag=$previousTag" >> $GITHUB_OUTPUT
-            
-            # Generate Full Changelog
-            changelog="**Full Changelog**: https://github.com/${{ github.repository }}/compare/$previousTag...$currentTag"
-            echo "full_changelog=$changelog" >> $GITHUB_OUTPUT
-            echo "Generated changelog: $changelog"
-        else
-            echo "No previous tags found"
-            echo "previous_tag=" >> $GITHUB_OUTPUT
-            echo "full_changelog=" >> $GITHUB_OUTPUT
-        fi
+      - name: Download artifacts (manual run fallback)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+        continue-on-error: true
 
-    - name: Force Update Tag
-      run: |
-        version="${{ needs.prepare.outputs.version }}"
-        tagName="v$version"
-        
-        # Remove existing tag if it exists
-        if git tag -l "$tagName" | grep -q "$tagName"; then
-          echo "Removing existing tag: $tagName"
-          git tag -d "$tagName" || true
-          git push origin ":refs/tags/$tagName" || true
-        fi
-        
-        # Create new tag
-        echo "Creating new tag: $tagName"
-        git tag "$tagName"
-        git push origin "$tagName"
-    
-    - name: Prepare release files
-      run: |
-        mkdir -p ./release-files
-        
-        # Copy only successful builds
-        # Windows Portable - EXE only (primary download)
-        if [ -d "./artifacts/windows-portable-exe-${{ needs.prepare.outputs.version }}" ]; then
-          cp -r ./artifacts/windows-portable-exe-${{ needs.prepare.outputs.version }}/* ./release-files/ || true
-        fi
-        
-        # Windows Portable - ZIP with README (optional)
-        if [ -d "./artifacts/windows-portable-zip-${{ needs.prepare.outputs.version }}" ]; then
-          cp -r ./artifacts/windows-portable-zip-${{ needs.prepare.outputs.version }}/* ./release-files/ || true
-        fi
-        
-        if [ -d "./artifacts/linux-appimage-${{ needs.prepare.outputs.version }}" ]; then
-          cp -r ./artifacts/linux-appimage-${{ needs.prepare.outputs.version }}/* ./release-files/ || true
-        fi
-        
-        if [ -d "./artifacts/linux-deb-${{ needs.prepare.outputs.version }}" ]; then
-          cp -r ./artifacts/linux-deb-${{ needs.prepare.outputs.version }}/* ./release-files/ || true
-        fi
-        
-        if [ -d "./artifacts/macos-dmg-${{ needs.prepare.outputs.version }}" ]; then
-          cp -r ./artifacts/macos-dmg-${{ needs.prepare.outputs.version }}/* ./release-files/ || true
-        fi
-        
-        echo "Release files prepared:"
-        ls -lh ./release-files/
+      - name: Build checklist
+        id: check_builds
+        run: |
+          echo "Checking downloaded artifacts..."
+          ls -R ./artifacts || echo "No artifacts directory"
 
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: v${{ needs.prepare.outputs.version }}
-        name: KeyQueueViewer v${{ needs.prepare.outputs.version }}
-        body: |
-          ## English
-          
-          **Built with Rust + Tauri 2.0** - Lightweight (~10MB), fast, and secure keyboard overlay viewer for streaming.
-          
-          ### Downloads
-          - **Windows**: `KBQV-Portable-*.exe` (Recommended - no extraction needed)
-          - **Linux**: `*.AppImage` or `*.deb`
-          - **macOS**: `*.dmg`
-          
-          ### Windows Users
-          Administrator privileges are required for keyboard capture. Click "Yes" when UAC prompt appears.
-          
-          ### Quick Start
-          1. Download and run the executable
-          2. Click "Start Server"
-          3. Add Browser Source in OBS with the provided URL
-          4. Configure overlay settings as needed
-          
-          ---
-          
-          ## 한국어
-          
-          **Rust + Tauri 2.0 기반** - 가볍고 (~10MB) 빠른 스트리밍용 키보드 오버레이 뷰어
-          
-          ### 다운로드
-          - **Windows**: `KBQV-Portable-*.exe` (권장 - 압축 해제 불필요)
-          - **Linux**: `*.AppImage` 또는 `*.deb`
-          - **macOS**: `*.dmg`
-          
-          ### Windows 사용자 필독
-          키보드 캡처를 위해 관리자 권한이 필요합니다. UAC 창에서 "예"를 클릭하세요.
-          
-          ### 빠른 시작
-          1. 실행 파일 다운로드 및 실행
-          2. "서버 시작" 클릭
-          3. OBS에서 브라우저 소스 추가 후 제공된 URL 입력
-          4. 필요시 오버레이 설정 조정
-          
-          ---
-          
-          ### Build Status
-          ${{ steps.check_builds.outputs.checklist }}
-          
-          ### Latest Changes
-          ${{ github.event.head_commit.message }}
-          
-          ### Changelog
-          ${{ steps.changelog.outputs.full_changelog }}
-        files: |
-          ./release-files/*
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          checklist=""
 
+          if compgen -G "./artifacts/windows-portable-*/*" > /dev/null; then
+            checklist="${checklist}- [OK] Windows Portable\n"
+          else
+            checklist="${checklist}- [FAIL] Windows Portable\n"
+          fi
+
+          if compgen -G "./artifacts/linux-portable-*/*" > /dev/null; then
+            checklist="${checklist}- [OK] Linux Portable\n"
+          else
+            checklist="${checklist}- [FAIL] Linux Portable\n"
+          fi
+
+          if compgen -G "./artifacts/macos-portable-*/*" > /dev/null; then
+            checklist="${checklist}- [OK] macOS Portable\n"
+          else
+            checklist="${checklist}- [FAIL] macOS Portable\n"
+          fi
+
+          echo "checklist<<EOF" >> "$GITHUB_OUTPUT"
+          echo -e "$checklist" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Collect release files
+        run: |
+          mkdir -p release-files
+          find ./artifacts -type f -name "KBQV-*" -exec cp {} ./release-files/ \; || true
+          ls -lh ./release-files || true
+
+      - name: Ensure at least one release file exists
+        run: |
+          if ! ls ./release-files/* >/dev/null 2>&1; then
+            echo "No release files found. Skipping release."
+            exit 1
+          fi
+
+      - name: Generate changelog link
+        id: changelog
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          currentTag="v$version"
+          previousTag=$(git tag --sort=-version:refname | grep -v "^$currentTag$" | head -n 1 || true)
+          if [ -n "$previousTag" ]; then
+            echo "full_changelog=**Full Changelog**: https://github.com/${{ github.repository }}/compare/$previousTag...$currentTag" >> "$GITHUB_OUTPUT"
+          else
+            echo "full_changelog=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create/Update tag
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          tagName="v$version"
+          if git tag -l "$tagName" | grep -q "$tagName"; then
+            git tag -d "$tagName" || true
+            git push origin ":refs/tags/$tagName" || true
+          fi
+          git tag "$tagName"
+          git push origin "$tagName"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: KeyQueueViewer v${{ steps.version.outputs.version }}
+          body: |
+            Portable builds only:
+            - Windows: `KBQV-<version>-windows-x64.exe` or `.zip`
+            - Linux: `KBQV-<version>-linux-x64` or `.tar.gz`
+            - macOS: `KBQV-<version>-macos-<arch>` or `.zip`
+
+            ### Build Status
+            ${{ steps.check_builds.outputs.checklist }}
+
+            ### Changelog
+            ${{ steps.changelog.outputs.full_changelog }}
+          files: ./release-files/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

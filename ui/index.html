@@ -295,6 +295,47 @@
             }
         }
 
+        function formatPortProcessList(processes) {
+            return processes
+                .map((p) => `PID ${p.pid} (${p.name || 'Unknown'})`)
+                .join('\n');
+        }
+
+        async function resolvePortConflictIfNeeded(port) {
+            let processes = [];
+            try {
+                processes = await invoke('get_port_processes', { port });
+            } catch (error) {
+                console.warn('Port process lookup not available:', error);
+                return true;
+            }
+
+            if (!Array.isArray(processes) || processes.length === 0) {
+                return true;
+            }
+
+            const listText = formatPortProcessList(processes);
+            const confirmMsg = currentLanguage === 'ko'
+                ? `포트 ${port}를 사용 중인 프로세스가 있습니다.\n\n${listText}\n\n이 프로세스를 종료하고 서버를 시작할까요?`
+                : `Processes are already using port ${port}.\n\n${listText}\n\nTerminate them and start the server?`;
+            if (!confirm(confirmMsg)) {
+                return false;
+            }
+
+            for (const proc of processes) {
+                try {
+                    await invoke('kill_process', { pid: proc.pid });
+                } catch (error) {
+                    const msg = currentLanguage === 'ko'
+                        ? `PID ${proc.pid} 종료 실패: ${error}`
+                        : `Failed to terminate PID ${proc.pid}: ${error}`;
+                    alert(msg);
+                    return false;
+                }
+            }
+            return true;
+        }
+
         // Save port setting (saved to Windows Registry)
         btnPortSave.addEventListener('click', async () => {
             const port = parseInt(portInput.value);
@@ -327,6 +368,9 @@
         btnStart.addEventListener('click', async () => {
             console.log('Starting server on port:', currentPort);
             try {
+                const canStart = await resolvePortConflictIfNeeded(currentPort);
+                if (!canStart) return;
+
                 await invoke('start_server', { port: currentPort });
                 serverRunning = true;
                 updateUI();
