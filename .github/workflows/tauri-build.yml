@@ -1,259 +1,131 @@
-name: Portable Build and Release
+﻿name: Tauri Release
 
 on:
-  push:
-    branches: [main, master]
-    paths:
-      - "src-tauri/**"
-      - "ui/**"
-      - ".cargo/config.toml"
-      - ".github/workflows/tauri-build.yml"
-      - "build-portable.ps1"
+  workflow_run:
+    workflows: ["Test and build"]
+    types: [completed]
   workflow_dispatch:
 
 jobs:
-  prepare:
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    - name: Read version from Cargo.toml
-      id: version
-      run: |
-        version=$(grep -m1 '^version\s*=' src-tauri/Cargo.toml | sed -E 's/version\s*=\s*"([^"]+)"/\1/')
-        echo "version=$version" >> $GITHUB_OUTPUT
-        echo "Version: $version"
-
-  quality:
-    needs: prepare
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-      with:
-        components: rustfmt, clippy
-    - uses: swatinem/rust-cache@v2
-      with:
-        workspaces: './src-tauri -> dist'
-    - name: Install Linux dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          libgtk-3-dev \
-          libwebkit2gtk-4.1-dev \
-          libayatana-appindicator3-dev \
-          librsvg2-dev \
-          patchelf \
-          libx11-dev \
-          libxdo-dev \
-          libxcb1-dev
-    - name: Format check
-      working-directory: src-tauri
-      run: cargo fmt --all -- --check
-    - name: Clippy
-      working-directory: src-tauri
-      run: cargo clippy --all-targets --all-features -- -D warnings
-    - name: Tests
-      working-directory: src-tauri
-      run: cargo test --all-targets --all-features
-
-  build-windows-portable:
-    needs: [prepare, quality]
-    runs-on: windows-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-    - uses: swatinem/rust-cache@v2
-      with:
-        workspaces: './src-tauri -> dist'
-    - name: Build release binary
-      run: cargo kb --release
-    - name: Package portable files
-      shell: pwsh
-      run: |
-        $version = "${{ needs.prepare.outputs.version }}"
-        New-Item -ItemType Directory -Force -Path "dist/release" | Out-Null
-        Copy-Item "dist/release/KBQV.exe" "dist/release/KBQV-$version-windows-x64.exe" -Force
-        Compress-Archive -Path "dist/release/KBQV.exe" -DestinationPath "dist/release/KBQV-$version-windows-x64.zip" -Force
-    - name: Upload windows portable artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: windows-portable-${{ needs.prepare.outputs.version }}
-        path: |
-          dist/release/KBQV-*.exe
-          dist/release/KBQV-*.zip
-
-  build-linux-portable:
-    needs: [prepare, quality]
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-    - uses: swatinem/rust-cache@v2
-      with:
-        workspaces: './src-tauri -> dist'
-    - name: Install Linux dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          libgtk-3-dev \
-          libwebkit2gtk-4.1-dev \
-          libayatana-appindicator3-dev \
-          librsvg2-dev \
-          patchelf \
-          libx11-dev \
-          libxdo-dev \
-          libxcb1-dev
-    - name: Build release binary
-      run: cargo kb --release
-    - name: Package portable files
-      run: |
-        VERSION="${{ needs.prepare.outputs.version }}"
-        mkdir -p dist/release
-        cp "dist/release/KBQV" "dist/release/KBQV-$VERSION-linux-x64"
-        tar -czf "dist/release/KBQV-$VERSION-linux-x64.tar.gz" -C dist/release "KBQV-$VERSION-linux-x64"
-    - name: Upload linux portable artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: linux-portable-${{ needs.prepare.outputs.version }}
-        path: |
-          dist/release/KBQV-*-linux-x64
-          dist/release/KBQV-*-linux-x64.tar.gz
-
-  build-macos-portable:
-    needs: [prepare, quality]
-    runs-on: macos-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-    - uses: swatinem/rust-cache@v2
-      with:
-        workspaces: './src-tauri -> dist'
-    - name: Build release binary
-      run: cargo kb --release
-    - name: Package portable files
-      run: |
-        VERSION="${{ needs.prepare.outputs.version }}"
-        ARCH=$(uname -m)
-        if [ "$ARCH" = "x86_64" ]; then ARCH_TAG="x64"; else ARCH_TAG="arm64"; fi
-        mkdir -p dist/release
-        cp "dist/release/KBQV" "dist/release/KBQV-$VERSION-macos-$ARCH_TAG"
-        ditto -c -k "dist/release/KBQV-$VERSION-macos-$ARCH_TAG" "dist/release/KBQV-$VERSION-macos-$ARCH_TAG.zip"
-    - name: Upload macOS portable artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: macos-portable-${{ needs.prepare.outputs.version }}
-        path: |
-          dist/release/KBQV-*-macos-*
-          dist/release/KBQV-*-macos-*.zip
-
   release:
-    needs: [prepare, build-windows-portable, build-linux-portable, build-macos-portable]
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'master')
+      )
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    - name: Download artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: ./artifacts
-      continue-on-error: true
-    - name: Check build results and create checklist
-      id: check_builds
-      run: |
-        echo "Checking downloaded artifacts..."
-        ls -R ./artifacts || echo "No artifacts directory"
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
 
-        checklist=""
+      - name: Read version from Cargo.toml
+        id: version
+        run: |
+          version=$(grep -m1 '^version\s*=' src-tauri/Cargo.toml | sed -E 's/version\s*=\s*"([^"]+)"/\1/')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Version: $version"
 
-        if [ -d "./artifacts/windows-portable-${{ needs.prepare.outputs.version }}" ] && [ "$(ls -A ./artifacts/windows-portable-${{ needs.prepare.outputs.version }})" ]; then
-          checklist="${checklist}- [OK] Windows Portable\n"
-          echo "windows_portable=true" >> $GITHUB_OUTPUT
-        else
-          checklist="${checklist}- [FAIL] Windows Portable\n"
-          echo "windows_portable=false" >> $GITHUB_OUTPUT
-        fi
+      - name: Download artifacts from Test and build
+        if: github.event_name == 'workflow_run'
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          run_id: ${{ github.event.workflow_run.id }}
+          path: ./artifacts
+          if_no_artifact_found: warn
 
-        if [ -d "./artifacts/linux-portable-${{ needs.prepare.outputs.version }}" ] && [ "$(ls -A ./artifacts/linux-portable-${{ needs.prepare.outputs.version }})" ]; then
-          checklist="${checklist}- [OK] Linux Portable\n"
-          echo "linux_portable=true" >> $GITHUB_OUTPUT
-        else
-          checklist="${checklist}- [FAIL] Linux Portable\n"
-          echo "linux_portable=false" >> $GITHUB_OUTPUT
-        fi
+      - name: Download artifacts (manual run fallback)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+        continue-on-error: true
 
-        if [ -d "./artifacts/macos-portable-${{ needs.prepare.outputs.version }}" ] && [ "$(ls -A ./artifacts/macos-portable-${{ needs.prepare.outputs.version }})" ]; then
-          checklist="${checklist}- [OK] macOS Portable\n"
-          echo "macos_portable=true" >> $GITHUB_OUTPUT
-        else
-          checklist="${checklist}- [FAIL] macOS Portable\n"
-          echo "macos_portable=false" >> $GITHUB_OUTPUT
-        fi
+      - name: Build checklist
+        id: check_builds
+        run: |
+          echo "Checking downloaded artifacts..."
+          ls -R ./artifacts || echo "No artifacts directory"
 
-        echo "checklist<<EOF" >> $GITHUB_OUTPUT
-        echo -e "$checklist" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
-    - name: Collect release files
-      run: |
-        mkdir -p release-files
-        find ./artifacts -type f -name "KBQV-*" -exec cp {} ./release-files/ \;
-        ls -lh ./release-files
-    - name: Generate Changelog
-      id: changelog
-      run: |
-        version="${{ needs.prepare.outputs.version }}"
-        currentTag="v$version"
-        previousTag=$(git tag --sort=-version:refname | grep -v "^$currentTag$" | head -n 1 || true)
-        if [ -n "$previousTag" ]; then
-          echo "previous_tag=$previousTag" >> $GITHUB_OUTPUT
-          echo "full_changelog=**Full Changelog**: https://github.com/${{ github.repository }}/compare/$previousTag...$currentTag" >> $GITHUB_OUTPUT
-        else
-          echo "previous_tag=" >> $GITHUB_OUTPUT
-          echo "full_changelog=" >> $GITHUB_OUTPUT
-        fi
-    - name: Create/Update tag
-      run: |
-        version="${{ needs.prepare.outputs.version }}"
-        tagName="v$version"
-        if git tag -l "$tagName" | grep -q "$tagName"; then
-          git tag -d "$tagName" || true
-          git push origin ":refs/tags/$tagName" || true
-        fi
-        git tag "$tagName"
-        git push origin "$tagName"
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: v${{ needs.prepare.outputs.version }}
-        name: KeyQueueViewer v${{ needs.prepare.outputs.version }}
-        body: |
-          ## English
+          checklist=""
 
-          Portable builds only:
-          - Windows: `KBQV-<version>-windows-x64.exe` or `.zip`
-          - Linux: `KBQV-<version>-linux-x64` or `.tar.gz`
-          - macOS: `KBQV-<version>-macos-<arch>` or `.zip`
+          if compgen -G "./artifacts/windows-portable-*/*" > /dev/null; then
+            checklist="${checklist}- [OK] Windows Portable\n"
+          else
+            checklist="${checklist}- [FAIL] Windows Portable\n"
+          fi
 
-          ### Quick Start
-          1. Download the file for your OS
-          2. Run the executable
-          3. Click "Start Server"
-          4. Add Browser Source in OBS with the provided URL
+          if compgen -G "./artifacts/linux-portable-*/*" > /dev/null; then
+            checklist="${checklist}- [OK] Linux Portable\n"
+          else
+            checklist="${checklist}- [FAIL] Linux Portable\n"
+          fi
 
-          ---
+          if compgen -G "./artifacts/macos-portable-*/*" > /dev/null; then
+            checklist="${checklist}- [OK] macOS Portable\n"
+          else
+            checklist="${checklist}- [FAIL] macOS Portable\n"
+          fi
 
-          ### Build Status
-          ${{ steps.check_builds.outputs.checklist }}
+          echo "checklist<<EOF" >> "$GITHUB_OUTPUT"
+          echo -e "$checklist" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
 
-          ### Latest Changes
-          ${{ github.event.head_commit.message }}
+      - name: Collect release files
+        run: |
+          mkdir -p release-files
+          find ./artifacts -type f -name "KBQV-*" -exec cp {} ./release-files/ \; || true
+          ls -lh ./release-files || true
 
-          ### Changelog
-          ${{ steps.changelog.outputs.full_changelog }}
-        files: ./release-files/*
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Ensure at least one release file exists
+        run: |
+          if ! ls ./release-files/* >/dev/null 2>&1; then
+            echo "No release files found. Skipping release."
+            exit 1
+          fi
+
+      - name: Generate changelog link
+        id: changelog
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          currentTag="v$version"
+          previousTag=$(git tag --sort=-version:refname | grep -v "^$currentTag$" | head -n 1 || true)
+          if [ -n "$previousTag" ]; then
+            echo "full_changelog=**Full Changelog**: https://github.com/${{ github.repository }}/compare/$previousTag...$currentTag" >> "$GITHUB_OUTPUT"
+          else
+            echo "full_changelog=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create/Update tag
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          tagName="v$version"
+          if git tag -l "$tagName" | grep -q "$tagName"; then
+            git tag -d "$tagName" || true
+            git push origin ":refs/tags/$tagName" || true
+          fi
+          git tag "$tagName"
+          git push origin "$tagName"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: KeyQueueViewer v${{ steps.version.outputs.version }}
+          body: |
+            Portable builds only:
+            - Windows: `KBQV-<version>-windows-x64.exe` or `.zip`
+            - Linux: `KBQV-<version>-linux-x64` or `.tar.gz`
+            - macOS: `KBQV-<version>-macos-<arch>` or `.zip`
+
+            ### Build Status
+            ${{ steps.check_builds.outputs.checklist }}
+
+            ### Changelog
+            ${{ steps.changelog.outputs.full_changelog }}
+          files: ./release-files/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
