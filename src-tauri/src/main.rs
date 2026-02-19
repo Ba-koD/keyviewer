@@ -34,7 +34,9 @@ use std::process::Command;
 
 #[cfg(target_os = "windows")]
 fn is_running_as_admin() -> bool {
-    use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
+    use windows::Win32::Security::{
+        GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY,
+    };
     use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
     unsafe {
@@ -79,7 +81,13 @@ fn try_relaunch_as_admin() -> Result<(), String> {
     };
 
     let status = Command::new("powershell")
-        .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &command])
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            &command,
+        ])
         .status()
         .map_err(|e| format!("Failed to launch elevation prompt: {}", e))?;
 
@@ -561,7 +569,7 @@ fn set_console_visible(visible: bool) -> Result<(), String> {
             let mut console_hwnd = GetConsoleWindow();
 
             if visible {
-                if console_hwnd.0.is_null() && !AllocConsole().as_bool() {
+                if console_hwnd.0.is_null() && AllocConsole().is_err() {
                     return Err("Failed to allocate console window.".to_string());
                 }
                 console_hwnd = GetConsoleWindow();
