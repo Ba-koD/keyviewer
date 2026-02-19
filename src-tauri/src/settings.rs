@@ -1,3 +1,5 @@
+#![cfg_attr(target_os = "macos", allow(unexpected_cfgs))]
+
 use crate::state::{KeyImagesConfig, KeyStyleConfig};
 use serde::{Deserialize, Serialize};
 
@@ -8,7 +10,6 @@ use winreg::RegKey;
 
 // macOS UserDefaults helper functions
 #[cfg(target_os = "macos")]
-#[allow(unexpected_cfgs)]
 mod macos_defaults {
     use cocoa::base::{id, nil};
     use cocoa::foundation::{NSAutoreleasePool, NSString};

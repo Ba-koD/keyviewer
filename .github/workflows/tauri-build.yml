@@ -3,6 +3,12 @@ name: Portable Build and Release
 on:
   push:
     branches: [main, master]
+    paths:
+      - "src-tauri/**"
+      - "ui/**"
+      - ".cargo/config.toml"
+      - ".github/workflows/tauri-build.yml"
+      - "build-portable.ps1"
   workflow_dispatch:
 
 jobs:
@@ -20,8 +26,41 @@ jobs:
         echo "version=$version" >> $GITHUB_OUTPUT
         echo "Version: $version"
 
-  build-windows-portable:
+  quality:
     needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+    - uses: swatinem/rust-cache@v2
+      with:
+        workspaces: './src-tauri -> dist'
+    - name: Install Linux dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libgtk-3-dev \
+          libwebkit2gtk-4.1-dev \
+          libayatana-appindicator3-dev \
+          librsvg2-dev \
+          patchelf \
+          libx11-dev \
+          libxdo-dev \
+          libxcb1-dev
+    - name: Format check
+      working-directory: src-tauri
+      run: cargo fmt --all -- --check
+    - name: Clippy
+      working-directory: src-tauri
+      run: cargo clippy --all-targets --all-features -- -D warnings
+    - name: Tests
+      working-directory: src-tauri
+      run: cargo test --all-targets --all-features
+
+  build-windows-portable:
+    needs: [prepare, quality]
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
@@ -47,7 +86,7 @@ jobs:
           dist/release/KBQV-*.zip
 
   build-linux-portable:
-    needs: prepare
+    needs: [prepare, quality]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -84,7 +123,7 @@ jobs:
           dist/release/KBQV-*-linux-x64.tar.gz
 
   build-macos-portable:
-    needs: prepare
+    needs: [prepare, quality]
     runs-on: macos-latest
     steps:
     - uses: actions/checkout@v4
@@ -122,11 +161,60 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         path: ./artifacts
+      continue-on-error: true
+    - name: Check build results and create checklist
+      id: check_builds
+      run: |
+        echo "Checking downloaded artifacts..."
+        ls -R ./artifacts || echo "No artifacts directory"
+
+        checklist=""
+
+        if [ -d "./artifacts/windows-portable-${{ needs.prepare.outputs.version }}" ] && [ "$(ls -A ./artifacts/windows-portable-${{ needs.prepare.outputs.version }})" ]; then
+          checklist="${checklist}- [OK] Windows Portable\n"
+          echo "windows_portable=true" >> $GITHUB_OUTPUT
+        else
+          checklist="${checklist}- [FAIL] Windows Portable\n"
+          echo "windows_portable=false" >> $GITHUB_OUTPUT
+        fi
+
+        if [ -d "./artifacts/linux-portable-${{ needs.prepare.outputs.version }}" ] && [ "$(ls -A ./artifacts/linux-portable-${{ needs.prepare.outputs.version }})" ]; then
+          checklist="${checklist}- [OK] Linux Portable\n"
+          echo "linux_portable=true" >> $GITHUB_OUTPUT
+        else
+          checklist="${checklist}- [FAIL] Linux Portable\n"
+          echo "linux_portable=false" >> $GITHUB_OUTPUT
+        fi
+
+        if [ -d "./artifacts/macos-portable-${{ needs.prepare.outputs.version }}" ] && [ "$(ls -A ./artifacts/macos-portable-${{ needs.prepare.outputs.version }})" ]; then
+          checklist="${checklist}- [OK] macOS Portable\n"
+          echo "macos_portable=true" >> $GITHUB_OUTPUT
+        else
+          checklist="${checklist}- [FAIL] macOS Portable\n"
+          echo "macos_portable=false" >> $GITHUB_OUTPUT
+        fi
+
+        echo "checklist<<EOF" >> $GITHUB_OUTPUT
+        echo -e "$checklist" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
     - name: Collect release files
       run: |
         mkdir -p release-files
         find ./artifacts -type f -name "KBQV-*" -exec cp {} ./release-files/ \;
         ls -lh ./release-files
+    - name: Generate Changelog
+      id: changelog
+      run: |
+        version="${{ needs.prepare.outputs.version }}"
+        currentTag="v$version"
+        previousTag=$(git tag --sort=-version:refname | grep -v "^$currentTag$" | head -n 1 || true)
+        if [ -n "$previousTag" ]; then
+          echo "previous_tag=$previousTag" >> $GITHUB_OUTPUT
+          echo "full_changelog=**Full Changelog**: https://github.com/${{ github.repository }}/compare/$previousTag...$currentTag" >> $GITHUB_OUTPUT
+        else
+          echo "previous_tag=" >> $GITHUB_OUTPUT
+          echo "full_changelog=" >> $GITHUB_OUTPUT
+        fi
     - name: Create/Update tag
       run: |
         version="${{ needs.prepare.outputs.version }}"
@@ -143,10 +231,29 @@ jobs:
         tag_name: v${{ needs.prepare.outputs.version }}
         name: KeyQueueViewer v${{ needs.prepare.outputs.version }}
         body: |
+          ## English
+
           Portable builds only:
-          - Windows: KBQV-<version>-windows-x64.exe / .zip
-          - Linux: KBQV-<version>-linux-x64 / .tar.gz
-          - macOS: KBQV-<version>-macos-<arch> / .zip
+          - Windows: `KBQV-<version>-windows-x64.exe` or `.zip`
+          - Linux: `KBQV-<version>-linux-x64` or `.tar.gz`
+          - macOS: `KBQV-<version>-macos-<arch>` or `.zip`
+
+          ### Quick Start
+          1. Download the file for your OS
+          2. Run the executable
+          3. Click "Start Server"
+          4. Add Browser Source in OBS with the provided URL
+
+          ---
+
+          ### Build Status
+          ${{ steps.check_builds.outputs.checklist }}
+
+          ### Latest Changes
+          ${{ github.event.head_commit.message }}
+
+          ### Changelog
+          ${{ steps.changelog.outputs.full_changelog }}
         files: ./release-files/*
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

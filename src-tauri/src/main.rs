@@ -16,8 +16,6 @@ extern "C" {
 
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
-use std::process::Command;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
@@ -28,6 +26,11 @@ use tauri::{Manager, State, Wry};
 use crate::server::ServerController;
 use crate::settings::LauncherSettings;
 use crate::state::AppState;
+
+#[cfg(target_os = "windows")]
+use std::collections::HashSet;
+#[cfg(target_os = "windows")]
+use std::process::Command;
 
 // Check if running as portable
 fn is_portable() -> bool {

@@ -1,3 +1,6 @@
 [alias]
 kv = "run --manifest-path src-tauri/Cargo.toml --bin KBQV --target-dir dist"
 kb = "build --manifest-path src-tauri/Cargo.toml --bin KBQV --target-dir dist"
+kfmt = "fmt --manifest-path src-tauri/Cargo.toml --all -- --check"
+kclippy = "clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings"
+ktest = "test --manifest-path src-tauri/Cargo.toml --all-targets --all-features"
