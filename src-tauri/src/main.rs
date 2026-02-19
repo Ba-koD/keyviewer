@@ -32,6 +32,64 @@ use std::collections::HashSet;
 #[cfg(target_os = "windows")]
 use std::process::Command;
 
+#[cfg(target_os = "windows")]
+fn is_running_as_admin() -> bool {
+    use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
+    use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+
+    unsafe {
+        let mut token = Default::default();
+        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token).is_err() {
+            return false;
+        }
+
+        let mut elevation = TOKEN_ELEVATION::default();
+        let mut returned_len = 0u32;
+        if GetTokenInformation(
+            token,
+            TokenElevation,
+            Some((&mut elevation as *mut TOKEN_ELEVATION).cast()),
+            std::mem::size_of::<TOKEN_ELEVATION>() as u32,
+            &mut returned_len,
+        )
+        .is_err()
+        {
+            return false;
+        }
+
+        elevation.TokenIsElevated != 0
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn try_relaunch_as_admin() -> Result<(), String> {
+    let exe_path = std::env::current_exe()
+        .map_err(|e| format!("Failed to get current executable path: {}", e))?;
+    let exe_path = exe_path.to_string_lossy().replace('\'', "''");
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let args_joined = args.join(" ").replace('\'', "''");
+
+    let command = if args_joined.is_empty() {
+        format!("Start-Process -FilePath '{}' -Verb RunAs", exe_path)
+    } else {
+        format!(
+            "Start-Process -FilePath '{}' -ArgumentList '{}' -Verb RunAs",
+            exe_path, args_joined
+        )
+    };
+
+    let status = Command::new("powershell")
+        .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &command])
+        .status()
+        .map_err(|e| format!("Failed to launch elevation prompt: {}", e))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err("Elevation prompt was canceled or failed.".to_string())
+    }
+}
+
 // Check if running as portable
 fn is_portable() -> bool {
     if let Ok(exe_path) = std::env::current_exe() {
@@ -493,11 +551,64 @@ fn set_run_on_startup(enabled: bool) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn set_console_visible(visible: bool) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::System::Console::{AllocConsole, GetConsoleWindow};
+        use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE, SW_SHOW};
+
+        unsafe {
+            let mut console_hwnd = GetConsoleWindow();
+
+            if visible {
+                if console_hwnd.0.is_null() && !AllocConsole().as_bool() {
+                    return Err("Failed to allocate console window.".to_string());
+                }
+                console_hwnd = GetConsoleWindow();
+                if !console_hwnd.0.is_null() {
+                    let _ = ShowWindow(console_hwnd, SW_SHOW);
+                }
+            } else if !console_hwnd.0.is_null() {
+                let _ = ShowWindow(console_hwnd, SW_HIDE);
+            }
+        }
+
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = visible;
+        Ok(())
+    }
+}
+
+#[tauri::command]
 fn reset_settings() -> Result<(), String> {
     settings::reset_all_settings()
 }
 
 fn main() {
+    #[cfg(target_os = "windows")]
+    {
+        let disable_auto_elevate = std::env::var("KV_NO_AUTO_ELEVATE").unwrap_or_default();
+        let disable_auto_elevate =
+            disable_auto_elevate == "1" || disable_auto_elevate.eq_ignore_ascii_case("true");
+
+        if !disable_auto_elevate && !is_running_as_admin() {
+            match try_relaunch_as_admin() {
+                Ok(()) => {
+                    std::process::exit(0);
+                }
+                Err(err) => {
+                    eprintln!(
+                        "Warning: Failed to relaunch as administrator (continuing without elevation): {}",
+                        err
+                    );
+                }
+            }
+        }
+    }
+
     // Prevent multiple instances (with safe error handling for macOS)
     let app_name = if is_portable() {
         "keyviewer-portable"
@@ -771,6 +882,7 @@ fn main() {
             open_url,
             minimize_to_tray,
             set_run_on_startup,
+            set_console_visible,
             reset_settings,
             check_macos_permissions,
             open_macos_permission_settings,

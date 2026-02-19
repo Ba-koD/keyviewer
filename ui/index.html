@@ -219,6 +219,7 @@
         const statusIndicator = document.getElementById('status-indicator');
         const portInput = document.getElementById('port');
         const languageSelect = document.getElementById('language');
+        const consoleToggle = document.getElementById('run-on-boot');
         const runOnStartup = document.getElementById('run-on-startup');
         const overlayUrl = document.getElementById('overlay-url');
 
@@ -435,6 +436,16 @@
                 await invoke('set_run_on_startup', { enabled: e.target.checked });
             } catch (error) {
                 alert('Failed to set startup option: ' + error);
+                e.target.checked = !e.target.checked;
+            }
+        });
+
+        // Console toggle (immediate show/hide on Windows)
+        consoleToggle.addEventListener('change', async (e) => {
+            try {
+                await invoke('set_console_visible', { visible: e.target.checked });
+            } catch (error) {
+                alert('Failed to toggle console: ' + error);
                 e.target.checked = !e.target.checked;
             }
         });

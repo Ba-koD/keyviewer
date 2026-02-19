@@ -38,6 +38,8 @@ single-instance = "0.3"
 winreg = "0.52"
 windows = { version = "0.58", features = [
     "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Console",
     "Win32_UI_WindowsAndMessaging",
     "Win32_System_Threading",
     "Win32_System_ProcessStatus",
@@ -72,4 +74,3 @@ inherits = "release"
 lto = "thin"          # Faster than full LTO
 codegen-units = 16    # Parallel compilation
 opt-level = 2         # Balance speed/size
-
