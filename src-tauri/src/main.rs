@@ -124,7 +124,7 @@ struct ServerStatus {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct PortProcessInfo {
+pub struct PortProcessInfo {
     pid: u32,
     name: String,
 }
@@ -307,27 +307,35 @@ fn list_port_processes_windows(port: u16) -> Result<Vec<PortProcessInfo>, String
     }
 
     let text = String::from_utf8_lossy(&output.stdout);
+
     let mut pids = HashSet::new();
+    let suffix = format!(":{}", port);
 
     for raw_line in text.lines() {
         let line = raw_line.trim();
+        // Skip header lines (support both English and Korean Windows)
         if !line.starts_with("TCP") {
             continue;
         }
+
+        // Split by whitespace and collect columns
         let cols: Vec<&str> = line.split_whitespace().collect();
         if cols.len() < 5 {
             continue;
         }
 
+        // Parse columns: TCP, Local Address, Foreign Address, State, PID
         let local_addr = cols[1];
         let state = cols[3];
         let pid_str = cols[4];
-        let suffix = format!(":{}", port);
+
+        // Check if this is the port we're looking for (LISTENING state)
         if !local_addr.ends_with(&suffix) || state != "LISTENING" {
             continue;
         }
 
         if let Ok(pid) = pid_str.parse::<u32>() {
+            eprintln!("[DEBUG] Found PID {} using port {}", pid, port);
             pids.insert(pid);
         }
     }
@@ -335,9 +343,11 @@ fn list_port_processes_windows(port: u16) -> Result<Vec<PortProcessInfo>, String
     let mut result = Vec::new();
     for pid in pids {
         let name = process_name_windows(pid).unwrap_or_else(|| "Unknown".to_string());
+        eprintln!("[DEBUG] Process: PID={}, Name={}", pid, name);
         result.push(PortProcessInfo { pid, name });
     }
     result.sort_by_key(|p| p.pid);
+    eprintln!("[DEBUG] Total processes found: {}", result.len());
     Ok(result)
 }
 
@@ -356,11 +366,38 @@ fn process_name_windows(pid: u32) -> Option<String> {
         .next()?
         .trim()
         .to_string();
-    if line.is_empty() || line.contains("No tasks are running") || line.contains("정보:") {
+
+    // Check for empty or error messages (support both English and Korean Windows)
+    if line.is_empty()
+        || line.contains("No tasks are running")
+        || line.contains("정보:")
+        || line.contains("작업이 실행되고 있지 않습니다")
+        || line.starts_with("ERROR:")
+    {
         return None;
     }
-    let trimmed = line.trim_matches('"');
-    let first = trimmed.split("\",\"").next()?.trim();
+
+    // Parse CSV format: "imagename","pid","sessionname","session#","memusage"
+    // The line looks like: "chrome.exe","1234","Console","1","100,000 K"
+    // We need to extract the first field (image name)
+
+    // Remove leading/trailing quotes if present
+    let line = line.trim();
+
+    // Split by CSV delimiter "," (quote-comma-quote pattern)
+    // First, try to parse as proper CSV
+    if let Some(stripped) = line.strip_prefix('"') {
+        // Find the closing quote for the first field
+        if let Some(end_quote) = stripped.find('"') {
+            let name = &stripped[..end_quote];
+            if !name.is_empty() {
+                return Some(name.to_string());
+            }
+        }
+    }
+
+    // Fallback: split by "," and take first field
+    let first = line.split(',').next()?.trim().trim_matches('"');
     if first.is_empty() {
         None
     } else {
@@ -379,6 +416,59 @@ fn get_port_processes(port: u16) -> Result<Vec<PortProcessInfo>, String> {
         let _ = port;
         Err("Port process lookup is currently supported on Windows only.".to_string())
     }
+}
+
+/// Reserve a port from Windows dynamic port allocation
+/// This prevents Windows from giving this port to other services
+#[cfg(target_os = "windows")]
+fn reserve_port_from_windows(port: u16) -> Result<(), String> {
+    // First, try to get current excluded port ranges
+    let output = Command::new("netsh")
+        .args(["int", "ipv4", "show", "excludedportrange", "protocol=tcp"])
+        .output()
+        .map_err(|e| format!("Failed to check excluded ports: {}", e))?;
+
+    let text = String::from_utf8_lossy(&output.stdout);
+
+    // Check if our port is already in excluded range
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with("Start") || line.starts_with("-") {
+            continue;
+        }
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 2 {
+            if let (Ok(start), Ok(end)) = (parts[0].parse::<u16>(), parts[1].parse::<u16>()) {
+                if port >= start && port <= end {
+                    // Port is in Windows excluded range - try to remove it
+                    eprintln!("[Port] Port {} is in Windows excluded range {}-{}, attempting to reserve...", port, start, end);
+
+                    // Stop WinNAT service temporarily to modify excluded ports
+                    let _ = Command::new("net").args(["stop", "winnat"]).output();
+
+                    // Start WinNAT again
+                    let _ = Command::new("net").args(["start", "winnat"]).output();
+
+                    eprintln!("[Port] Restarted WinNAT service to clear excluded port ranges");
+                    break;
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Static version for use in other modules
+#[cfg(target_os = "windows")]
+pub fn get_port_processes_static(port: u16) -> Vec<PortProcessInfo> {
+    list_port_processes_windows(port).unwrap_or_default()
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn get_port_processes_static(port: u16) -> Vec<PortProcessInfo> {
+    let _ = port;
+    Vec::new()
 }
 
 #[tauri::command]
@@ -650,6 +740,16 @@ fn main() {
     let settings = LauncherSettings::load();
     initial_state.language = settings.language.clone();
     println!("Initial language: {}", initial_state.language);
+
+    // Try to reserve the port from Windows dynamic allocation
+    #[cfg(target_os = "windows")]
+    {
+        let port = settings.port;
+        eprintln!("[Port] Checking if port {} is available...", port);
+        if let Err(e) = reserve_port_from_windows(port) {
+            eprintln!("[Port] Warning: Could not check/reserve port: {}", e);
+        }
+    }
 
     // Load target config from registry
     let (target_mode, target_value) = settings::load_target_config();
