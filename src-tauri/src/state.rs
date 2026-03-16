@@ -234,8 +234,12 @@ pub struct KeyViewerCell {
     pub radius_override: Option<f64>,
 }
 
-fn default_kv_canvas_w() -> f64 { 800.0 }
-fn default_kv_canvas_h() -> f64 { 300.0 }
+fn default_kv_canvas_w() -> f64 {
+    800.0
+}
+fn default_kv_canvas_h() -> f64 {
+    300.0
+}
 
 /// Main style configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
