@@ -216,6 +216,7 @@ fn create_router(state: SharedState) -> Router {
         .route("/api/key-images", axum::routing::post(api_set_key_images))
         .route("/api/key-style", get(api_get_key_style))
         .route("/api/key-style", axum::routing::post(api_set_key_style))
+        .route("/obs-local-file", get(get_obs_local_file))
         .layer(cors)
         .with_state(state)
 }
@@ -224,8 +225,78 @@ async fn root_redirect() -> impl IntoResponse {
     (StatusCode::FOUND, [(header::LOCATION, "/control")])
 }
 
-// Serve embedded HTML files with no-cache headers for OBS browser source
-async fn get_overlay() -> impl IntoResponse {
+// Generate and serve a fully self-contained OBS overlay HTML file.
+// Built by transforming overlay.html:
+//   1. CSS files are inlined so the page loads even when KV server is off
+//   2. All API/WS URLs become absolute (http://127.0.0.1:PORT/...)
+//   3. boot_id reload check is disabled (local file is always fresh)
+//   4. On WS reconnect after shutdown, config is re-fetched instead of page reload
+async fn get_obs_local_file(
+    AxumState(state): AxumState<SharedState>,
+) -> impl IntoResponse {
+    let port = {
+        let s = state.read();
+        s.app_config.port
+    };
+    let base = format!("http://127.0.0.1:{}", port);
+    let ws_url = format!("ws://127.0.0.1:{}/ws", port);
+
+    let html = OVERLAY_HTML
+        // 1. Remove favicon (not needed, avoids a failed request)
+        .replace(r#"<link rel="icon" href="/static/favicon.ico" type="image/x-icon" />"#, "")
+        // 2. Inline overlay.css
+        .replace(
+            r#"<link rel="stylesheet" href="/static/overlay.css">"#,
+            &format!("<style>\n{}\n</style>", OVERLAY_CSS),
+        )
+        // 3. Inline chip.css
+        .replace(
+            r#"<link rel="stylesheet" href="/static/chip.css">"#,
+            &format!("<style>\n{}\n</style>", CHIP_CSS),
+        )
+        // 4. Mark as local file (boot_id placeholder → sentinel string)
+        .replace("__BOOT_ID__", "\"__KV_LOCAL__\"")
+        // 5. Disable the boot_id reload check (would cause infinite reload from local file)
+        .replace(
+            "if (data.boot_id !== undefined && data.boot_id !== SERVER_BOOT_ID) {\r\n\t\t\t\t\t\t\tlocation.reload();\r\n\t\t\t\t\t\t\treturn;\r\n\t\t\t\t\t\t}",
+            "/* [local file] boot_id reload disabled */",
+        )
+        // 6. On WS reconnect after shutdown, re-fetch config instead of reloading
+        .replace(
+            "if (didShutdown) { location.reload(); return; }",
+            "if (didShutdown) { didShutdown = false; initConfig(); loadKeyImagesConfig(); loadKeyStyleConfig(); return; }",
+        )
+        // 7. Make WS URL absolute
+        .replace(
+            "const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';",
+            &format!("const url = '{}'; // [local file] absolute URL", ws_url),
+        )
+        // 8. Make all fetch() calls use absolute URL
+        .replace("fetch('/api/", &format!("fetch('{}/api/", base))
+        .replace("fetch('/api/overlay-config',", &format!("fetch('{}/api/overlay-config',", base));
+
+    Response::builder()
+        .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+        .header(
+            header::CONTENT_DISPOSITION,
+            "attachment; filename=\"keyviewer-obs-overlay.html\"",
+        )
+        .header(header::CACHE_CONTROL, "no-cache, no-store")
+        .body(Body::from(html))
+        .unwrap()
+}
+
+// Serve overlay HTML with the server's boot_id baked in.
+// The JS in overlay.html compares this value against the boot_id received over WebSocket;
+// if they differ (OBS cached a stale page), the page reloads itself automatically.
+async fn get_overlay(
+    AxumState(state): AxumState<SharedState>,
+) -> impl IntoResponse {
+    let boot_id = {
+        let s = state.read();
+        s.cache_buster
+    };
+    let html = OVERLAY_HTML.replace("__BOOT_ID__", &boot_id.to_string());
     Response::builder()
         .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
         .header(
@@ -234,7 +305,7 @@ async fn get_overlay() -> impl IntoResponse {
         )
         .header(header::PRAGMA, "no-cache")
         .header(header::EXPIRES, "0")
-        .body(Body::from(OVERLAY_HTML))
+        .body(Body::from(html))
         .unwrap()
 }
 
@@ -380,12 +451,12 @@ async fn websocket_handler(
 }
 
 async fn handle_socket(mut socket: WebSocket, state: SharedState) {
-    // Send initial state
-    let keys = {
+    // Send hello with boot_id so the client can detect stale cached pages
+    let (keys, boot_id) = {
         let state_lock = state.read();
-        state_lock.get_keys()
+        (state_lock.get_keys(), state_lock.cache_buster)
     };
-    let initial_msg = json!({ "keys": keys });
+    let initial_msg = json!({ "type": "hello", "boot_id": boot_id, "keys": keys });
     if socket
         .send(Message::Text(initial_msg.to_string()))
         .await

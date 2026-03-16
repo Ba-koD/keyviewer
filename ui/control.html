@@ -30,8 +30,8 @@
 		/* Modal */
 		.modal-backdrop{position:fixed; inset:0; background:rgba(0,0,0,0.65); display:none; align-items:center; justify-content:center; z-index:999}
 		.modal{width:560px; max-width:calc(100% - 32px); max-height:calc(100vh - 80px); background:#141821; border:1px solid #2a2f3a; border-radius:12px; padding:0; overflow:hidden; display:flex; flex-direction:column}
-		.modal-header{padding:18px 18px 12px; border-bottom:1px solid #2a2f3a}
-		.modal-header h3{margin:0; font-size:22px}
+		.modal-header{display:flex;flex-direction:column;gap:10px;padding:20px 20px 16px; border-bottom:1px solid #2a2f3a}
+		.modal-header h3{margin:0; font-size:22px; line-height:1.2}
 		.modal-content{flex:1; overflow-y:auto; padding:18px; scrollbar-width:none; -ms-overflow-style:none}
 		.modal-content::-webkit-scrollbar{display:none}
 		.modal-footer{padding:14px 18px; border-top:1px solid #2a2f3a}
@@ -94,6 +94,17 @@
 		.btn-logout{background:transparent; border:1px solid var(--border); color:var(--muted); padding:6px 12px; font-size:12px}
 		.or-divider{display:flex; align-items:center; gap:12px; margin:14px 0; color:var(--muted); font-size:12px}
 		.or-divider::before,.or-divider::after{content:''; flex:1; height:1px; background:var(--border)}
+
+		/* Key Viewer Mode Cards */
+		.kv-mode-card:hover{ filter:brightness(1.12); }
+		.kv-grid-editor-cell{ min-width:44px; min-height:36px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; cursor:pointer; transition:background 0.12s, border-color 0.12s; user-select:none; border:1.5px dashed var(--border); background:var(--panel2); }
+		.kv-grid-editor-cell.occupied{ background:#1e3a5f; border-color:#4dabf7; color:#fff; cursor:grab; }
+		.kv-grid-editor-cell.occupied:hover{ background:#2563a8; border-color:#74c0fc; }
+		.kv-grid-editor-cell.drag-over{ border-color:var(--primary) !important; background:rgba(99,179,237,0.15) !important; }
+		.kv-preview-cell{ min-width:44px; min-height:36px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; cursor:pointer; transition:all 0.1s; user-select:none; }
+		.kv-preview-cell.occupied{ background:rgba(0,0,0,0.6); color:rgba(255,255,255,0.3); border:1px solid rgba(255,255,255,0.08); }
+		.kv-preview-cell.occupied.pressed{ background:#ffe843; color:#000; filter:brightness(1.2); box-shadow:0 0 14px rgba(255,232,67,0.5); transform:scale(1.06); }
+		.kv-preview-cell.empty{ background:transparent; }
 
 		/* Key Recording styles */
 		.btn-recording{background:#ff4757!important; border-color:#ff4757!important; animation:pulse 1s infinite}
@@ -198,7 +209,81 @@
 				<div class="help" id="settingsLabel" data-text-ko="설정" data-text-en="Settings">설정</div>
 				<button id="openUnifiedStyle" class="right primary" data-text-ko="🎨 키 스타일" data-text-en="🎨 Key Style">🎨 키 스타일</button>
 				<button id="openOverlayCfg" data-text-ko="⚙️ 오버레이" data-text-en="⚙️ Overlay">⚙️ 오버레이</button>
+				<button id="downloadObsFile" title="OBS 브라우저 소스에서 로컬 파일로 등록할 수 있는 독립형 HTML 다운로드" data-text-ko="💾 OBS 파일 저장" data-text-en="💾 Save OBS File">💾 OBS 파일 저장</button>
 			</div>
+			<div class="help" style="margin-top:6px; font-size:11px; color:var(--muted); line-height:1.5" data-text-ko="💡 OBS 파일 저장: OBS 브라우저 소스 캐시 문제 해결용 — 다운로드한 HTML을 브라우저 소스에서 URL 대신 로컬 파일로 등록하면 KV를 껐다 켜도 자동으로 재연결됩니다." data-text-en="💡 <b>Save OBS File</b>: Fixes OBS browser source cache issues — register the downloaded HTML as a <b>local file</b> in OBS (not URL) for automatic reconnection when KV restarts.">💡 <b>OBS 파일 저장</b>: OBS 브라우저 소스 캐시 문제 해결용 — 다운로드한 HTML을 브라우저 소스에서 URL 대신 <b>로컬 파일</b>로 등록하면 KV를 껐다 켜도 자동으로 재연결됩니다.</div>
+		</div>
+
+		<!-- Overlay Mode Selector -->
+		<div class="panel" id="overlayModePanel">
+			<div class="row">
+				<div class="help" style="font-weight:600" data-text-ko="🖥 오버레이 표시 모드" data-text-en="🖥 Overlay Display Mode">🖥 오버레이 표시 모드</div>
+				<div style="display:flex;gap:6px;margin-left:auto">
+					<button id="mainModeQueue" onclick="selectOverlayMode('queue')" style="padding:5px 16px;border-radius:8px;" data-text-ko="📜 큐 모드" data-text-en="📜 Queue Mode">📜 큐 모드</button>
+					<button id="mainModeKv" onclick="selectOverlayMode('keyviewer')" style="padding:5px 16px;border-radius:8px;" data-text-ko="⌨️ 키뷰어" data-text-en="⌨️ Key Viewer">⌨️ 키뷰어</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- Key Viewer Layout Editor (visible only when keyviewer mode is active) -->
+		<div class="panel" id="kvLayoutSection" style="display:none">
+			<div class="row" style="margin-bottom:10px">
+				<div class="help" style="font-weight:600" data-text-ko="⌨️ 키뷰어 레이아웃 편집" data-text-en="⌨️ Key Viewer Layout Editor">⌨️ 키뷰어 레이아웃 편집</div>
+			</div>
+			<!-- Toolbar -->
+			<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px;padding:10px;background:var(--panel2);border-radius:8px">
+				<button id="kvAddChipBtn" class="primary" style="padding:5px 12px;font-size:12px">＋ 키 추가</button>
+				<button id="kvRecordRowBtn" style="padding:5px 12px;font-size:12px">🎤 녹화 추가</button>
+				<button id="kvClearLayout" style="padding:5px 10px;font-size:12px">🗑 초기화</button>
+				<div style="flex:1"></div>
+				<span style="font-size:11px;opacity:0.6">캔버스:</span>
+				<input type="number" id="kvCanvasWInput" value="800" min="200" max="3840" style="width:58px;font-size:12px">
+				<span style="font-size:11px;opacity:0.6">×</span>
+				<input type="number" id="kvCanvasHInput" value="300" min="80" max="2160" style="width:58px;font-size:12px">
+				<button id="kvApplyCanvasSize" style="padding:5px 10px;font-size:12px">적용</button>
+				<label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer">
+					<input type="checkbox" id="kvSnapCheck" checked style="margin:0"> 스냅
+				</label>
+			</div>
+			<!-- Canvas area -->
+			<div id="kvCanvasWrap" style="position:relative;width:100%;border-radius:8px;overflow:hidden;background:#111;border:1px solid var(--border);user-select:none;">
+				<div id="kvCanvasSpacer" style="width:100%;padding-bottom:37.5%"></div>
+				<div id="kvFreeCanvas" style="position:absolute;inset:0;cursor:crosshair;"></div>
+				<div id="kvAddDialog" style="display:none;position:absolute;z-index:200;background:var(--panel);border:1.5px solid var(--primary);border-radius:8px;padding:10px 12px;box-shadow:0 4px 20px rgba(0,0,0,0.6);min-width:180px">
+					<div style="font-size:11px;font-weight:600;margin-bottom:6px;opacity:0.8">키 이름 입력</div>
+					<input id="kvAddKeyInput" type="text" placeholder="예: A, SPACE, ENTER" maxlength="20" style="width:100%;font-size:12px;margin-bottom:8px">
+					<div style="display:flex;gap:6px">
+						<button id="kvAddKeyConfirm" class="primary" style="flex:1;font-size:12px;padding:4px 0">추가</button>
+						<button id="kvAddKeyCancel" style="flex:1;font-size:12px;padding:4px 0">취소</button>
+					</div>
+				</div>
+			</div>
+			<!-- Properties panel (shown when a chip is selected) -->
+			<div id="kvPropsPanel" style="display:none;margin-top:8px;padding:10px 12px;background:var(--panel2);border-radius:8px;border:1px solid var(--primary)">
+				<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+					<span style="font-weight:600;font-size:12px">⚙ 선택된 칩 속성</span>
+					<button id="kvPropDelete" class="danger" style="padding:3px 10px;font-size:11px">삭제</button>
+				</div>
+				<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+					<div><label style="font-size:10px;opacity:0.7;display:block;margin-bottom:2px">키 이름</label><input id="kvPropKey" style="width:100%;font-size:12px" maxlength="20"></div>
+					<div><label style="font-size:10px;opacity:0.7;display:block;margin-bottom:2px">너비 px</label><input type="number" id="kvPropW" min="20" max="1000" style="width:100%;font-size:12px"></div>
+					<div><label style="font-size:10px;opacity:0.7;display:block;margin-bottom:2px">높이 px</label><input type="number" id="kvPropH" min="16" max="600" style="width:100%;font-size:12px"></div>
+					<div><label style="font-size:10px;opacity:0.7;display:block;margin-bottom:2px">둥글기 px</label><input type="number" id="kvPropRadius" min="0" max="100" value="6" style="width:100%;font-size:12px"></div>
+				</div>
+				<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">
+					<div><label style="font-size:10px;opacity:0.7;display:block;margin-bottom:2px">X px</label><input type="number" id="kvPropX" min="0" style="width:100%;font-size:12px"></div>
+					<div><label style="font-size:10px;opacity:0.7;display:block;margin-bottom:2px">Y px</label><input type="number" id="kvPropY" min="0" style="width:100%;font-size:12px"></div>
+					<div>
+						<label style="font-size:10px;opacity:0.7;display:block;margin-bottom:2px"><input type="checkbox" id="kvPropBgCheck" style="margin:0 3px 0 0">BG 색상</label>
+						<input type="color" id="kvPropBgColor" value="#222222" style="width:100%;height:28px;border-radius:4px;">
+					</div>
+					<div>
+						<label style="font-size:10px;opacity:0.7;display:block;margin-bottom:2px"><input type="checkbox" id="kvPropFgCheck" style="margin:0 3px 0 0">텍스트 색</label>
+						<input type="color" id="kvPropFgColor" value="#ffffff" style="width:100%;height:28px;border-radius:4px;">
+					</div>
+				</div>
+			</div>
+			<div class="help" style="margin-top:6px;font-size:11px">💡 더블클릭 = 칩 추가 · 드래그 = 이동 · 모서리 드래그 = 크기 조절 · 클릭 = 속성 편집 · 🎤 녹화 추가 = 여러 키를 누른 뒤 ESC로 완료, 한 줄로 배치</div>
 		</div>
 
 		<div class="panel">
@@ -446,16 +531,21 @@
 
 	<!-- Unified Key Style Settings Modal -->
 	<div class="modal-backdrop" id="modalUnifiedStyle">
-		<div class="modal" style="width:720px">
+		<div class="modal" style="width:820px">
 			<div class="modal-header">
 				<h3 data-text-ko="🎨 키 스타일 설정" data-text-en="🎨 Key Style Settings">🎨 키 스타일 설정</h3>
+				<!-- Mode toggle in header -->
+				<div style="display:flex;gap:6px;margin-left:auto;margin-right:12px;align-items:center">
+					<span style="font-size:11px;opacity:0.55;margin-right:2px">편집 모드</span>
+					<button id="editModeQueue" onclick="setEditingMode('queue')" style="padding:5px 14px;font-size:12px;border-radius:6px;" data-text-ko="📜 큐" data-text-en="📜 Queue">📜 큐</button>
+					<button id="editModeKv" onclick="setEditingMode('keyviewer')" style="padding:5px 14px;font-size:12px;border-radius:6px;" data-text-ko="⌨️ 키뷰어" data-text-en="⌨️ Key Viewer">⌨️ 키뷰어</button>
+				</div>
 			</div>
 			<div class="modal-content">
 				<!-- Main Tabs -->
 				<div class="key-img-tabs" id="unifiedStyleTabs">
 					<button id="usTabBg" class="active" data-text-ko="📍 배경" data-text-en="📍 Background">📍 배경</button>
-					<button id="usTabChip" data-text-ko="🎲 칩" data-text-en="🎲 Chip">🎲 칩</button>
-					<button id="usTabFont" data-text-ko="✏️ 폰트" data-text-en="✏️ Font">✏️ 폰트</button>
+					<button id="usTabChip" data-text-ko="🎨 스타일 그룹" data-text-en="🎨 Style Groups">🎨 스타일 그룹</button>
 				</div>
 
 				<!-- ========== Background Tab ========== -->
@@ -512,33 +602,29 @@
 					</div>
 				</div>
 
-				<!-- ========== Chip Tab ========== -->
+				<!-- ========== Style Groups Tab ========== -->
 				<div id="usPanelChip" style="display:none">
-					<div class="help" style="margin-bottom:12px" data-text-ko="칩(키) 스타일 그룹을 관리합니다. 개별 키 > 그룹 키 > 전체 키 우선순위로 적용됩니다." data-text-en="Manage chip style groups. Priority: Individual > Group > All keys.">칩(키) 스타일 그룹을 관리합니다. 개별 키 > 그룹 키 > 전체 키 우선순위로 적용됩니다.</div>
-					
-					<!-- Chip Layout Settings -->
-					<div style="margin-bottom:16px; padding:12px; background:var(--panel2); border-radius:8px">
-						<div class="help" style="margin-bottom:10px; font-weight:600" data-text-ko="📐 칩 크기/간격" data-text-en="📐 Chip Size/Spacing">📐 칩 크기/간격</div>
-						<div class="form-row"><label data-text-ko="칩 간격(px)" data-text-en="Gap">칩 간격(px)</label><input id="us_chip_gap" class="field" type="number" min="0" value="8"/></div>
-						<div class="form-row"><label data-text-ko="세로 패딩" data-text-en="Pad V">세로 패딩</label><input id="us_chip_pad_v" class="field" type="number" min="0" value="10"/></div>
-						<div class="form-row"><label data-text-ko="가로 패딩" data-text-en="Pad H">가로 패딩</label><input id="us_chip_pad_h" class="field" type="number" min="0" value="14"/></div>
-						<div class="form-row"><label data-text-ko="모서리" data-text-en="Radius">모서리</label><input id="us_chip_radius" class="field" type="number" min="0" value="10"/></div>
+					<!-- Global chip defaults bar -->
+					<div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px;padding:8px 14px;background:var(--panel2);border-radius:8px;border:1px solid var(--border);margin-bottom:12px;font-size:11px">
+						<span style="font-weight:600;opacity:0.7;flex-shrink:0">📐 기본값</span>
+						<label style="display:flex;align-items:center;gap:5px;white-space:nowrap">간격<input id="us_chip_gap" type="number" min="0" value="8" style="width:48px;font-size:11px"/></label>
+						<label style="display:flex;align-items:center;gap:5px;white-space:nowrap">세로 패딩<input id="us_chip_pad_v" type="number" min="0" value="10" style="width:48px;font-size:11px"/></label>
+						<label style="display:flex;align-items:center;gap:5px;white-space:nowrap">가로 패딩<input id="us_chip_pad_h" type="number" min="0" value="14" style="width:48px;font-size:11px"/></label>
+						<label style="display:flex;align-items:center;gap:5px;white-space:nowrap">모서리<input id="us_chip_radius" type="number" min="0" value="10" style="width:48px;font-size:11px"/></label>
+						<span style="opacity:0.4;font-size:10px">(그룹별 미설정 시 적용)</span>
 					</div>
-					
-					<!-- Style Groups List -->
-					<div style="margin-bottom:16px; padding:12px; background:var(--panel2); border-radius:8px">
-						<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
-							<div class="help" style="font-weight:600" data-text-ko="📦 스타일 그룹" data-text-en="📦 Style Groups">📦 스타일 그룹</div>
-							<button id="usAddGroup" class="primary" style="padding:4px 10px; font-size:12px" data-text-ko="+ 새 그룹" data-text-en="+ New Group">+ 새 그룹</button>
-						</div>
-						<div id="usGroupList" class="key-img-list" style="max-height:200px">
-							<div class="help" style="text-align:center; padding:20px; color:var(--muted)" id="usNoGroups" data-text-ko="등록된 스타일 그룹이 없습니다" data-text-en="No style groups registered">등록된 스타일 그룹이 없습니다</div>
-						</div>
+					<!-- Groups list header -->
+					<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+						<div class="help" style="font-weight:600;font-size:12px" data-text-ko="스타일 그룹 (위 = 높은 우선순위)" data-text-en="Style Groups (top = highest priority)">스타일 그룹 <span style="opacity:0.6;font-size:10px">(위 = 높은 우선순위)</span></div>
+						<button id="usAddGroup" class="primary" style="padding:3px 8px;font-size:11px" data-text-ko="+ 추가" data-text-en="+ Add">+ 추가</button>
 					</div>
-					
-					<!-- Group Editor (hidden by default) -->
-					<div id="usGroupEditor" style="display:none; padding:12px; background:var(--panel2); border-radius:8px; border:2px solid var(--primary)">
-						<div class="help" style="margin-bottom:10px; font-weight:600" data-text-ko="✏️ 그룹 편집" data-text-en="✏️ Edit Group">✏️ 그룹 편집</div>
+					<!-- Groups list -->
+					<div id="usGroupList" style="overflow-y:auto;max-height:280px;background:var(--panel2);border-radius:8px;border:1px solid var(--border);min-height:60px">
+						<div class="help" style="text-align:center;padding:20px;color:var(--muted)" id="usNoGroups" data-text-ko="그룹 없음 (+ 추가)" data-text-en="No groups (+ Add)">그룹 없음<br><span style="font-size:10px">(+ 추가 버튼)</span></div>
+					</div>
+					<!-- Group editor: full-width, shown when editing -->
+					<div id="usGroupEditor" style="display:none;margin-top:12px;padding:16px;background:var(--panel2);border-radius:8px;border:2px solid var(--primary)">
+						<div class="help" style="margin-bottom:12px;font-weight:600" data-text-ko="✏️ 그룹 편집" data-text-en="✏️ Edit Group">✏️ 그룹 편집</div>
 						<input type="hidden" id="usGroupEditId"/>
 						<div class="form-row"><label data-text-ko="그룹 이름" data-text-en="Name">그룹 이름</label><input id="usGroupName" class="field" type="text" placeholder="My Group"/></div>
 						<div class="form-row">
@@ -553,17 +639,20 @@
 							<div class="form-row">
 								<label data-text-ko="키 선택" data-text-en="Keys">키 선택</label>
 								<button id="usRecordKeys" data-text-ko="🎤 녹화" data-text-en="🎤 Record">🎤 녹화</button>
-								<span id="usRecordedKeys" style="margin-left:8px; font-size:12px; color:var(--muted)"></span>
+								<span id="usRecordedKeys" style="margin-left:8px;font-size:12px;color:var(--muted)"></span>
 							</div>
 							<div class="form-row" style="margin-top:6px">
 								<label data-text-ko="마우스" data-text-en="Mouse">마우스</label>
-								<button type="button" id="usMouseLMB" onclick="toggleMouseButton('LMB')" class="mouse-btn" style="padding:4px 8px; font-size:11px">🖱️ 좌클릭</button>
-								<button type="button" id="usMouseRMB" onclick="toggleMouseButton('RMB')" class="mouse-btn" style="padding:4px 8px; font-size:11px">🖱️ 우클릭</button>
-								<button type="button" id="usMouseMMB" onclick="toggleMouseButton('MMB')" class="mouse-btn" style="padding:4px 8px; font-size:11px">🖱️ 중간</button>
-								<button type="button" id="usMouseM4" onclick="toggleMouseButton('MOUSE4')" class="mouse-btn" style="padding:4px 8px; font-size:11px">M4</button>
-								<button type="button" id="usMouseM5" onclick="toggleMouseButton('MOUSE5')" class="mouse-btn" style="padding:4px 8px; font-size:11px">M5</button>
+								<button type="button" id="usMouseLMB" onclick="toggleMouseButton('LMB')" class="mouse-btn" style="padding:4px 8px;font-size:11px">🖱️ 좌클릭</button>
+								<button type="button" id="usMouseRMB" onclick="toggleMouseButton('RMB')" class="mouse-btn" style="padding:4px 8px;font-size:11px">🖱️ 우클릭</button>
+								<button type="button" id="usMouseMMB" onclick="toggleMouseButton('MMB')" class="mouse-btn" style="padding:4px 8px;font-size:11px">🖱️ 중간</button>
+								<button type="button" id="usMouseM4" onclick="toggleMouseButton('MOUSE4')" class="mouse-btn" style="padding:4px 8px;font-size:11px">M4</button>
+								<button type="button" id="usMouseM5" onclick="toggleMouseButton('MOUSE5')" class="mouse-btn" style="padding:4px 8px;font-size:11px">M5</button>
 							</div>
 						</div>
+
+						<!-- ── 배경 설정 ── -->
+						<div style="margin:12px 0 6px;font-size:11px;font-weight:600;opacity:0.8">🎨 배경</div>
 						<div class="form-row">
 							<label data-text-ko="칩 배경" data-text-en="Chip BG">칩 배경</label>
 							<select id="usGroupBgMode" class="field">
@@ -577,126 +666,94 @@
 							<div class="form-row"><label data-text-ko="색상" data-text-en="Color">색상</label><div class="field color-field"><input id="usGroupBgColor_picker" type="color" value="#000000" style="width:40px;height:32px"/><input id="usGroupBgColor" type="text" value="#000000" style="flex:1;font-family:monospace"/></div></div>
 						</div>
 						<div id="usGroupBgGrad" style="display:none">
-							<!-- Gradient Direction -->
 							<div class="form-row" style="margin-bottom:10px">
 								<label data-text-ko="방향" data-text-en="Direction">방향</label>
-								<div class="field" style="display:flex; gap:6px; align-items:center">
+								<div class="field" style="display:flex;gap:6px;align-items:center">
 									<input type="range" id="usGroupGradAngle" min="0" max="360" value="180" style="flex:1"/>
 									<input type="number" id="usGroupGradAngleNum" min="0" max="360" value="180" style="width:55px"/>
 									<span>°</span>
 								</div>
 							</div>
-							<!-- Gradient Preview -->
-							<div id="usGroupGradPreview" style="height:20px; border-radius:4px; margin-bottom:10px; border:1px solid var(--border); background:linear-gradient(180deg, #000000, #333333)"></div>
-							<!-- Color Stops List -->
-							<div class="help" style="margin-bottom:6px; font-size:11px; font-weight:600" data-text-ko="🎨 색상" data-text-en="🎨 Colors">🎨 색상</div>
-							<div id="usGroupGradStops" style="display:flex; flex-direction:column; gap:4px; margin-bottom:6px"></div>
-							<button id="usGroupGradAdd" style="width:100%; padding:4px; font-size:12px" data-text-ko="+ 색상 추가" data-text-en="+ Add Color">+ 색상 추가</button>
+							<div id="usGroupGradPreview" style="height:20px;border-radius:4px;margin-bottom:10px;border:1px solid var(--border);background:linear-gradient(180deg,#000000,#333333)"></div>
+							<div class="help" style="margin-bottom:6px;font-size:11px;font-weight:600">🎨 색상</div>
+							<div id="usGroupGradStops" style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px"></div>
+							<button id="usGroupGradAdd" style="width:100%;padding:4px;font-size:12px" data-text-ko="+ 색상 추가" data-text-en="+ Add Color">+ 색상 추가</button>
 						</div>
 						<div id="usGroupBgImage" style="display:none">
 							<div class="key-img-drop" id="usGroupImageDrop" style="padding:16px">
 								<div data-text-ko="이미지 업로드" data-text-en="Upload Image">이미지 업로드</div>
 								<input type="file" id="usGroupImageFile" accept="image/*" style="display:none"/>
 							</div>
-							<img id="usGroupImagePreview" src="" style="display:none; max-width:100px; margin-top:8px; border-radius:6px"/>
+							<img id="usGroupImagePreview" src="" style="display:none;max-width:100px;margin-top:8px;border-radius:6px"/>
 						</div>
-						<div style="display:flex; gap:8px; margin-top:12px">
-							<button id="usGroupSave" class="primary" data-text-ko="저장" data-text-en="Save">저장</button>
-							<button id="usGroupCancel" data-text-ko="취소" data-text-en="Cancel">취소</button>
+
+						<!-- ── 칩 크기 + 폰트 (나란히) ── -->
+						<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;min-width:0">
+							<!-- 칩 크기 (그룹별 오버라이드) -->
+							<div style="background:var(--panel);padding:12px;border-radius:6px;border:1px solid var(--border);min-width:0;overflow:hidden">
+								<div style="font-size:11px;font-weight:600;margin-bottom:8px;opacity:0.85">📐 칩 크기 <span style="opacity:0.55;font-size:10px">(비워두면 기본값)</span></div>
+								<div style="display:grid;grid-template-columns:auto 1fr;gap:5px 8px;align-items:center;font-size:11px">
+									<label>세로 패딩</label><input id="usGroupChipPadV" type="number" min="0" placeholder="기본값" style="font-size:11px"/>
+									<label>가로 패딩</label><input id="usGroupChipPadH" type="number" min="0" placeholder="기본값" style="font-size:11px"/>
+									<label>모서리</label><input id="usGroupChipRadius" type="number" min="0" placeholder="기본값" style="font-size:11px"/>
+								</div>
+							</div>
+							<!-- 폰트 (그룹별 오버라이드) -->
+							<div style="background:var(--panel);padding:12px;border-radius:6px;border:1px solid var(--border);min-width:0;overflow:hidden">
+								<div style="font-size:11px;font-weight:600;margin-bottom:8px;opacity:0.85">✏️ 폰트 <span style="opacity:0.55;font-size:10px">(비워두면 기본값)</span></div>
+								<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;min-width:0">
+									<div>
+										<label style="font-size:11px;display:block;margin-bottom:2px" data-text-ko="폰트" data-text-en="Font">폰트</label>
+										<input type="text" id="usGroupFontFamily" placeholder="Arial, sans-serif" style="width:100%;font-size:11px"/>
+									</div>
+									<div>
+										<label style="font-size:11px;display:block;margin-bottom:2px" data-text-ko="크기 (px)" data-text-en="Size (px)">크기 (px)</label>
+										<input type="number" id="usGroupFontSize" min="8" max="72" placeholder="24" style="width:100%;font-size:11px"/>
+									</div>
+									<div>
+										<label style="font-size:11px;display:block;margin-bottom:2px" data-text-ko="두께" data-text-en="Weight">두께</label>
+										<select id="usGroupFontWeight" style="width:100%;font-size:11px">
+											<option value="">기본값</option>
+											<option value="400">400</option><option value="500">500</option>
+											<option value="600">600</option><option value="700">700</option>
+											<option value="800">800</option><option value="900">900</option>
+										</select>
+									</div>
+									<div>
+										<label style="font-size:11px;display:block;margin-bottom:2px" data-text-ko="색상" data-text-en="Color">색상</label>
+										<div style="display:flex;gap:4px">
+											<input type="color" id="usGroupFontColor" value="#ffffff" style="width:38px;height:30px"/>
+											<input type="text" id="usGroupFontColorText" value="#ffffff" style="flex:1;font-size:11px;font-family:monospace"/>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div style="display:flex;gap:8px;margin-top:14px">
+							<button id="usGroupSave" class="primary" style="flex:1" data-text-ko="저장" data-text-en="Save">저장</button>
+							<button id="usGroupCancel" style="flex:1" data-text-ko="취소" data-text-en="Cancel">취소</button>
 						</div>
 					</div>
 				</div>
 
-				<!-- ========== Font Tab ========== -->
-				<div id="usPanelFont" style="display:none">
-					<div class="help" style="margin-bottom:12px" data-text-ko="기본 폰트와 그룹별 폰트 오버라이드를 설정합니다." data-text-en="Configure default font and group-specific font overrides.">기본 폰트와 그룹별 폰트 오버라이드를 설정합니다.</div>
-					
-					<!-- Default Font -->
-					<div style="margin-bottom:16px; padding:12px; background:var(--panel2); border-radius:8px">
-						<div class="help" style="margin-bottom:10px; font-weight:600" data-text-ko="🔤 기본 폰트" data-text-en="🔤 Default Font">🔤 기본 폰트</div>
-						<div class="form-row">
-							<label data-text-ko="폰트" data-text-en="Font">폰트</label>
-							<select id="us_font_family" class="field">
-								<option value="system-ui">System UI</option>
-								<option value="Arial">Arial</option>
-								<option value="'Segoe UI'">Segoe UI</option>
-								<option value="Roboto">Roboto</option>
-								<option value="'Noto Sans KR'">Noto Sans KR</option>
-								<option value="custom">커스텀 URL...</option>
-							</select>
-						</div>
-						<div id="usFontUrlSection" style="display:none">
-							<div class="form-row"><label>URL</label><input id="us_font_url" class="field" type="text" placeholder="https://fonts.googleapis.com/css2?family=..."/></div>
-							<div class="help" style="font-size:11px" data-text-ko="💡 Google Fonts에서 @import URL을 복사하세요" data-text-en="💡 Copy @import URL from Google Fonts">💡 Google Fonts에서 @import URL을 복사하세요</div>
-						</div>
-						<div class="form-row"><label data-text-ko="크기(px)" data-text-en="Size">크기(px)</label><input id="us_font_size" class="field" type="number" min="8" value="24"/></div>
-						<div class="form-row"><label data-text-ko="두께" data-text-en="Weight">두께</label><select id="us_font_weight" class="field">
-							<option value="400">400 (Normal)</option>
-							<option value="500">500 (Medium)</option>
-							<option value="600">600 (Semi Bold)</option>
-							<option value="700" selected>700 (Bold)</option>
-							<option value="800">800 (Extra Bold)</option>
-							<option value="900">900 (Black)</option>
-						</select></div>
-						<div class="form-row"><label data-text-ko="색상" data-text-en="Color">색상</label><div class="field color-field"><input id="us_font_color_picker" type="color" value="#ffffff" style="width:40px;height:32px"/><input id="us_font_color" type="text" value="#ffffff" style="flex:1;font-family:monospace"/></div></div>
-						<div class="form-row"><label data-text-ko="그림자" data-text-en="Shadow">그림자</label><input type="checkbox" id="us_font_shadow" checked/></div>
-					</div>
-					
-					<!-- Group Font Overrides -->
-					<div style="padding:12px; background:var(--panel2); border-radius:8px">
-						<div class="help" style="margin-bottom:10px; font-weight:600" data-text-ko="🎯 그룹별 폰트 오버라이드" data-text-en="🎯 Group Font Overrides">🎯 그룹별 폰트 오버라이드</div>
-						<div id="usGroupFontList">
-							<div class="help" style="text-align:center; padding:16px; color:var(--muted)" data-text-ko="칩 탭에서 스타일 그룹을 먼저 추가하세요" data-text-en="Add style groups in Chip tab first">칩 탭에서 스타일 그룹을 먼저 추가하세요</div>
-						</div>
-						
-						<!-- Group Font Editor (hidden by default) -->
-						<div id="usGroupFontEditor" style="display:none; margin-top:12px; padding:12px; background:var(--panel); border-radius:8px; border:1px solid var(--primary)">
-							<input type="hidden" id="usGroupFontEditId"/>
-							<div class="help" style="margin-bottom:10px; font-weight:600; color:var(--primary)" id="usGroupFontEditTitle">폰트 설정</div>
-							
-							<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px">
-								<div class="form-group">
-									<label data-text-ko="폰트" data-text-en="Font">폰트</label>
-									<input type="text" id="usGroupFontFamily" placeholder="Arial, sans-serif"/>
-									<div class="help" style="font-size:10px; margin-top:2px" data-text-ko="비워두면 기본 폰트 사용" data-text-en="Leave empty for default">비워두면 기본 폰트 사용</div>
-								</div>
-								<div class="form-group">
-									<label data-text-ko="크기 (px)" data-text-en="Size (px)">크기 (px)</label>
-									<input type="number" id="usGroupFontSize" min="8" max="72" placeholder="24"/>
-								</div>
-								<div class="form-group">
-									<label data-text-ko="두께" data-text-en="Weight">두께</label>
-									<select id="usGroupFontWeight">
-										<option value="">기본값</option>
-										<option value="400">400 (Normal)</option>
-										<option value="500">500 (Medium)</option>
-										<option value="600">600 (Semi-bold)</option>
-										<option value="700">700 (Bold)</option>
-										<option value="800">800 (Extra-bold)</option>
-										<option value="900">900 (Black)</option>
-									</select>
-								</div>
-								<div class="form-group">
-									<label data-text-ko="색상" data-text-en="Color">색상</label>
-									<div style="display:flex; gap:6px; align-items:center">
-										<input type="color" id="usGroupFontColor" value="#ffffff" style="width:40px; height:32px"/>
-										<input type="text" id="usGroupFontColorText" value="#ffffff" style="flex:1; font-family:monospace"/>
-									</div>
-								</div>
-							</div>
-							
-							<div style="display:flex; gap:8px; margin-top:12px">
-								<button id="usGroupFontSave" class="primary" style="flex:1" data-text-ko="저장" data-text-en="Save">저장</button>
-								<button id="usGroupFontCancel" style="flex:1" data-text-ko="취소" data-text-en="Cancel">취소</button>
-							</div>
-						</div>
-					</div>
-				</div>
+
 
 				<!-- Preview -->
 				<div class="overlay-preview" id="us_preview" style="margin-top:14px">
 					<div class="help" style="margin-bottom:8px" data-text-ko="미리보기" data-text-en="Preview">미리보기</div>
 					<div class="queue" id="us_preview_queue" style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center"></div>
+				</div>
+				<!-- Live key input preview (based on saved state) -->
+				<div style="margin-top:10px;padding:10px 12px;background:var(--panel2);border-radius:8px;border:1px solid var(--border)">
+					<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+						<div class="help" style="font-size:11px;font-weight:600">⌨️ 실시간 키 입력 (저장된 스타일 기준)</div>
+						<span style="font-size:10px;opacity:0.5;flex:1">· 키보드를 눌러 테스트</span>
+						<button id="usLivePreviewClear" style="padding:2px 8px;font-size:10px;opacity:0.7">초기화</button>
+					</div>
+					<div id="us_live_preview" style="display:flex;flex-wrap:wrap;gap:8px;min-height:36px;align-items:center">
+						<span style="font-size:11px;opacity:0.4;font-style:italic">키를 눌러보세요...</span>
+					</div>
 				</div>
 			</div>
 			<div class="modal-footer">
@@ -1515,11 +1572,13 @@
 		const usTabBg = document.getElementById('usTabBg');
 		const usTabChip = document.getElementById('usTabChip');
 		const usTabFont = document.getElementById('usTabFont');
+		const usTabMode = document.getElementById('usTabMode');
 		
 		// Tab panels
 		const usPanelBg = document.getElementById('usPanelBg');
 		const usPanelChip = document.getElementById('usPanelChip');
 		const usPanelFont = document.getElementById('usPanelFont');
+		const usPanelMode = document.getElementById('usPanelMode');
 		
 		// Background tab elements
 		const us_bg_transparent = document.getElementById('us_bg_transparent');
@@ -1567,8 +1626,9 @@
 		const us_preview = document.getElementById('us_preview');
 		const us_preview_queue = document.getElementById('us_preview_queue');
 		
-		// Style groups data storage
-		let styleGroups = [];
+		// Style groups data storage (per-mode)
+		let styleGroupsByMode = { queue: [], keyviewer: [] };
+		let currentEditingMode = 'queue'; // which mode's groups are being edited in modal
 		let usRecording = false;
 		let usRecordedKeysList = [];
 
@@ -1707,24 +1767,37 @@
 		function openModalUnifiedStyle() {
 			modalUnifiedStyle.style.display = 'flex';
 			loadUnifiedStyleConfig();
+			loadKvConfig();
 			switchUnifiedTab('bg');
 			renderBgGradStops();
+			attachLiveKeyListeners();
+			setEditingMode(currentKvOverlayMode); // init to active overlay mode + update header buttons
+		}
+
+		function setEditingMode(mode) {
+			currentEditingMode = mode;
+			const btnQ = document.getElementById('editModeQueue');
+			const btnKv = document.getElementById('editModeKv');
+			if (btnQ) btnQ.classList.toggle('primary', mode === 'queue');
+			if (btnKv) btnKv.classList.toggle('primary', mode === 'keyviewer');
+			renderStyleGroupsList();
 			updateUnifiedPreview();
 		}
+		window.setEditingMode = setEditingMode;
 		
 		function closeModalUnifiedStyle() {
 			modalUnifiedStyle.style.display = 'none';
 			usGroupEditor.style.display = 'none';
+			detachLiveKeyListeners();
 		}
 		
 		function switchUnifiedTab(tab) {
 			// Update tab button states
-			[usTabBg, usTabChip, usTabFont].forEach(t => t && t.classList.remove('active'));
+			[usTabBg, usTabChip].forEach(t => t && t.classList.remove('active'));
 			
 			// Hide all panels
 			if (usPanelBg) usPanelBg.style.display = 'none';
 			if (usPanelChip) usPanelChip.style.display = 'none';
-			if (usPanelFont) usPanelFont.style.display = 'none';
 			
 			// Show selected panel
 			switch(tab) {
@@ -1737,11 +1810,6 @@
 					if (usPanelChip) usPanelChip.style.display = 'block';
 					renderStyleGroupsList();
 					break;
-				case 'font':
-					if (usTabFont) usTabFont.classList.add('active');
-					if (usPanelFont) usPanelFont.style.display = 'block';
-					renderStyleGroupsList();
-					break;
 			}
 		}
 		
@@ -1749,6 +1817,7 @@
 		if (usTabBg) usTabBg.addEventListener('click', () => switchUnifiedTab('bg'));
 		if (usTabChip) usTabChip.addEventListener('click', () => switchUnifiedTab('chip'));
 		if (usTabFont) usTabFont.addEventListener('click', () => switchUnifiedTab('font'));
+		if (usTabMode) usTabMode.addEventListener('click', () => switchUnifiedTab('mode'));
 		
 		// Background transparency toggle
 		if (us_bg_transparent) {
@@ -1756,7 +1825,6 @@
 				if (usBgColorSection) {
 					usBgColorSection.style.display = us_bg_transparent.checked ? 'none' : 'block';
 				}
-				updateUnifiedPreview();
 			});
 		}
 		
@@ -1768,7 +1836,6 @@
 				if (usBgGradient) usBgGradient.style.display = mode === 'gradient' ? 'block' : 'none';
 				if (usBgImage) usBgImage.style.display = mode === 'image' ? 'block' : 'none';
 				if (mode === 'gradient') renderBgGradStops();
-				updateUnifiedPreview();
 			});
 		}
 		
@@ -1778,7 +1845,6 @@
 				if (usFontUrlSection) {
 					usFontUrlSection.style.display = us_font_family.value === 'custom' ? 'block' : 'none';
 				}
-				updateUnifiedPreview();
 			});
 		}
 		
@@ -1817,7 +1883,27 @@
 				if (usGroupBgSolid) usGroupBgSolid.style.display = 'block';
 				if (usGroupBgGrad) usGroupBgGrad.style.display = 'none';
 				if (usGroupBgImage) usGroupBgImage.style.display = 'none';
+				// Clear chip size override fields
+				const chipPadVEl = document.getElementById('usGroupChipPadV');
+				const chipPadHEl = document.getElementById('usGroupChipPadH');
+				const chipRadiusEl = document.getElementById('usGroupChipRadius');
+				if (chipPadVEl) chipPadVEl.value = '';
+				if (chipPadHEl) chipPadHEl.value = '';
+				if (chipRadiusEl) chipRadiusEl.value = '';
+				// Clear font fields
+				const fontFEl = document.getElementById('usGroupFontFamily');
+				const fontSEl = document.getElementById('usGroupFontSize');
+				const fontWEl = document.getElementById('usGroupFontWeight');
+				const fontCEl = document.getElementById('usGroupFontColor');
+				const fontCTEl = document.getElementById('usGroupFontColorText');
+				if (fontFEl) fontFEl.value = '';
+				if (fontSEl) fontSEl.value = '';
+				if (fontWEl) fontWEl.value = '';
+				if (fontCEl) fontCEl.value = '#ffffff';
+				if (fontCTEl) fontCTEl.value = '#ffffff';
 				usGroupEditor.style.display = 'block';
+				if (usGroupKeysSection) usGroupKeysSection.style.display = 'block';
+				usGroupEditor.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 				updateMouseButtonStates();
 			});
 		}
@@ -1830,6 +1916,16 @@
 				const keys = type === 'all' ? ['*'] : usRecordedKeysList;
 				const bgMode = usGroupBgMode.value;
 				
+				// Read font override fields from group editor
+				const fontFamilyVal = document.getElementById('usGroupFontFamily')?.value || '';
+				const fontSizeVal = document.getElementById('usGroupFontSize')?.value || '';
+				const fontWeightVal = document.getElementById('usGroupFontWeight')?.value || '';
+				const fontColorVal = document.getElementById('usGroupFontColorText')?.value || '';
+				// Read chip size override fields
+				const chipPadVVal = document.getElementById('usGroupChipPadV')?.value;
+				const chipPadHVal = document.getElementById('usGroupChipPadH')?.value;
+				const chipRadiusVal = document.getElementById('usGroupChipRadius')?.value;
+				
 				const group = {
 					id: usGroupEditId.value || Date.now().toString(),
 					name,
@@ -1840,19 +1936,27 @@
 					gradStops: groupGradEditor.getStops(),
 					gradAngle: groupGradEditor.getAngle(),
 					image: usGroupImageData,
-					textOpacity: usGroupTextOpacity
+					textOpacity: usGroupTextOpacity,
+					fontFamily: fontFamilyVal || null,
+					fontSize: fontSizeVal ? parseInt(fontSizeVal) : null,
+					fontWeight: fontWeightVal || null,
+					fontColor: fontColorVal || null,
+					chipPadV: chipPadVVal !== '' && chipPadVVal != null ? Number(chipPadVVal) : null,
+					chipPadH: chipPadHVal !== '' && chipPadHVal != null ? Number(chipPadHVal) : null,
+					chipRadius: chipRadiusVal !== '' && chipRadiusVal != null ? Number(chipRadiusVal) : null
 				};
 				
-				// Find and update or add
-				const existingIdx = styleGroups.findIndex(g => g.id === group.id);
+				// Find and update or add in current mode's groups
+				const groups = styleGroupsByMode[currentEditingMode];
+				const existingIdx = groups.findIndex(g => g.id === group.id);
 				if (existingIdx >= 0) {
-					styleGroups[existingIdx] = group;
+					groups[existingIdx] = group;
 				} else {
-					styleGroups.push(group);
+					groups.push(group);
 				}
 				
 				// Save to localStorage immediately
-				localStorage.setItem('keyviewer_style_groups', JSON.stringify(styleGroups));
+				localStorage.setItem('keyviewer_style_groups_' + currentEditingMode, JSON.stringify(groups));
 				
 				usGroupEditor.style.display = 'none';
 				renderStyleGroupsList();
@@ -2053,21 +2157,24 @@
 		function renderStyleGroupsList() {
 			if (!usGroupList) return;
 			
-			const usGroupFontList = document.getElementById('usGroupFontList');
+			const currentGroups = styleGroupsByMode[currentEditingMode];
 			
-			if (styleGroups.length === 0) {
+			if (currentGroups.length === 0) {
 				usGroupList.innerHTML = '';
 				if (usNoGroups) usNoGroups.style.display = 'block';
-				// Show empty message in font tab
-				if (usGroupFontList) {
-					usGroupFontList.innerHTML = `<div class="help" style="text-align:center; padding:16px; color:var(--muted)" data-text-ko="칩 탭에서 스타일 그룹을 먼저 추가하세요" data-text-en="Add style groups in Chip tab first">${currentLanguage === 'ko' ? '칩 탭에서 스타일 그룹을 먼저 추가하세요' : 'Add style groups in Chip tab first'}</div>`;
-				}
 				return;
 			}
 			
 			if (usNoGroups) usNoGroups.style.display = 'none';
 			
-			usGroupList.innerHTML = styleGroups.map(g => {
+			const typeBadge = { individual: '🔴', group: '🟡', all: '🟢' };
+			const typeLabel = {
+				individual: currentLanguage === 'ko' ? '개별' : 'Individual',
+				group: currentLanguage === 'ko' ? '그룹' : 'Group',
+				all: currentLanguage === 'ko' ? '전체' : 'All'
+			};
+
+			usGroupList.innerHTML = currentGroups.map((g, idx) => {
 				let previewStyle = '';
 				if (g.bgMode === 'image' && g.image) {
 					previewStyle = `background-image:url(${g.image});background-size:cover;background-position:center`;
@@ -2082,112 +2189,104 @@
 				} else {
 					previewStyle = `background:${g.bgColor || '#000000'}`;
 				}
+				const keyDisplay = g.type === 'all' ? (currentLanguage === 'ko' ? '모든 키' : 'All Keys') : g.keys.slice(0, 5).join(', ') + (g.keys.length > 5 ? '…' : '');
 				return `
-				<div class="key-img-item" data-id="${g.id}">
-					<div style="width:40px;height:40px;${previewStyle};border-radius:6px"></div>
-					<div class="keys">
-						<span style="font-weight:600">${g.name}</span>
-						<span style="opacity:0.6;font-size:11px">${g.type === 'all' ? (currentLanguage === 'ko' ? '모든 키' : 'All Keys') : g.keys.slice(0, 5).join(', ') + (g.keys.length > 5 ? '...' : '')}</span>
+				<div class="key-img-item sg-drag-item" draggable="true" data-id="${g.id}" data-idx="${idx}"
+					style="cursor:default; user-select:none">
+					<div class="sg-drag-handle" title="${currentLanguage === 'ko' ? '드래그하여 순서 변경' : 'Drag to reorder'}" style="cursor:grab;padding:0 6px;font-size:18px;opacity:0.5;display:flex;align-items:center">⠿</div>
+					<div style="width:36px;height:36px;${previewStyle};border-radius:6px;flex-shrink:0"></div>
+					<div class="keys" style="flex:1;min-width:0">
+						<div style="display:flex;align-items:center;gap:6px">
+							<span style="font-weight:600">${g.name}</span>
+							<span style="font-size:10px;opacity:0.75;background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:4px">${typeBadge[g.type] || ''} ${typeLabel[g.type] || g.type}</span>
+							<span style="font-size:10px;opacity:0.5">#${idx + 1}</span>
+						</div>
+						<span style="opacity:0.6;font-size:11px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${keyDisplay}</span>
 					</div>
-					<div class="key-img-actions">
+					<div class="key-img-actions" style="flex-shrink:0">
+						<button onclick="moveStyleGroup('${g.id}','up')" title="위로" style="padding:4px 7px" ${idx === 0 ? 'disabled' : ''}>▲</button>
+						<button onclick="moveStyleGroup('${g.id}','down')" title="아래로" style="padding:4px 7px" ${idx === currentGroups.length - 1 ? 'disabled' : ''}>▼</button>
 						<button onclick="editStyleGroup('${g.id}')">${currentLanguage === 'ko' ? '수정' : 'Edit'}</button>
 						<button class="danger" onclick="deleteStyleGroup('${g.id}')">${currentLanguage === 'ko' ? '삭제' : 'Delete'}</button>
 					</div>
 				</div>`;
 			}).join('');
 			
-			// Render font override list in Font tab
-			if (usGroupFontList) {
-				usGroupFontList.innerHTML = styleGroups.map(g => {
-					const fontFamily = g.fontFamily || (currentLanguage === 'ko' ? '기본값' : 'Default');
-					const fontSize = g.fontSize || '-';
-					const fontWeight = g.fontWeight || '-';
-					const fontColor = g.fontColor || '#ffffff';
-					return `
-					<div class="key-img-item" data-id="${g.id}" style="padding:10px 12px">
-						<div style="width:36px;height:36px;background:${fontColor};border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:bold;color:${isLightColor(fontColor) ? '#000' : '#fff'}">A</div>
-						<div class="keys" style="flex:1">
-							<span style="font-weight:600">${g.name}</span>
-							<span style="opacity:0.6;font-size:11px">${fontFamily} / ${fontSize}px / ${fontWeight}</span>
-						</div>
-						<div class="key-img-actions">
-							<button onclick="editGroupFont('${g.id}')">${currentLanguage === 'ko' ? '폰트 설정' : 'Font Settings'}</button>
-						</div>
-					</div>`;
-				}).join('');
+			// Wire up drag-to-reorder
+			setupGroupDragReorder();
+		}
+
+		// Move style group up/down in priority order
+		window.moveStyleGroup = function(id, dir) {
+			const groups = styleGroupsByMode[currentEditingMode];
+			const idx = groups.findIndex(g => g.id === id);
+			if (idx < 0) return;
+			if (dir === 'up' && idx > 0) {
+				[groups[idx - 1], groups[idx]] = [groups[idx], groups[idx - 1]];
+			} else if (dir === 'down' && idx < groups.length - 1) {
+				[groups[idx], groups[idx + 1]] = [groups[idx + 1], groups[idx]];
 			}
+			renderStyleGroupsList();
+			updateUnifiedPreview();
+		};
+
+		// Drag-to-reorder for style groups
+		let sgDragSrcIdx = null;
+		function setupGroupDragReorder() {
+			const items = usGroupList.querySelectorAll('.sg-drag-item');
+			items.forEach(item => {
+				item.addEventListener('dragstart', e => {
+					sgDragSrcIdx = parseInt(item.dataset.idx);
+					e.dataTransfer.effectAllowed = 'move';
+					setTimeout(() => item.style.opacity = '0.4', 0);
+				});
+				item.addEventListener('dragend', () => { item.style.opacity = ''; });
+				item.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; item.style.outline = '2px solid var(--primary)'; });
+				item.addEventListener('dragleave', () => { item.style.outline = ''; });
+				item.addEventListener('drop', e => {
+					e.preventDefault();
+					item.style.outline = '';
+					const destIdx = parseInt(item.dataset.idx);
+					if (sgDragSrcIdx !== null && sgDragSrcIdx !== destIdx) {
+						const groups = styleGroupsByMode[currentEditingMode];
+						const moved = groups.splice(sgDragSrcIdx, 1)[0];
+						groups.splice(destIdx, 0, moved);
+						renderStyleGroupsList();
+						updateUnifiedPreview();
+					}
+					sgDragSrcIdx = null;
+				});
+			});
 		}
 		
 		// isLightColor is now in utils.js
 		
-		// Group Font Editor elements
-		const usGroupFontEditor = document.getElementById('usGroupFontEditor');
-		const usGroupFontEditId = document.getElementById('usGroupFontEditId');
-		const usGroupFontEditTitle = document.getElementById('usGroupFontEditTitle');
-		const usGroupFontFamily = document.getElementById('usGroupFontFamily');
-		const usGroupFontSize = document.getElementById('usGroupFontSize');
-		const usGroupFontWeight = document.getElementById('usGroupFontWeight');
+		// Font color picker ↔ text sync (in group editor)
 		const usGroupFontColor = document.getElementById('usGroupFontColor');
 		const usGroupFontColorText = document.getElementById('usGroupFontColorText');
-		const usGroupFontSave = document.getElementById('usGroupFontSave');
-		const usGroupFontCancel = document.getElementById('usGroupFontCancel');
-		
-		// Sync color picker and text input
 		if (usGroupFontColor && usGroupFontColorText) {
 			usGroupFontColor.addEventListener('input', () => {
 				usGroupFontColorText.value = usGroupFontColor.value;
+				captureCurrentPreviewConfig();
 			});
 			usGroupFontColorText.addEventListener('input', () => {
 				if (/^#[0-9A-Fa-f]{6}$/.test(usGroupFontColorText.value)) {
 					usGroupFontColor.value = usGroupFontColorText.value;
 				}
+				captureCurrentPreviewConfig();
 			});
 		}
-		
-		// Edit group font settings
-		window.editGroupFont = function(id) {
-			const group = styleGroups.find(g => g.id === id);
-			if (!group) return;
-			
-			usGroupFontEditId.value = id;
-			usGroupFontEditTitle.textContent = `${currentLanguage === 'ko' ? '폰트 설정:' : 'Font Settings:'} ${group.name}`;
-			usGroupFontFamily.value = group.fontFamily || '';
-			usGroupFontSize.value = group.fontSize || '';
-			usGroupFontWeight.value = group.fontWeight || '';
-			usGroupFontColor.value = group.fontColor || '#ffffff';
-			usGroupFontColorText.value = group.fontColor || '#ffffff';
-			
-			usGroupFontEditor.style.display = 'block';
-		};
-		
-		// Save group font
-		if (usGroupFontSave) {
-			usGroupFontSave.addEventListener('click', () => {
-				const id = usGroupFontEditId.value;
-				const group = styleGroups.find(g => g.id === id);
-				if (!group) return;
-				
-				group.fontFamily = usGroupFontFamily.value || null;
-				group.fontSize = usGroupFontSize.value ? parseInt(usGroupFontSize.value) : null;
-				group.fontWeight = usGroupFontWeight.value ? parseInt(usGroupFontWeight.value) : null;
-				group.fontColor = usGroupFontColorText.value || null;
-				
-				usGroupFontEditor.style.display = 'none';
-				renderStyleGroupsList();
-				updateUnifiedPreview();
-			});
-		}
-		
-		// Cancel group font edit
-		if (usGroupFontCancel) {
-			usGroupFontCancel.addEventListener('click', () => {
-				usGroupFontEditor.style.display = 'none';
-			});
-		}
+
+		// Live-update preview as group editor chip-size/font fields change
+		['usGroupChipPadV','usGroupChipPadH','usGroupChipRadius',
+		 'usGroupFontFamily','usGroupFontSize','usGroupFontWeight'].forEach(id => {
+			const el = document.getElementById(id);
+			if (el) el.addEventListener('input', captureCurrentPreviewConfig);
+		});
 		
 		// Edit style group
 		window.editStyleGroup = function(id) {
-			const group = styleGroups.find(g => g.id === id);
+			const group = styleGroupsByMode[currentEditingMode].find(g => g.id === id);
 			if (!group) return;
 			
 			usGroupEditId.value = group.id;
@@ -2232,7 +2331,27 @@
 			if (usGroupBgImage) usGroupBgImage.style.display = group.bgMode === 'image' ? 'block' : 'none';
 			if (usGroupKeysSection) usGroupKeysSection.style.display = group.type === 'all' ? 'none' : 'block';
 			
+			// Load font override fields into group editor
+			const fontFamilyEl = document.getElementById('usGroupFontFamily');
+			const fontSizeEl = document.getElementById('usGroupFontSize');
+			const fontWeightEl = document.getElementById('usGroupFontWeight');
+			const fontColorEl2 = document.getElementById('usGroupFontColor');
+			const fontColorTextEl2 = document.getElementById('usGroupFontColorText');
+			if (fontFamilyEl) fontFamilyEl.value = group.fontFamily || '';
+			if (fontSizeEl) fontSizeEl.value = group.fontSize || '';
+			if (fontWeightEl) fontWeightEl.value = group.fontWeight || '';
+			if (fontColorEl2) fontColorEl2.value = group.fontColor || '#ffffff';
+			if (fontColorTextEl2) fontColorTextEl2.value = group.fontColor || '#ffffff';
+			// Load chip size override fields
+			const chipPadVEl2 = document.getElementById('usGroupChipPadV');
+			const chipPadHEl2 = document.getElementById('usGroupChipPadH');
+			const chipRadiusEl2 = document.getElementById('usGroupChipRadius');
+			if (chipPadVEl2) chipPadVEl2.value = group.chipPadV != null ? group.chipPadV : '';
+			if (chipPadHEl2) chipPadHEl2.value = group.chipPadH != null ? group.chipPadH : '';
+			if (chipRadiusEl2) chipRadiusEl2.value = group.chipRadius != null ? group.chipRadius : '';
+			
 			usGroupEditor.style.display = 'block';
+			usGroupEditor.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 			updateMouseButtonStates();
 		};
 		
@@ -2240,7 +2359,7 @@
 		window.deleteStyleGroup = function(id) {
 			const confirmMsg = currentLanguage === 'ko' ? '이 스타일 그룹을 삭제하시겠습니까?' : 'Delete this style group?';
 			if (confirm(confirmMsg)) {
-				styleGroups = styleGroups.filter(g => g.id !== id);
+				styleGroupsByMode[currentEditingMode] = styleGroupsByMode[currentEditingMode].filter(g => g.id !== id);
 				renderStyleGroupsList();
 				updateUnifiedPreview();
 			}
@@ -2275,24 +2394,31 @@
 			us_preview.style.background = bgStyle;
 			us_preview_queue.style.gap = gap + 'px';
 			
-			// Get default chip style (from "all" type group, or fallback)
-			let defaultChipBg = '#000000';
-			let defaultChipImage = null;
-			const allGroup = styleGroups.find(g => g.type === 'all');
-			if (allGroup) {
-				if (allGroup.bgMode === 'image' && allGroup.image) {
-					defaultChipImage = allGroup.image;
-				} else if (allGroup.bgMode === 'gradient') {
-					if (allGroup.gradStops && allGroup.gradStops.length >= 2) {
-						const sorted = [...allGroup.gradStops].sort((a, b) => a.position - b.position);
+			// Resolve chip style with priority: individual > group > all
+			function resolveGroupBgForPreview(g) {
+				if (g.bgMode === 'image' && g.image) return { kind: 'image', image: g.image, textOpacity: g.textOpacity };
+				if (g.bgMode === 'gradient') {
+					let color;
+					if (g.gradStops && g.gradStops.length >= 2) {
+						const sorted = [...g.gradStops].sort((a, b) => a.position - b.position);
 						const stops = sorted.map(s => `${s.color} ${s.position}%`).join(', ');
-						defaultChipBg = `linear-gradient(${allGroup.gradAngle || 180}deg, ${stops})`;
+						color = `linear-gradient(${g.gradAngle || 180}deg, ${stops})`;
 					} else {
-						defaultChipBg = `linear-gradient(180deg, ${allGroup.gradColor1 || '#000'}, ${allGroup.gradColor2 || '#333'})`;
+						color = `linear-gradient(180deg, ${g.gradColor1 || '#000'}, ${g.gradColor2 || '#333'})`;
 					}
-				} else if (allGroup.bgMode === 'solid') {
-					defaultChipBg = allGroup.bgColor;
+					return { kind: 'color', color };
 				}
+				if (g.bgMode === 'solid') return { kind: 'color', color: g.bgColor };
+				return null;
+			}
+			function resolveChipStyleForPreview(key) {
+				// Strict array order: first matching group wins (index 0 = highest priority)
+				for (const g of styleGroupsByMode[currentEditingMode]) {
+					if (g.type !== 'all' && !(g.keys?.includes(key))) continue;
+					const s = resolveGroupBgForPreview(g);
+					if (s) return s;
+				}
+				return null;
 			}
 			
 			// Render sample chips - match actual overlay style exactly
@@ -2304,14 +2430,17 @@
 				chip.className = 'chip';
 				chip.textContent = label;
 				
-				// Apply background (image or color)
-				if (defaultChipImage) {
-					chip.style.backgroundImage = `url(${defaultChipImage})`;
+				// Apply background with per-key priority
+				const chipStyle = resolveChipStyleForPreview(label);
+				if (chipStyle?.kind === 'image') {
+					chip.style.backgroundImage = `url(${chipStyle.image})`;
 					chip.style.backgroundSize = 'cover';
 					chip.style.backgroundPosition = 'center';
 					chip.style.backgroundColor = 'transparent';
+				} else if (chipStyle?.kind === 'color') {
+					chip.style.background = chipStyle.color;
 				} else {
-					chip.style.background = defaultChipBg;
+					chip.style.background = '#222222';
 				}
 				
 				chip.style.color = fontColor;
@@ -2330,8 +2459,167 @@
 				chip.style.boxShadow = 'inset 0 0 0 2px rgba(255,255,255,0.12), inset 0 -2px 4px rgba(0,0,0,0.25), inset 0 2px 4px rgba(255,255,255,0.08)';
 				us_preview_queue.appendChild(chip);
 			});
+
+			// Keep live-key-input preview in sync with current (unsaved) form values
+			captureCurrentPreviewConfig();
 		}
-		
+
+		// ========== Live Key Input Preview ==========
+		// Uses SAVED state (overlay config) — not live form values.
+		let savedPreviewConfig = null; // populated after loadUnifiedStyleConfig
+		const usLivePreview = document.getElementById('us_live_preview');
+		const usLivePreviewClear = document.getElementById('usLivePreviewClear');
+		let livePressedKeys = new Set();
+
+		function makeLiveChip(label) {
+			if (!savedPreviewConfig) return null;
+			const { gap, padV, padH, radius, fontSize, fontWeight, fontColor, fontFamily, groups } = savedPreviewConfig;
+			// Resolve style from saved groups
+			function resolveGroupBg(g) {
+				if (g.bgMode === 'gradient') {
+					if (g.gradStops && g.gradStops.length >= 2) {
+						const sorted = [...g.gradStops].sort((a, b) => a.position - b.position);
+						const stops = sorted.map(s => `${s.color} ${s.position}%`).join(', ');
+						return { kind: 'color', color: `linear-gradient(${g.gradAngle||180}deg,${stops})` };
+					}
+					return { kind: 'color', color: `linear-gradient(180deg,${g.gradColor1||'#000'},${g.gradColor2||'#333'})` };
+				}
+				if (g.bgMode === 'solid') return { kind: 'color', color: g.bgColor };
+				if (g.bgMode === 'image' && g.image) return { kind: 'image', image: g.image };
+				return null;
+			}
+			let chipStyle = null;
+			for (const g of groups) {
+				if (g.type !== 'all' && !(g.keys?.includes(label))) continue;
+				const s = resolveGroupBg(g);
+				if (s) { chipStyle = s; break; }
+			}
+			const chip = document.createElement('div');
+			chip.className = 'chip';
+			chip.textContent = label;
+			chip.style.transition = 'opacity 0.1s';
+			if (chipStyle?.kind === 'image') {
+				chip.style.backgroundImage = `url(${chipStyle.image})`;
+				chip.style.backgroundSize = 'cover';
+				chip.style.backgroundPosition = 'center';
+				chip.style.backgroundColor = 'transparent';
+			} else if (chipStyle?.kind === 'color') {
+				chip.style.background = chipStyle.color;
+			} else {
+				chip.style.background = '#222222';
+			}
+			chip.style.color = fontColor;
+			chip.style.padding = `${padV}px ${padH}px`;
+			chip.style.borderRadius = `${radius}px`;
+			chip.style.fontSize = `${fontSize}px`;
+			chip.style.fontWeight = fontWeight;
+			chip.style.fontFamily = fontFamily;
+			chip.style.minWidth = '44px';
+			chip.style.textAlign = 'center';
+			chip.style.display = 'inline-flex';
+			chip.style.alignItems = 'center';
+			chip.style.justifyContent = 'center';
+			chip.style.boxShadow = 'inset 0 0 0 2px rgba(255,255,255,0.12), inset 0 -2px 4px rgba(0,0,0,0.25), inset 0 2px 4px rgba(255,255,255,0.08)';
+			return chip;
+		}
+
+		function renderLivePreview() {
+			if (!usLivePreview) return;
+			if (livePressedKeys.size === 0) {
+				usLivePreview.innerHTML = '<span style="font-size:11px;opacity:0.4;font-style:italic">키를 눌러보세요...</span>';
+				if (savedPreviewConfig) usLivePreview.style.gap = savedPreviewConfig.gap + 'px';
+				return;
+			}
+			usLivePreview.innerHTML = '';
+			if (savedPreviewConfig) usLivePreview.style.gap = savedPreviewConfig.gap + 'px';
+			livePressedKeys.forEach(key => {
+				const chip = makeLiveChip(key);
+				if (chip) usLivePreview.appendChild(chip);
+			});
+		}
+
+		function captureCurrentPreviewConfig() {
+			// Build a draft copy of groups, merging any unsaved form edits for the currently-open group
+			const baseGroups = JSON.parse(JSON.stringify(styleGroupsByMode[currentEditingMode] || []));
+			const editId = usGroupEditId?.value;
+			if (editId) {
+				const idx = baseGroups.findIndex(g => g.id === editId);
+				if (idx !== -1) {
+					const cpv = document.getElementById('usGroupChipPadV')?.value;
+					const cph = document.getElementById('usGroupChipPadH')?.value;
+					const cpr = document.getElementById('usGroupChipRadius')?.value;
+					const ff  = document.getElementById('usGroupFontFamily')?.value;
+					const fs  = document.getElementById('usGroupFontSize')?.value;
+					const fw  = document.getElementById('usGroupFontWeight')?.value;
+					const fc  = document.getElementById('usGroupFontColor')?.value;
+					baseGroups[idx] = {
+						...baseGroups[idx],
+						chipPadV:   cpv !== '' && cpv != null ? Number(cpv) : null,
+						chipPadH:   cph !== '' && cph != null ? Number(cph) : null,
+						chipRadius: cpr !== '' && cpr != null ? Number(cpr) : null,
+						fontFamily: ff  || null,
+						fontSize:   fs  !== '' && fs  != null ? Number(fs)  : null,
+						fontWeight: fw  || null,
+						fontColor:  fc  || null,
+					};
+				}
+			}
+			savedPreviewConfig = {
+				gap: Number(us_chip_gap?.value) || 8,
+				padV: Number(us_chip_pad_v?.value) || 10,
+				padH: Number(us_chip_pad_h?.value) || 14,
+				radius: Number(us_chip_radius?.value) || 10,
+				fontSize: Number(us_font_size?.value) || 24,
+				fontWeight: us_font_weight?.value || '700',
+				fontColor: us_font_color?.value || '#ffffff',
+				fontFamily: us_font_family?.value === 'custom' ? 'system-ui' : (us_font_family?.value || 'system-ui'),
+				groups: baseGroups
+			};
+		}
+
+		// Keyboard listeners active only while modal is open
+		let liveKeyListenersActive = false;
+		function normalizeKeyForLive(e) {
+			if (e.code === 'ShiftLeft') return 'LSHIFT';
+			if (e.code === 'ShiftRight') return 'RSHIFT';
+			if (e.code === 'ControlLeft') return 'LCTRL';
+			if (e.code === 'ControlRight') return 'RCTRL';
+			if (e.code === 'AltLeft') return 'LALT';
+			if (e.code === 'AltRight') return 'RALT';
+			if (e.key === ' ') return 'SPACE';
+			if (e.key === 'Escape') return 'ESC';
+			return e.key.toUpperCase();
+		}
+		function onLiveKeyDown(e) {
+			// Don't capture if focused inside an input/select/textarea
+			if (['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName)) return;
+			const key = normalizeKeyForLive(e);
+			if (!livePressedKeys.has(key)) {
+				livePressedKeys.add(key);
+				renderLivePreview();
+			}
+		}
+		function onLiveKeyUp(e) {
+			const key = normalizeKeyForLive(e);
+			livePressedKeys.delete(key);
+			renderLivePreview();
+		}
+		function attachLiveKeyListeners() {
+			if (liveKeyListenersActive) return;
+			document.addEventListener('keydown', onLiveKeyDown);
+			document.addEventListener('keyup', onLiveKeyUp);
+			liveKeyListenersActive = true;
+		}
+		function detachLiveKeyListeners() {
+			document.removeEventListener('keydown', onLiveKeyDown);
+			document.removeEventListener('keyup', onLiveKeyUp);
+			liveKeyListenersActive = false;
+			livePressedKeys.clear();
+		}
+		if (usLivePreviewClear) {
+			usLivePreviewClear.addEventListener('click', () => { livePressedKeys.clear(); renderLivePreview(); });
+		}
+
 		// Load unified style config from server
 		async function loadUnifiedStyleConfig() {
 			try {
@@ -2353,47 +2641,42 @@
 				if (us_font_weight) us_font_weight.value = String(c.chip_font_weight ?? 700);
 				if (us_font_color) us_font_color.value = c.chip_fg ?? '#ffffff';
 				
-				// Load style groups from localStorage first
-				const storedGroups = localStorage.getItem('keyviewer_style_groups');
-				if (storedGroups) {
-					try {
-						styleGroups = JSON.parse(storedGroups);
-					} catch(e) {
-						styleGroups = [];
+				// Load per-mode style groups from server (with localStorage fallback)
+				try {
+					const ksRes = await fetch('/api/key-style');
+					const ksCfg = await ksRes.json();
+					// Queue mode groups
+					if (Array.isArray(ksCfg.rawStyleGroupsQueue) && ksCfg.rawStyleGroupsQueue.length > 0) {
+						styleGroupsByMode.queue = ksCfg.rawStyleGroupsQueue;
+					} else {
+						const stored = localStorage.getItem('keyviewer_style_groups_queue') || localStorage.getItem('keyviewer_style_groups');
+						if (stored) {
+							try { styleGroupsByMode.queue = JSON.parse(stored); } catch(e) { styleGroupsByMode.queue = []; }
+						} else if (Array.isArray(ksCfg.rawStyleGroups) && ksCfg.rawStyleGroups.length > 0) {
+							styleGroupsByMode.queue = ksCfg.rawStyleGroups; // legacy migration
+						} else {
+							styleGroupsByMode.queue = [];
+						}
 					}
-				} else {
-					styleGroups = [];
-					
-					// Convert existing all keys to a style group
-					if (allKeysData && allKeysData.image) {
-						styleGroups.push({
-							id: 'all-keys',
-							name: currentLanguage === 'ko' ? '모든 키 (이미지)' : 'All Keys (Image)',
-							type: 'all',
-							keys: ['*'],
-							bgMode: 'image',
-							bgColor: '#000000',
-							image: allKeysData.image,
-							textOpacity: allKeysData.textOpacity
-						});
-					} else if (c.chip_bg) {
-						// Use chip_bg as default all keys style
-						const isGradient = c.color_mode === 'gradient';
-						styleGroups.push({
-							id: 'default-all',
-							name: currentLanguage === 'ko' ? '기본 스타일' : 'Default Style',
-							type: 'all',
-							keys: ['*'],
-							bgMode: isGradient ? 'gradient' : 'solid',
-							bgColor: isGradient ? '#000000' : c.chip_bg,
-							gradColor1: c.grad_color1 || '#000000',
-							gradColor2: c.grad_color2 || '#333333'
-						});
+					// Keyviewer mode groups
+					if (Array.isArray(ksCfg.rawStyleGroupsKv) && ksCfg.rawStyleGroupsKv.length > 0) {
+						styleGroupsByMode.keyviewer = ksCfg.rawStyleGroupsKv;
+					} else {
+						const stored = localStorage.getItem('keyviewer_style_groups_kv');
+						if (stored) {
+							try { styleGroupsByMode.keyviewer = JSON.parse(stored); } catch(e) { styleGroupsByMode.keyviewer = []; }
+						} else {
+							styleGroupsByMode.keyviewer = [];
+						}
 					}
+				} catch(ksErr) {
+					styleGroupsByMode.queue = [];
+					styleGroupsByMode.keyviewer = [];
 				}
 				
 				renderStyleGroupsList();
 				updateUnifiedPreview();
+				captureCurrentPreviewConfig(); // snapshot the loaded state for live preview
 			} catch(e) {
 				console.error('Failed to load unified style config:', e);
 			}
@@ -2416,7 +2699,7 @@
 			// Get chip style from all-type group
 			let chipBg = '#000000';
 			
-			const allGroup = styleGroups.find(g => g.type === 'all');
+			const allGroup = styleGroupsByMode[currentEditingMode].find(g => g.type === 'all');
 			if (allGroup) {
 				if (allGroup.bgMode === 'gradient') {
 					if (allGroup.gradStops && allGroup.gradStops.length >= 2) {
@@ -2446,7 +2729,8 @@
 				cols: Number(ov_cols?.value) || 8,
 				rows: Number(ov_rows?.value) || 1,
 				align: ov_align?.value || 'left',
-				direction: ov_direction?.value || 'ltr'
+				direction: ov_direction?.value || 'ltr',
+				overlay_mode: currentKvOverlayMode
 			};
 			
 			try {
@@ -2456,23 +2740,43 @@
 					body: JSON.stringify(payload) 
 				});
 				
-				// Save style groups to localStorage
-				localStorage.setItem('keyviewer_style_groups', JSON.stringify(styleGroups));
+				// Save per-mode style groups to localStorage
+				localStorage.setItem('keyviewer_style_groups_queue', JSON.stringify(styleGroupsByMode.queue));
+				localStorage.setItem('keyviewer_style_groups_kv', JSON.stringify(styleGroupsByMode.keyviewer));
+				
+				// Merge key viewer layout into existing key style config (preserve other fields)
+				try {
+					const existing = await (await fetch('/api/key-style')).json().catch(() => ({}));
+					const kvPayload = Object.assign({}, existing, {
+						keyViewerLayout: kvChips,
+						kvCanvasW: kvCanvasW,
+						kvCanvasH: kvCanvasH,
+						rawStyleGroups: styleGroupsByMode.queue, // legacy compat
+						rawStyleGroupsQueue: styleGroupsByMode.queue,
+						rawStyleGroupsKv: styleGroupsByMode.keyviewer
+					});
+					await fetch('/api/key-style', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(kvPayload)
+					});
+				} catch(e) { console.warn('Failed to save key viewer layout', e); }
 				
 				// Also save to key images format for overlay compatibility
-				keyGroupsData = styleGroups.filter(g => g.type !== 'all' && g.bgMode === 'image' && g.image).map(g => ({
+				keyGroupsData = styleGroupsByMode[currentEditingMode].filter(g => g.type !== 'all' && g.bgMode === 'image' && g.image).map(g => ({
 					keys: g.keys,
 					image: g.image,
 					textOpacity: g.textOpacity
 				}));
-				const allGroup = styleGroups.find(g => g.type === 'all');
-				if (allGroup && allGroup.bgMode === 'image' && allGroup.image) {
-					allKeysData = { image: allGroup.image, textOpacity: allGroup.textOpacity };
+				const allGroupImg = styleGroupsByMode[currentEditingMode].find(g => g.type === 'all');
+				if (allGroupImg && allGroupImg.bgMode === 'image' && allGroupImg.image) {
+					allKeysData = { image: allGroupImg.image, textOpacity: allGroupImg.textOpacity };
 				} else {
-					allKeysData = null; // Clear if not using image
+					allKeysData = null;
 				}
 				saveKeyImagesToStorage();
 				
+				captureCurrentPreviewConfig(); // update live preview to reflect saved state
 				closeModalUnifiedStyle();
 				updatePreview();
 			} catch(e) {
@@ -2499,7 +2803,7 @@
 				if (us_font_color) us_font_color.value = '#ffffff';
 				if (us_font_shadow) us_font_shadow.checked = true;
 				
-				styleGroups = [{
+				styleGroupsByMode[currentEditingMode] = [{
 					id: 'default-all',
 					name: currentLanguage === 'ko' ? '기본 스타일' : 'Default Style',
 					type: 'all',
@@ -2513,12 +2817,419 @@
 			});
 		}
 		
-		// Update preview on input changes
-		['input', 'change'].forEach(evt => {
-			[us_chip_gap, us_chip_pad_v, us_chip_pad_h, us_chip_radius, us_font_size, us_font_weight, us_font_color, us_bg_color].forEach(el => {
-				if (el) el.addEventListener(evt, updateUnifiedPreview);
+
+		// ========== Key Viewer Mode Editor (Free Canvas) ==========
+		let currentKvOverlayMode = 'queue';
+		let kvChips = []; // [{ id, key, x, y, w, h, bgOverride, fgOverride, radiusOverride }]
+		let kvCanvasW = 800, kvCanvasH = 300;
+		let kvSelectedId = null;
+		let kvSnapEnabled = true;
+		let kvSnapGrid = 8;
+
+		// Drag / resize state
+		// type: 'move' | 'resize-br' | 'resize-b' | 'resize-r'
+		let kvDrag = null; // { type, startMX, startMY, origX, origY, origW, origH, chipId }
+
+		// --- Snap helper ---
+		function kvSnap(v) { return kvSnapEnabled ? Math.round(v / kvSnapGrid) * kvSnapGrid : Math.round(v); }
+
+		// --- Mode card selector ---
+		function selectOverlayMode(mode) {
+			currentKvOverlayMode = mode;
+			// Update main panel mode buttons
+			const mainQ = document.getElementById('mainModeQueue');
+			const mainKv = document.getElementById('mainModeKv');
+			if (mainQ) mainQ.classList.toggle('primary', mode === 'queue');
+			if (mainKv) mainKv.classList.toggle('primary', mode === 'keyviewer');
+			// Layout section visibility
+			const layoutSec = document.getElementById('kvLayoutSection');
+			if (layoutSec) layoutSec.style.display = mode === 'keyviewer' ? 'block' : 'none';
+			if (mode === 'keyviewer') { updateKvCanvasAspect(); setTimeout(renderKvFreeCanvas, 50); }
+		}
+		window.selectOverlayMode = selectOverlayMode;
+
+		// --- Canvas aspect ratio ---
+		function updateKvCanvasAspect() {
+			const spacer = document.getElementById('kvCanvasSpacer');
+			if (spacer) spacer.style.paddingBottom = (kvCanvasH / kvCanvasW * 100) + '%';
+			// Update toolbar inputs
+			const wi = document.getElementById('kvCanvasWInput'); const hi = document.getElementById('kvCanvasHInput');
+			if (wi) wi.value = kvCanvasW;
+			if (hi) hi.value = kvCanvasH;
+		}
+
+		// --- Convert mouse event → canvas coordinates ---
+		function kvMouseToCanvas(e) {
+			const canvas = document.getElementById('kvFreeCanvas');
+			if (!canvas) return { x: 0, y: 0 };
+			const rect = canvas.getBoundingClientRect();
+			const cx = (e.clientX - rect.left) / rect.width * kvCanvasW;
+			const cy = (e.clientY - rect.top) / rect.height * kvCanvasH;
+			return { x: cx, y: cy };
+		}
+
+		// --- Add new chip at position ---
+		function kvPlaceNewChip(key, cx, cy) {
+			const defaultW = key.length > 3 ? 80 : 52;
+			const defaultH = 40;
+			const x = kvSnap(Math.max(0, Math.min(kvCanvasW - defaultW, cx - defaultW / 2)));
+			const y = kvSnap(Math.max(0, Math.min(kvCanvasH - defaultH, cy - defaultH / 2)));
+			const chip = { id: 'kv-' + Date.now() + '-' + Math.random().toString(36).slice(2,6), key, x, y, w: defaultW, h: defaultH, bgOverride: null, fgOverride: null, radiusOverride: null };
+			kvChips.push(chip);
+			kvSelectedId = chip.id;
+			renderKvFreeCanvas();
+			updateKvPropsPanel();
+		}
+
+		// --- Select chip ---
+		function kvSelectChip(id) {
+			kvSelectedId = id;
+			renderKvFreeCanvas();
+			updateKvPropsPanel();
+		}
+
+		// --- Properties panel ---
+		function updateKvPropsPanel() {
+			const panel = document.getElementById('kvPropsPanel');
+			if (!panel) return;
+			const chip = kvChips.find(c => c.id === kvSelectedId);
+			if (!chip) { panel.style.display = 'none'; return; }
+			panel.style.display = 'block';
+			const f = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
+			f('kvPropKey', chip.key);
+			f('kvPropW', Math.round(chip.w));
+			f('kvPropH', Math.round(chip.h));
+			f('kvPropX', Math.round(chip.x));
+			f('kvPropY', Math.round(chip.y));
+			f('kvPropRadius', chip.radiusOverride ?? 6);
+			const bgCheck = document.getElementById('kvPropBgCheck');
+			const bgColor = document.getElementById('kvPropBgColor');
+			if (bgCheck) bgCheck.checked = !!chip.bgOverride;
+			if (bgColor && chip.bgOverride) bgColor.value = chip.bgOverride;
+			const fgCheck = document.getElementById('kvPropFgCheck');
+			const fgColor = document.getElementById('kvPropFgColor');
+			if (fgCheck) fgCheck.checked = !!chip.fgOverride;
+			if (fgColor && chip.fgOverride) fgColor.value = chip.fgOverride;
+		}
+
+		// --- Render free canvas ---
+		function renderKvFreeCanvas() {
+			const canvas = document.getElementById('kvFreeCanvas');
+			if (!canvas) return;
+			const cw = canvas.offsetWidth || 400;
+			const ch = canvas.offsetHeight || 150;
+			const scaleX = cw / kvCanvasW;
+			const scaleY = ch / kvCanvasH;
+
+			canvas.innerHTML = '';
+			kvChips.forEach(chip => {
+				const isSelected = chip.id === kvSelectedId;
+				const el = document.createElement('div');
+				el.dataset.id = chip.id;
+				el.style.cssText = `
+					position:absolute;
+					left:${chip.x * scaleX}px; top:${chip.y * scaleY}px;
+					width:${chip.w * scaleX}px; height:${chip.h * scaleY}px;
+					box-sizing:border-box;
+					border-radius:${chip.radiusOverride ?? 6}px;
+					background:${chip.bgOverride || 'var(--primary)'};
+					color:${chip.fgOverride || '#fff'};
+					display:flex; align-items:center; justify-content:center;
+					font-size:${Math.max(9, Math.min(14, chip.h * scaleY * 0.38))}px;
+					font-weight:700; overflow:hidden; white-space:nowrap;
+					cursor:pointer; user-select:none;
+					outline:${isSelected ? '2px solid #fff' : '1.5px solid rgba(255,255,255,0.25)'};
+					outline-offset:${isSelected ? '1px' : '0'};
+					transition: outline 0.05s;
+				`;
+				el.textContent = chip.key;
+
+				// Click → select
+				el.addEventListener('mousedown', e => {
+					e.stopPropagation();
+					if (!kvDrag) {
+						kvSelectChip(chip.id);
+					}
+					const { x: mx, y: my } = kvMouseToCanvas(e);
+					kvDrag = { type: 'move', startMX: mx, startMY: my, origX: chip.x, origY: chip.y, origW: chip.w, origH: chip.h, chipId: chip.id };
+					e.preventDefault();
+				});
+
+				// Resize handles (corner BR, edge R, edge B)
+				if (isSelected) {
+					const handles = [
+						{ cursor: 'nwse-resize', style: `right:-4px;bottom:-4px;width:10px;height:10px;`, type: 'resize-br' },
+						{ cursor: 'ew-resize',   style: `right:-4px;top:50%;margin-top:-5px;width:10px;height:10px;`, type: 'resize-r' },
+						{ cursor: 'ns-resize',   style: `bottom:-4px;left:50%;margin-left:-5px;width:10px;height:10px;`, type: 'resize-b' },
+					];
+					handles.forEach(h => {
+						const hEl = document.createElement('div');
+						hEl.style.cssText = `position:absolute;${h.style}background:#fff;border-radius:2px;cursor:${h.cursor};z-index:10;`;
+						hEl.addEventListener('mousedown', e => {
+							e.stopPropagation();
+							const { x: mx, y: my } = kvMouseToCanvas(e);
+							kvDrag = { type: h.type, startMX: mx, startMY: my, origX: chip.x, origY: chip.y, origW: chip.w, origH: chip.h, chipId: chip.id };
+							e.preventDefault();
+						});
+						el.appendChild(hEl);
+					});
+				}
+
+				canvas.appendChild(el);
 			});
+		}
+
+		// --- Canvas mouse events ---
+		{
+			const freeCanvas = document.getElementById('kvFreeCanvas');
+			if (freeCanvas) {
+				// Double-click → show add dialog
+				freeCanvas.addEventListener('dblclick', e => {
+					const dlg = document.getElementById('kvAddDialog');
+					if (!dlg) return;
+					const rect = freeCanvas.getBoundingClientRect();
+					const lx = e.clientX - rect.left, ly = e.clientY - rect.top;
+					dlg.style.left = Math.min(lx, rect.width - 210) + 'px';
+					dlg.style.top = Math.min(ly, rect.height - 88) + 'px';
+					dlg.style.display = 'block';
+					const inp = document.getElementById('kvAddKeyInput');
+					if (inp) { inp.value = ''; inp.focus(); }
+					freeCanvas._dblClickX = e.clientX;
+					freeCanvas._dblClickY = e.clientY;
+					e.stopPropagation();
+				});
+				// Click on empty area → deselect
+				freeCanvas.addEventListener('mousedown', e => {
+					if (e.target === freeCanvas) { kvSelectedId = null; renderKvFreeCanvas(); updateKvPropsPanel(); }
+				});
+			}
+		}
+
+		// Add key confirm / cancel
+		{
+			const confirm_ = document.getElementById('kvAddKeyConfirm');
+			const cancel_ = document.getElementById('kvAddKeyCancel');
+			const dlg = document.getElementById('kvAddDialog');
+			const inp = document.getElementById('kvAddKeyInput');
+			const freeCanvas = document.getElementById('kvFreeCanvas');
+			const doAdd = () => {
+				if (!inp || !freeCanvas) return;
+				const key = inp.value.trim().toUpperCase();
+				if (!key) return;
+				dlg.style.display = 'none';
+				const { x, y } = kvMouseToCanvas({ clientX: freeCanvas._dblClickX || 0, clientY: freeCanvas._dblClickY || 0 });
+				kvPlaceNewChip(key, x, y);
+			};
+			if (confirm_) confirm_.addEventListener('click', doAdd);
+			if (cancel_) cancel_.addEventListener('click', () => { if (dlg) dlg.style.display = 'none'; });
+			if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') doAdd(); if (e.key === 'Escape') { dlg.style.display = 'none'; } });
+		}
+
+		// Global mouse move / up for drag & resize
+		document.addEventListener('mousemove', e => {
+			if (!kvDrag) return;
+			const chip = kvChips.find(c => c.id === kvDrag.chipId);
+			if (!chip) return;
+			const { x: mx, y: my } = kvMouseToCanvas(e);
+			const dx = mx - kvDrag.startMX, dy = my - kvDrag.startMY;
+			if (kvDrag.type === 'move') {
+				chip.x = kvSnap(Math.max(0, Math.min(kvCanvasW - chip.w, kvDrag.origX + dx)));
+				chip.y = kvSnap(Math.max(0, Math.min(kvCanvasH - chip.h, kvDrag.origY + dy)));
+			} else if (kvDrag.type === 'resize-br') {
+				chip.w = kvSnap(Math.max(20, kvDrag.origW + dx));
+				chip.h = kvSnap(Math.max(16, kvDrag.origH + dy));
+			} else if (kvDrag.type === 'resize-r') {
+				chip.w = kvSnap(Math.max(20, kvDrag.origW + dx));
+			} else if (kvDrag.type === 'resize-b') {
+				chip.h = kvSnap(Math.max(16, kvDrag.origH + dy));
+			}
+			renderKvFreeCanvas();
+			updateKvPropsPanel();
 		});
+		document.addEventListener('mouseup', () => { if (kvDrag) { kvDrag = null; } });
+
+		// Keyboard: Delete selected chip
+		document.addEventListener('keydown', e => {
+			if ((e.key === 'Delete' || e.key === 'Backspace') && kvSelectedId && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+				kvChips = kvChips.filter(c => c.id !== kvSelectedId);
+				kvSelectedId = null;
+				renderKvFreeCanvas();
+				updateKvPropsPanel();
+			}
+		});
+
+		// Props panel inputs → update chip live
+		function hookKvProp(id, setter) {
+			const el = document.getElementById(id);
+			if (el) el.addEventListener('input', () => {
+				const chip = kvChips.find(c => c.id === kvSelectedId);
+				if (!chip) return;
+				setter(chip, el.value);
+				renderKvFreeCanvas();
+			});
+		}
+		hookKvProp('kvPropKey', (chip, v) => { chip.key = v.toUpperCase(); });
+		hookKvProp('kvPropW', (chip, v) => { chip.w = Math.max(20, parseInt(v) || 52); });
+		hookKvProp('kvPropH', (chip, v) => { chip.h = Math.max(16, parseInt(v) || 40); });
+		hookKvProp('kvPropX', (chip, v) => { chip.x = kvSnap(Math.max(0, parseInt(v) || 0)); });
+		hookKvProp('kvPropY', (chip, v) => { chip.y = kvSnap(Math.max(0, parseInt(v) || 0)); });
+		hookKvProp('kvPropRadius', (chip, v) => { chip.radiusOverride = Math.max(0, parseInt(v) || 0); });
+		// BG override
+		const kvPropBgCheck = document.getElementById('kvPropBgCheck');
+		const kvPropBgColor = document.getElementById('kvPropBgColor');
+		const kvPropFgCheck = document.getElementById('kvPropFgCheck');
+		const kvPropFgColor = document.getElementById('kvPropFgColor');
+		if (kvPropBgCheck) kvPropBgCheck.addEventListener('change', () => {
+			const chip = kvChips.find(c => c.id === kvSelectedId);
+			if (!chip) return;
+			chip.bgOverride = kvPropBgCheck.checked ? (kvPropBgColor?.value || '#222222') : null;
+			renderKvFreeCanvas();
+		});
+		if (kvPropBgColor) kvPropBgColor.addEventListener('input', () => {
+			const chip = kvChips.find(c => c.id === kvSelectedId);
+			if (!chip || !kvPropBgCheck?.checked) return;
+			chip.bgOverride = kvPropBgColor.value;
+			renderKvFreeCanvas();
+		});
+		if (kvPropFgCheck) kvPropFgCheck.addEventListener('change', () => {
+			const chip = kvChips.find(c => c.id === kvSelectedId);
+			if (!chip) return;
+			chip.fgOverride = kvPropFgCheck.checked ? (kvPropFgColor?.value || '#ffffff') : null;
+			renderKvFreeCanvas();
+		});
+		if (kvPropFgColor) kvPropFgColor.addEventListener('input', () => {
+			const chip = kvChips.find(c => c.id === kvSelectedId);
+			if (!chip || !kvPropFgCheck?.checked) return;
+			chip.fgOverride = kvPropFgColor.value;
+			renderKvFreeCanvas();
+		});
+		// Delete prop button
+		const kvPropDelete = document.getElementById('kvPropDelete');
+		if (kvPropDelete) kvPropDelete.addEventListener('click', () => {
+			if (!kvSelectedId) return;
+			kvChips = kvChips.filter(c => c.id !== kvSelectedId);
+			kvSelectedId = null;
+			renderKvFreeCanvas();
+			updateKvPropsPanel();
+		});
+		// Add chip button (toolbar)
+		const kvAddChipBtn = document.getElementById('kvAddChipBtn');
+		if (kvAddChipBtn) kvAddChipBtn.addEventListener('click', () => {
+			const key = (prompt('키 이름 입력 (예: A, SPACE, ENTER):') || '').trim().toUpperCase();
+			if (!key) return;
+			kvPlaceNewChip(key, kvCanvasW / 2, kvCanvasH / 2);
+		});
+		// Record row button
+		let kvRecording = false;
+		let kvRecordedKeys = [];
+		function onKvRecordKeydown(e) {
+			if (!kvRecording) return;
+			if (e.key === 'Escape') { stopKvRecording(); return; }
+			e.preventDefault();
+			let key = e.key.toUpperCase();
+			if (e.code === 'ShiftLeft') key = 'LSHIFT';
+			else if (e.code === 'ShiftRight') key = 'RSHIFT';
+			else if (e.code === 'ControlLeft') key = 'LCTRL';
+			else if (e.code === 'ControlRight') key = 'RCTRL';
+			else if (e.code === 'AltLeft') key = 'LALT';
+			else if (e.code === 'AltRight') key = 'RALT';
+			else if (e.key === ' ') key = 'SPACE';
+			if (!kvRecordedKeys.includes(key)) {
+				kvRecordedKeys.push(key);
+				const kvRecordRowBtn2 = document.getElementById('kvRecordRowBtn');
+				if (kvRecordRowBtn2) kvRecordRowBtn2.textContent = `⏹ ${kvRecordedKeys.join(' + ')} (ESC로 완료)`;
+			}
+		}
+		function stopKvRecording() {
+			kvRecording = false;
+			document.removeEventListener('keydown', onKvRecordKeydown);
+			const kvRecordRowBtn2 = document.getElementById('kvRecordRowBtn');
+			if (kvRecordRowBtn2) {
+				kvRecordRowBtn2.textContent = '🎤 녹화 추가';
+				kvRecordRowBtn2.style.background = '';
+				kvRecordRowBtn2.style.color = '';
+			}
+			if (kvRecordedKeys.length === 0) return;
+			const defaultH = 40;
+			const defaultGap = 8;
+			let startX = 10;
+			let startY = 10;
+			if (kvChips.length > 0) {
+				const maxY = Math.max(...kvChips.map(c => c.y + c.h));
+				startY = kvSnap(Math.min(maxY + defaultGap, kvCanvasH - defaultH - 10));
+			}
+			kvRecordedKeys.forEach((key, i) => {
+				const defaultW = key.length > 3 ? 80 : 52;
+				const x = kvSnap(Math.min(startX, kvCanvasW - defaultW - 4));
+				const chip = {
+					id: 'kv-' + Date.now() + '-' + i + '-' + Math.random().toString(36).slice(2, 6),
+					key, x, y: startY, w: defaultW, h: defaultH,
+					bgOverride: null, fgOverride: null, radiusOverride: null
+				};
+				kvChips.push(chip);
+				startX = kvSnap(startX + defaultW + defaultGap);
+			});
+			kvSelectedId = null;
+			renderKvFreeCanvas();
+			updateKvPropsPanel();
+			kvRecordedKeys = [];
+		}
+		const kvRecordRowBtn = document.getElementById('kvRecordRowBtn');
+		if (kvRecordRowBtn) {
+			kvRecordRowBtn.addEventListener('click', () => {
+				if (kvRecording) {
+					stopKvRecording();
+				} else {
+					kvRecordedKeys = [];
+					kvRecording = true;
+					kvRecordRowBtn.textContent = '⏹ 키를 눌러주세요 (ESC로 완료)';
+					kvRecordRowBtn.style.background = '#e53e3e';
+					kvRecordRowBtn.style.color = '#fff';
+					document.addEventListener('keydown', onKvRecordKeydown);
+				}
+			});
+		}
+		// Snap toggle
+		const kvSnapCheck = document.getElementById('kvSnapCheck');
+		if (kvSnapCheck) kvSnapCheck.addEventListener('change', () => { kvSnapEnabled = kvSnapCheck.checked; });
+		// Clear layout
+		const kvClearLayoutBtn = document.getElementById('kvClearLayout');
+		if (kvClearLayoutBtn) kvClearLayoutBtn.addEventListener('click', () => {
+			if (confirm('레이아웃을 초기화하시겠습니까?')) { kvChips = []; kvSelectedId = null; renderKvFreeCanvas(); updateKvPropsPanel(); }
+		});
+		// Canvas size apply
+		const kvApplyCanvasSizeBtn = document.getElementById('kvApplyCanvasSize');
+		if (kvApplyCanvasSizeBtn) kvApplyCanvasSizeBtn.addEventListener('click', () => {
+			const w = parseInt(document.getElementById('kvCanvasWInput')?.value) || 800;
+			const h = parseInt(document.getElementById('kvCanvasHInput')?.value) || 300;
+			kvCanvasW = Math.max(200, Math.min(3840, w));
+			kvCanvasH = Math.max(80, Math.min(2160, h));
+			updateKvCanvasAspect();
+			renderKvFreeCanvas();
+		});
+
+		// Load KV config from server
+		async function loadKvConfig() {
+			try {
+				const res = await fetch('/api/key-style');
+				const cfg = await res.json();
+				kvChips = (cfg.keyViewerLayout || []).map(c => ({
+					id: c.id || ('kv-' + Math.random().toString(36).slice(2,8)),
+					key: c.key, x: c.x||0, y: c.y||0, w: c.w||52, h: c.h||40,
+					bgOverride: c.bgOverride||null, fgOverride: c.fgOverride||null, radiusOverride: c.radiusOverride??null
+				}));
+				kvCanvasW = cfg.kvCanvasW || 800;
+				kvCanvasH = cfg.kvCanvasH || 300;
+				updateKvCanvasAspect();
+			} catch(e) { kvChips = []; }
+			try {
+				const res = await fetch('/api/overlay-config');
+				const cfg = await res.json();
+				currentKvOverlayMode = cfg.overlay_mode || 'queue';
+				selectOverlayMode(currentKvOverlayMode);
+			} catch(e) {}
+			setTimeout(renderKvFreeCanvas, 60); // Let DOM settle
+		}
 
 		// isValidHex is now in utils.js
 		function setPickBtn(btn, val){ if (btn && isValidHex(val)) { btn.style.background = val; } }
@@ -2572,8 +3283,8 @@
 			if (!ov_preview || !ov_preview_queue) return;
 			const root = ov_preview;
 			
-			// Check for image from styleGroups (all keys)
-			const allGroup = styleGroups.find(g => g.type === 'all');
+			// Check for image from styleGroupsByMode (current overlay mode)
+			const allGroup = styleGroupsByMode[currentKvOverlayMode]?.find(g => g.type === 'all');
 			let chipImage = null;
 			let chipBg = ov_chip_bg?.value || '#000000';
 			if (allGroup && allGroup.bgMode === 'image' && allGroup.image) {
@@ -2988,6 +3699,13 @@
 		openOverlayCfg.addEventListener('click', async ()=>{ await loadOverlayConfig(); openModalOverlay(); });
 		closeOverlay.addEventListener('click', ()=> closeModalOverlay());
 		saveOverlay.addEventListener('click', saveOverlayConfig);
+
+		document.getElementById('downloadObsFile').addEventListener('click', () => {
+			const a = document.createElement('a');
+			a.href = '/obs-local-file';
+			a.download = 'keyviewer-obs-overlay.html';
+			a.click();
+		});
 		
 		// Reset to default overlay settings
 		const resetOverlayBtn = document.getElementById('resetOverlay');
@@ -3031,8 +3749,8 @@
 		// Simple color sync for Unified Style Modal (color picker + text input)
 		function syncColorPair(picker, text) {
 			if (!picker || !text) return;
-			picker.addEventListener('input', () => { text.value = picker.value; updateUnifiedPreview(); });
-			text.addEventListener('input', () => { if (/^#[0-9A-Fa-f]{6}$/.test(text.value)) picker.value = text.value; updateUnifiedPreview(); });
+			picker.addEventListener('input', () => { text.value = picker.value; });
+			text.addEventListener('input', () => { if (/^#[0-9A-Fa-f]{6}$/.test(text.value)) picker.value = text.value; });
 		}
 		
 		const us_bg_color_picker = document.getElementById('us_bg_color_picker');
@@ -3063,7 +3781,7 @@
 			angleNumId: 'us_bg_grad_angle_num',
 			stopsId: 'us_bg_grad_stops',
 			addBtnId: 'us_bg_grad_add',
-			onChange: updateUnifiedPreview
+			onChange: () => {} // No live preview update (preview = saved state only)
 		});
 		
 		// Wrapper functions for compatibility
@@ -3442,13 +4160,13 @@
 			}
 		}
 
-		// Load style groups from localStorage
+		// Load style groups from localStorage (legacy - loads into queue mode)
 		function loadStyleGroupsFromStorage() {
 			try {
-				const stored = localStorage.getItem('keyviewer_style_groups');
-				if (stored) {
-					styleGroups = JSON.parse(stored);
-				}
+				const storedQ = localStorage.getItem('keyviewer_style_groups_queue') || localStorage.getItem('keyviewer_style_groups');
+				if (storedQ) styleGroupsByMode.queue = JSON.parse(storedQ);
+				const storedKv = localStorage.getItem('keyviewer_style_groups_kv');
+				if (storedKv) styleGroupsByMode.keyviewer = JSON.parse(storedKv);
 			} catch (e) {
 				console.error('Failed to load style groups:', e);
 			}
@@ -4099,10 +4817,11 @@
 			const previewEl = document.getElementById('exportPreviewInfo');
 			if (!previewEl) return;
 			
-			// Count from styleGroups (new system)
-			const styleGroupCount = styleGroups.length;
-			const imageGroupCount = styleGroups.filter(g => g.bgMode === 'image' && g.image).length;
-			const allKeysGroup = styleGroups.find(g => g.type === 'all');
+			// Count from styleGroupsByMode (per-mode system)
+			const allSG = [...(styleGroupsByMode.queue || []), ...(styleGroupsByMode.keyviewer || [])];
+			const styleGroupCount = allSG.length;
+			const imageGroupCount = allSG.filter(g => g.bgMode === 'image' && g.image).length;
+			const allKeysGroup = (styleGroupsByMode[currentKvOverlayMode] || []).find(g => g.type === 'all');
 			
 			// Also count legacy key images
 			const keyCount = Object.keys(keyImagesData).length;
@@ -4254,21 +4973,25 @@
 			};
 		}
 		
-		// Get style groups for export
+		// Get style groups for export (both modes combined)
 		function getStyleGroupsForExport() {
-			return styleGroups.map(g => ({
-				id: g.id,
-				name: g.name,
-				type: g.type,
-				keys: g.keys,
-				bgMode: g.bgMode,
-				bgColor: g.bgColor,
-				gradStops: g.gradStops,
-				gradAngle: g.gradAngle,
-				gradColor1: g.gradColor1, // Legacy
-				gradColor2: g.gradColor2, // Legacy
-				image: g.image
-			}));
+			// Export per-mode structure
+			return {
+				queue: (styleGroupsByMode.queue || []).map(g => ({
+					id: g.id, name: g.name, type: g.type, keys: g.keys,
+					bgMode: g.bgMode, bgColor: g.bgColor, gradStops: g.gradStops,
+					gradAngle: g.gradAngle, gradColor1: g.gradColor1, gradColor2: g.gradColor2, image: g.image,
+					fontFamily: g.fontFamily, fontSize: g.fontSize, fontWeight: g.fontWeight, fontColor: g.fontColor,
+					chipPadV: g.chipPadV ?? null, chipPadH: g.chipPadH ?? null, chipRadius: g.chipRadius ?? null
+				})),
+				keyviewer: (styleGroupsByMode.keyviewer || []).map(g => ({
+					id: g.id, name: g.name, type: g.type, keys: g.keys,
+					bgMode: g.bgMode, bgColor: g.bgColor, gradStops: g.gradStops,
+					gradAngle: g.gradAngle, gradColor1: g.gradColor1, gradColor2: g.gradColor2, image: g.image,
+					fontFamily: g.fontFamily, fontSize: g.fontSize, fontWeight: g.fontWeight, fontColor: g.fontColor,
+					chipPadV: g.chipPadV ?? null, chipPadH: g.chipPadH ?? null, chipRadius: g.chipRadius ?? null
+				}))
+			};
 		}
 
 		// Apply imported overlay config
@@ -4497,10 +5220,20 @@
 				keyImagesData = data.keyImages?.individual || {};
 				keyGroupsData = data.keyImages?.groups || [];
 				allKeysData = data.keyImages?.allKeys || null;
-				styleGroups = data.styleGroups || [];
+				// Import per-mode style groups
+				if (data.styleGroups && typeof data.styleGroups === 'object' && !Array.isArray(data.styleGroups)) {
+					// New per-mode format
+					styleGroupsByMode.queue = data.styleGroups.queue || [];
+					styleGroupsByMode.keyviewer = data.styleGroups.keyviewer || [];
+				} else {
+					// Legacy flat array → migrate to queue mode
+					styleGroupsByMode.queue = Array.isArray(data.styleGroups) ? data.styleGroups : [];
+					styleGroupsByMode.keyviewer = [];
+				}
 				
 				// Save to localStorage
-				localStorage.setItem('keyviewer_style_groups', JSON.stringify(styleGroups));
+				localStorage.setItem('keyviewer_style_groups_queue', JSON.stringify(styleGroupsByMode.queue));
+				localStorage.setItem('keyviewer_style_groups_kv', JSON.stringify(styleGroupsByMode.keyviewer));
 				saveKeyImagesToStorage();
 				
 				if (data.overlay) {
@@ -4553,6 +5286,7 @@
 		console.log('✓ Language loaded:', currentLanguage);
 		
 		await Promise.all([refreshTarget(), loadWindows(), loadConfig(), loadForeground()]);
+		loadKvConfig(); // initialize main panel mode buttons and KV layout on startup
 		updateHeaderArrows();
 		Object.values(headerMap).forEach(th => {
 			if (!th) return;

@@ -57,6 +57,30 @@
 		.cfg-actions { display: flex; gap: 8px; justify-content: flex-end; }
 		.cfg-btn { border: 1px solid rgba(255,255,255,0.2); background: #1a1e29; color: #eaeef5; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
 		.cfg-hint { font-size: 11px; opacity: 0.75; margin-top: 4px; }
+		/* Key Viewer Mode – free-form canvas */
+		.kv-wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+		#kv-canvas-container { position: relative; }
+		.kv-chip {
+			position: absolute;
+			box-sizing: border-box;
+			display: flex; align-items: center; justify-content: center;
+			border-radius: var(--kv-chip-r, var(--chip-radius, 10px));
+			font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial;
+			font-weight: var(--chip-font-weight, 700);
+			user-select: none; text-align: center;
+			background: var(--kv-chip-bg, var(--chip-bg, rgba(0,0,0,0.6)));
+			color: var(--kv-chip-fg, var(--chip-fg, #ffffff));
+			border: 1px solid rgba(255,255,255,0.1);
+			opacity: 0.22;
+			white-space: nowrap; overflow: hidden;
+			transition: opacity 70ms ease, filter 70ms ease, transform 70ms ease, box-shadow 70ms ease;
+		}
+		.kv-chip.pressed {
+			opacity: 1;
+			filter: brightness(1.45);
+			box-shadow: 0 0 20px rgba(255,255,255,0.4), inset 0 0 0 1px rgba(255,255,255,0.3);
+			transform: scale(1.06);
+		}
 	</style>
 </head>
 <body>
@@ -73,14 +97,24 @@
 	<div id="root">
 		<div class="container">
 			<div class="queue-wrap"><div class="queue" id="queue"></div></div>
+			<div class="kv-wrap" id="kv-wrap" style="display:none">
+				<div id="kv-canvas-container"></div>
+			</div>
 		</div>
 	</div>
 	<script>
+	// Injected by server at serve-time: identifies the server boot session.
+	// If OBS serves a stale cached page, the WS hello message will carry a different
+	// boot_id and the page will reload itself to get a fresh copy.
+	const SERVER_BOOT_ID = __BOOT_ID__;
 	(function(){
 		const queueEl = document.getElementById('queue');
 		const wrapEl = document.querySelector('.queue-wrap');
-		let ws; let lastKeys = []; let overlayCfg = null;
-		let keyImagesConfig = null;
+		const kvWrapEl = document.getElementById('kv-wrap');
+			const kvCanvasContainer = document.getElementById('kv-canvas-container');
+			let ws; let lastKeys = []; let overlayCfg = null; let didShutdown = false;
+			let keyImagesConfig = null;
+			let keyStyleConfig = null;
 		const STORAGE_KEY_IMAGES = 'kv_key_images';
 		const STORAGE_KEY_HIDE = 'kv_hide_key_text';
 
@@ -93,7 +127,6 @@
 				const map = {chip_gap:'--chip-gap',chip_pad_v:'--chip-pad-v',chip_pad_h:'--chip-pad-h',chip_radius:'--chip-radius',chip_font_px:'--chip-font',chip_font_weight:'--chip-font-weight',fade_in_ms:'--fade-in',fade_out_ms:'--fade-out'};
 				const v = cfg[k]; 
 				if (typeof v === 'number') {
-					// font-weight has no unit, ms for time, px for others
 					let unit = '';
 					if (k.includes('ms')) unit = 'ms';
 					else if (k !== 'chip_font_weight') unit = 'px';
@@ -104,16 +137,8 @@
 			if (typeof cfg.rows === 'number') root.style.setProperty('--rows', String(cfg.rows));
 			const alignMap = { left: 'start', center: 'center', right: 'end' };
 			root.style.setProperty('--align', alignMap[cfg.align] || 'start');
-			// Debug: log computed alignment for troubleshooting in OBS Browser
-			try {
-				const computedRoot = getComputedStyle(root);
-				console.debug('[overlay] alignment applied', {
-					requestedAlign: cfg.align,
-					gridJustifyContent: computedRoot.getPropertyValue('--align').trim()
-				});
-			} catch (e) {
-				console.debug('[overlay] debug align log failed');
-			}
+			// Apply mode (queue vs keyviewer)
+			applyMode();
 		}
 
 		async function initConfig(){
@@ -121,6 +146,15 @@
 				const buster = Date.now();
 				const res = await fetch('/api/overlay-config?cb=' + buster, { cache: 'no-store' });
 				applyOverlayConfig(await res.json());
+			}catch(e){}
+		}
+
+		async function loadKeyStyleConfig(){
+			try{
+				const buster = Date.now();
+				const res = await fetch('/api/key-style?cb=' + buster, { cache: 'no-store' });
+				keyStyleConfig = await res.json();
+				if (isKeyViewerMode()) renderKeyViewerFree(lastKeys);
 			}catch(e){}
 		}
 
@@ -132,29 +166,64 @@
 			}catch(e){}
 		}
 
-		function getKeyImage(key) {
-			if (!keyImagesConfig) return null;
-			// Check individual key image
-			if (keyImagesConfig.individual && keyImagesConfig.individual[key]) {
-				return keyImagesConfig.individual[key];
+		// --- Style priority = strict array order (index 0 = highest priority) ---
+		function resolveChipStyle(key) {
+			// Pick per-mode groups (queue or keyviewer), fallback to legacy rawStyleGroups
+			const mode = overlayCfg?.overlay_mode || 'queue';
+			let groups = mode === 'keyviewer'
+				? keyStyleConfig?.rawStyleGroupsKv
+				: keyStyleConfig?.rawStyleGroupsQueue;
+			if (!Array.isArray(groups) || groups.length === 0) {
+				groups = keyStyleConfig?.rawStyleGroups; // legacy fallback
 			}
-			// Check group images
-			if (keyImagesConfig.groups) {
-				for (const g of keyImagesConfig.groups) {
-					if (g.keys && g.keys.includes(key)) {
-						return g;
+			if (Array.isArray(groups) && groups.length > 0) {
+				// Strict array order: first matching group wins (index 0 = highest priority)
+				for (const g of groups) {
+					if (g.type !== 'all' && !(g.keys?.includes(key))) continue;
+					// Per-group chip size + font overrides (null = use global default)
+					const overrides = {
+						chipPadV: g.chipPadV ?? null,
+						chipPadH: g.chipPadH ?? null,
+						chipRadius: g.chipRadius ?? null,
+						fontFamily: g.fontFamily || null,
+						fontSize: g.fontSize || null,
+						fontWeight: g.fontWeight || null,
+						fontColor: g.fontColor || null
+					};
+					// Found the matching group – extract style
+					if (g.bgMode === 'image' && g.image) {
+						return { kind: 'image', image: g.image, textColor: g.textColor, textOpacity: g.textOpacity, ...overrides };
 					}
+					if (g.bgMode === 'gradient') {
+						let css;
+						if (g.gradStops?.length >= 2) {
+							const s = [...g.gradStops].sort((a,b) => a.position - b.position);
+							css = `linear-gradient(${g.gradAngle||180}deg,${s.map(x=>`${x.color} ${x.position}%`).join(',')})`;;
+						} else {
+							css = `linear-gradient(${g.gradAngle||180}deg,${g.gradColor1||'#000'},${g.gradColor2||'#333'})`;
+						}
+						return { kind: 'color', color: css, ...overrides };
+					}
+					if (g.bgMode === 'solid' && g.bgColor) {
+						return { kind: 'color', color: g.bgColor, ...overrides };
+					}
+					// transparent or no bg – still return overrides
+					return { kind: 'none', ...overrides };
 				}
 			}
-			// Check allKeys image
-			if (keyImagesConfig.allKeys) {
-				return keyImagesConfig.allKeys;
+			// Fall back to keyImagesConfig (legacy)
+			if (!keyImagesConfig) return null;
+			if (keyImagesConfig.individual?.[key]) return { kind: 'image', ...keyImagesConfig.individual[key] };
+			if (keyImagesConfig.groups) {
+				for (const g of keyImagesConfig.groups) {
+					if (g.keys?.includes(key)) return { kind: 'image', ...g };
+				}
 			}
+			if (keyImagesConfig.allKeys) return { kind: 'image', ...keyImagesConfig.allKeys };
 			return null;
 		}
 
 		function placeChips(keys){
-			// Avoid unnecessary DOM rebuild if same keys
 			try {
 				const current = Array.from(queueEl.children).map(c => c.dataset.key || '');
 				if (current.length === keys.length && current.every((v,i)=> v === keys[i])) return;
@@ -162,30 +231,102 @@
 			queueEl.innerHTML = '';
 			const cols = Number(overlayCfg?.cols ?? 8); const rows = Number(overlayCfg?.rows ?? 1);
 			let toShow = keys;
-			if (rows > 0){ const capacity = Math.max(1, cols * rows); toShow = keys.slice(Math.max(0, keys.length - capacity)); }
+			if (rows > 0){ const cap = Math.max(1, cols * rows); toShow = keys.slice(Math.max(0, keys.length - cap)); }
 			if (overlayCfg?.direction === 'rtl') toShow = Array.from(toShow).reverse();
 			toShow.forEach(k => {
 				const chip = document.createElement('div');
 				chip.className = 'chip';
 				chip.dataset.key = k;
 				chip.textContent = k;
-				
-				// Apply key image if available
-				const imgData = getKeyImage(k);
-				if (imgData && imgData.image) {
-					chip.style.backgroundImage = `url(${imgData.image})`;
+				const style = resolveChipStyle(k);
+				if (style?.kind === 'image' && style.image) {
+					chip.style.backgroundImage = `url(${style.image})`;
 					chip.style.backgroundSize = 'cover';
 					chip.style.backgroundPosition = 'center';
-					// Apply text color/opacity if specified
-					let textColor = imgData.textColor || 'rgba(255,255,255,1)';
-					if (typeof imgData.textOpacity === 'number') {
-						// Convert hex to rgba with opacity
-						textColor = hexToRgba(textColor, imgData.textOpacity);
-					}
-					chip.style.color = textColor;
+					let tc = style.textColor || 'rgba(255,255,255,1)';
+					if (typeof style.textOpacity === 'number') tc = hexToRgba(tc, style.textOpacity);
+					chip.style.color = tc;
+				} else if (style?.kind === 'color') {
+					chip.style.background = style.color;
 				}
-				
+				// Per-group chip size overrides
+				if (style?.chipPadV != null) chip.style.paddingTop = chip.style.paddingBottom = style.chipPadV + 'px';
+				if (style?.chipPadH != null) chip.style.paddingLeft = chip.style.paddingRight = style.chipPadH + 'px';
+				if (style?.chipRadius != null) chip.style.borderRadius = style.chipRadius + 'px';
+				// Per-group font overrides
+				if (style?.fontFamily) chip.style.fontFamily = style.fontFamily;
+				if (style?.fontSize) chip.style.fontSize = style.fontSize + 'px';
+				if (style?.fontWeight) chip.style.fontWeight = style.fontWeight;
+				if (style?.fontColor) chip.style.color = style.fontColor;
 				queueEl.appendChild(chip);
+			});
+		}
+
+		// --- Key Viewer Mode – free-form canvas ---
+		function isKeyViewerMode() {
+			return overlayCfg?.overlay_mode === 'keyviewer';
+		}
+
+		function applyMode() {
+			if (isKeyViewerMode()) {
+				if (wrapEl) wrapEl.style.display = 'none';
+				kvWrapEl.style.display = 'flex';
+				renderKeyViewerFree(lastKeys);
+			} else {
+				if (wrapEl) wrapEl.style.display = 'block';
+				kvWrapEl.style.display = 'none';
+				placeChips(lastKeys);
+			}
+		}
+
+		function renderKeyViewerFree(pressedKeys) {
+			if (!kvCanvasContainer) return;
+			const layout = keyStyleConfig?.keyViewerLayout || [];
+			const canvasW = keyStyleConfig?.kvCanvasW || 800;
+			const canvasH = keyStyleConfig?.kvCanvasH || 300;
+			const pressed = new Set(pressedKeys);
+
+			// Fit canvas into viewport, maintaining aspect ratio
+			const vw = kvWrapEl.clientWidth || 800;
+			const vh = kvWrapEl.clientHeight || 300;
+			const scale = Math.min(vw / canvasW, vh / canvasH);
+			const displayW = canvasW * scale;
+			const displayH = canvasH * scale;
+			kvCanvasContainer.style.width = displayW + 'px';
+			kvCanvasContainer.style.height = displayH + 'px';
+
+			// Only rebuild DOM when layout changes
+			const layoutSig = JSON.stringify(layout) + canvasW + ',' + canvasH;
+			if (kvCanvasContainer._layoutSig !== layoutSig) {
+				kvCanvasContainer._layoutSig = layoutSig;
+				kvCanvasContainer.innerHTML = '';
+				layout.forEach(chip => {
+					const el = document.createElement('div');
+					el.className = 'kv-chip';
+					el.dataset.key = chip.key;
+					el.dataset.id = chip.id;
+					el.textContent = chip.key;
+					// Position/size as percentage of canvas
+					el.style.left = (chip.x / canvasW * 100) + '%';
+					el.style.top = (chip.y / canvasH * 100) + '%';
+					el.style.width = (chip.w / canvasW * 100) + '%';
+					el.style.height = (chip.h / canvasH * 100) + '%';
+					// Scale font with chip height
+					el.style.fontSize = Math.max(9, chip.h * scale * 0.38) + 'px';
+					// Per-chip style overrides
+					if (chip.bgOverride) el.style.setProperty('--kv-chip-bg', chip.bgOverride);
+					if (chip.fgOverride) el.style.setProperty('--kv-chip-fg', chip.fgOverride);
+					if (chip.radiusOverride != null) el.style.borderRadius = chip.radiusOverride + 'px';
+					kvCanvasContainer.appendChild(el);
+				});
+			}
+
+			// Update pressed state + re-scale fonts if canvas resized
+			kvCanvasContainer.querySelectorAll('.kv-chip').forEach(el => {
+				el.classList.toggle('pressed', pressed.has(el.dataset.key));
+				// Re-apply font scale if viewport changed
+				const chip = layout.find(c => c.id === el.dataset.id);
+				if (chip) el.style.fontSize = Math.max(9, chip.h * scale * 0.38) + 'px';
 			});
 		}
 
@@ -306,16 +447,34 @@
 		function connect(){
 			const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
 			ws = new WebSocket(url);
+			ws.onopen = () => {
+				// Fallback: if we previously received a shutdown event, reload unconditionally.
+				if (didShutdown) { location.reload(); return; }
+			};
 			ws.onmessage = (ev) => { 
 				try { 
-					const data = JSON.parse(ev.data); 
+					const data = JSON.parse(ev.data);
+					if (data.type === 'hello') {
+						// Primary cache-bust check: if the server's boot_id differs from the one
+						// baked into this page, OBS is serving a stale cached copy → force reload.
+						if (data.boot_id !== undefined && data.boot_id !== SERVER_BOOT_ID) {
+							location.reload();
+							return;
+						}
+						if (Array.isArray(data.keys)) { lastKeys = data.keys; applyMode(); }
+						return;
+					}
+					if (data.type === 'shutdown') {
+						didShutdown = true;
+						return;
+					}
 					if (data.type === 'config' && data.overlay){ 
 						applyOverlayConfig(data.overlay); 
 						return; 
 					} 
 					if (Array.isArray(data.keys)) { 
 						lastKeys = data.keys; 
-						placeChips(lastKeys); 
+						applyMode();
 					} 
 				} catch(e){} 
 			};
@@ -330,10 +489,11 @@
 			}
 		});
 
-		Promise.all([initConfig(), loadKeyImagesConfig()]).then(()=> setupConfigPanel()); connect();
+		Promise.all([initConfig(), loadKeyImagesConfig(), loadKeyStyleConfig()]).then(()=> setupConfigPanel()); connect();
 		
 		// Periodically refresh key images config (every 5 seconds)
 		setInterval(loadKeyImagesConfig, 5000);
+		setInterval(loadKeyStyleConfig, 5000);
 	})();
 	</script>
 </body>
