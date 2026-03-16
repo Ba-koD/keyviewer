@@ -231,9 +231,7 @@ async fn root_redirect() -> impl IntoResponse {
 //   2. All API/WS URLs become absolute (http://127.0.0.1:PORT/...)
 //   3. boot_id reload check is disabled (local file is always fresh)
 //   4. On WS reconnect after shutdown, config is re-fetched instead of page reload
-async fn get_obs_local_file(
-    AxumState(state): AxumState<SharedState>,
-) -> impl IntoResponse {
+async fn get_obs_local_file(AxumState(state): AxumState<SharedState>) -> impl IntoResponse {
     let port = {
         let s = state.read();
         s.app_config.port
@@ -289,9 +287,7 @@ async fn get_obs_local_file(
 // Serve overlay HTML with the server's boot_id baked in.
 // The JS in overlay.html compares this value against the boot_id received over WebSocket;
 // if they differ (OBS cached a stale page), the page reloads itself automatically.
-async fn get_overlay(
-    AxumState(state): AxumState<SharedState>,
-) -> impl IntoResponse {
+async fn get_overlay(AxumState(state): AxumState<SharedState>) -> impl IntoResponse {
     let boot_id = {
         let s = state.read();
         s.cache_buster
