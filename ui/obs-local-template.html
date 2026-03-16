@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Key Queue Overlay</title>
+	<style>
+		:root {
+			--bg: rgba(0,0,0,0);
+			--chip-bg: #000000;
+			--chip-fg: #ffffff;
+			--chip-gap: 8px;
+			--chip-pad-v: 10px;
+			--chip-pad-h: 14px;
+			--chip-radius: 10px;
+			--chip-font: 24px;
+			--chip-font-weight: 700;
+			--fade-in: 120ms;
+			--fade-out: 120ms;
+			--cols: 8;
+			--rows: 1;
+			--single-scale: 1;
+			--align: start;
+		}
+		html, body { margin: 0; background: var(--bg); }
+		#root { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+		.container { width: 100%; height: 100%; display:flex; align-items:center; justify-content:center; }
+		.queue-wrap { width: 90vw; max-width: 96vw; }
+		.queue {
+			display: flex;
+			flex-wrap: wrap;
+			gap: var(--chip-gap, 8px);
+			justify-content: var(--align, flex-start);
+		}
+		.chip {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			background: var(--chip-bg, rgba(0,0,0,0.6));
+			color: var(--chip-fg, #ffffff);
+			padding: calc(var(--chip-pad-v, 10px) * var(--single-scale, 1)) calc(var(--chip-pad-h, 14px) * var(--single-scale, 1));
+			border-radius: calc(var(--chip-radius, 10px) * var(--single-scale, 1));
+			font-size: calc(var(--chip-font, 24px) * var(--single-scale, 1));
+			font-weight: var(--chip-font-weight, 700);
+			font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+			min-width: 44px; text-align: center; user-select: none; transform: translateY(0);
+			transition: transform var(--fade-in) ease, opacity var(--fade-in) ease;
+			box-shadow:
+				inset 0 0 0 2px rgba(255,255,255,0.12),
+				inset 0 -2px 4px rgba(0,0,0,0.25),
+				inset 0 2px 4px rgba(255,255,255,0.08);
+		}
+		.chip.hide { opacity: 0; transform: translateY(8px); transition: transform var(--fade-out) ease, opacity var(--fade-out) ease; }
+	</style>
+</head>
+<body>
+	<div id="root">
+		<div class="container">
+			<div class="queue-wrap"><div class="queue" id="queue"></div></div>
+		</div>
+	</div>
+	<script>
+	/* [KeyViewer OBS Local File] Port baked in at download time. */
+	(function(){
+		var KV_PORT = __PORT__;
+		var BASE = 'http://127.0.0.1:' + KV_PORT;
+		var WS_URL = 'ws://127.0.0.1:' + KV_PORT + '/ws';
+
+		var queueEl = document.getElementById('queue');
+		var ws;
+		var lastKeys = [];
+		var overlayCfg = null;
+		var configLoaded = false;
+
+		function applyOverlayConfig(cfg) {
+			if (!cfg) return;
+			overlayCfg = cfg;
+			var root = document.documentElement;
+			if (cfg.background) root.style.setProperty('--bg', cfg.background);
+			if (cfg.chip_bg) root.style.setProperty('--chip-bg', cfg.chip_bg);
+			if (cfg.chip_fg) root.style.setProperty('--chip-fg', cfg.chip_fg);
+			var map = {chip_gap:'--chip-gap',chip_pad_v:'--chip-pad-v',chip_pad_h:'--chip-pad-h',chip_radius:'--chip-radius',chip_font_px:'--chip-font',chip_font_weight:'--chip-font-weight',fade_in_ms:'--fade-in',fade_out_ms:'--fade-out'};
+			Object.keys(map).forEach(function(k) {
+				var v = cfg[k];
+				if (typeof v === 'number') {
+					var unit = k.includes('ms') ? 'ms' : (k !== 'chip_font_weight' ? 'px' : '');
+					root.style.setProperty(map[k], v + unit);
+				}
+			});
+			if (typeof cfg.cols === 'number') root.style.setProperty('--cols', String(cfg.cols));
+			if (typeof cfg.rows === 'number') root.style.setProperty('--rows', String(cfg.rows));
+			var alignMap = { left: 'start', center: 'center', right: 'end' };
+			root.style.setProperty('--align', alignMap[cfg.align] || 'start');
+		}
+
+		function initConfig() {
+			fetch(BASE + '/api/overlay-config?cb=' + Date.now(), { cache: 'no-store' })
+				.then(function(r) { return r.json(); })
+				.then(function(cfg) { applyOverlayConfig(cfg); })
+				.catch(function() {});
+		}
+
+		function placeChips(keys) {
+			try {
+				var current = Array.from(queueEl.children).map(function(c) { return c.dataset.key || ''; });
+				if (current.length === keys.length && current.every(function(v, i) { return v === keys[i]; })) return;
+			} catch(e) {}
+			queueEl.innerHTML = '';
+			var cols = Number(overlayCfg && overlayCfg.cols != null ? overlayCfg.cols : 8);
+			var rows = Number(overlayCfg && overlayCfg.rows != null ? overlayCfg.rows : 1);
+			var toShow = keys;
+			if (rows > 0) {
+				var capacity = Math.max(1, cols * rows);
+				toShow = keys.slice(Math.max(0, keys.length - capacity));
+			}
+			if (overlayCfg && overlayCfg.direction === 'rtl') toShow = toShow.slice().reverse();
+			toShow.forEach(function(k) {
+				var chip = document.createElement('div');
+				chip.className = 'chip';
+				chip.dataset.key = k;
+				var span = document.createElement('span');
+				span.textContent = k;
+				chip.appendChild(span);
+				queueEl.appendChild(chip);
+			});
+		}
+
+		function connect() {
+			try { ws = new WebSocket(WS_URL); } catch(e) { setTimeout(connect, 1500); return; }
+			ws.onopen = function() {
+				if (!configLoaded) { configLoaded = true; initConfig(); }
+			};
+			ws.onmessage = function(ev) {
+				try {
+					var data = JSON.parse(ev.data);
+					if (data.type === 'shutdown') { configLoaded = false; return; }
+					if (data.type === 'config' && data.overlay) { applyOverlayConfig(data.overlay); return; }
+					if (Array.isArray(data.keys)) { lastKeys = data.keys; placeChips(lastKeys); }
+				} catch(e) {}
+			};
+			ws.onclose = function() {
+				configLoaded = false;
+				setTimeout(connect, 1500);
+			};
+			ws.onerror = function() {
+				try { ws.close(); } catch(e) {}
+			};
+		}
+
+		connect();
+
+		/* Re-fetch config every 15s to pick up changes made in control panel */
+		setInterval(function() { if (configLoaded) initConfig(); }, 15000);
+	})();
+	</script>
+</body>
+</html>

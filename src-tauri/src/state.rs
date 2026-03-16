@@ -46,8 +46,14 @@ pub struct OverlayConfig {
     pub grad_color2: String,
     #[serde(default = "default_grad_dir")]
     pub grad_dir: String,
+    // Display mode: "queue" (scrolling) | "keyviewer" (fixed layout)
+    #[serde(default = "default_overlay_mode")]
+    pub overlay_mode: String,
 }
 
+fn default_overlay_mode() -> String {
+    "queue".to_string()
+}
 fn default_color_mode() -> String {
     "solid".to_string()
 }
@@ -74,17 +80,18 @@ impl Default for OverlayConfig {
             chip_radius: 10,
             chip_font_px: 24,
             chip_font_weight: 700,
-            background: "rgba(0,0,0,0)".to_string(), // Transparent background by default
+            background: "rgba(0,0,0,0)".to_string(),
             cols: 8,
             rows: 1,
             single_line: false,
             single_line_scale: 90,
-            align: "left".to_string(), // Left alignment by default
+            align: "left".to_string(),
             direction: "ltr".to_string(),
             color_mode: "solid".to_string(),
             grad_color1: "#000000".to_string(),
             grad_color2: "#333333".to_string(),
             grad_dir: "to bottom".to_string(),
+            overlay_mode: "queue".to_string(),
         }
     }
 }
@@ -207,6 +214,29 @@ pub struct StyleGroup {
     pub font: FontConfig,
 }
 
+/// A single key chip in the Key Viewer free-form canvas
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KeyViewerCell {
+    pub id: String,
+    pub key: String,
+    /// Position on logical canvas (pixels)
+    pub x: f64,
+    pub y: f64,
+    /// Size on logical canvas (pixels)
+    pub w: f64,
+    pub h: f64,
+    /// Optional per-chip style overrides
+    #[serde(rename = "bgOverride", default)]
+    pub bg_override: Option<String>,
+    #[serde(rename = "fgOverride", default)]
+    pub fg_override: Option<String>,
+    #[serde(rename = "radiusOverride", default)]
+    pub radius_override: Option<f64>,
+}
+
+fn default_kv_canvas_w() -> f64 { 800.0 }
+fn default_kv_canvas_h() -> f64 { 300.0 }
+
 /// Main style configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeyStyleConfig {
@@ -224,6 +254,21 @@ pub struct KeyStyleConfig {
     pub chip_pad_h: u32,
     #[serde(rename = "chipRadius", default = "default_chip_radius")]
     pub chip_radius: u32,
+    // Key Viewer free-form canvas layout
+    #[serde(rename = "keyViewerLayout", default)]
+    pub key_viewer_layout: Vec<KeyViewerCell>,
+    #[serde(rename = "kvCanvasW", default = "default_kv_canvas_w")]
+    pub kv_canvas_w: f64,
+    #[serde(rename = "kvCanvasH", default = "default_kv_canvas_h")]
+    pub kv_canvas_h: f64,
+    /// Raw JS-format style groups stored as-is for overlay priority rendering
+    #[serde(rename = "rawStyleGroups", default)]
+    pub raw_style_groups: serde_json::Value,
+    /// Per-mode raw style groups
+    #[serde(rename = "rawStyleGroupsQueue", default)]
+    pub raw_style_groups_queue: serde_json::Value,
+    #[serde(rename = "rawStyleGroupsKv", default)]
+    pub raw_style_groups_kv: serde_json::Value,
 }
 
 fn default_chip_gap() -> u32 {
@@ -249,6 +294,12 @@ impl Default for KeyStyleConfig {
             chip_pad_v: 10,
             chip_pad_h: 14,
             chip_radius: 10,
+            key_viewer_layout: Vec::new(),
+            kv_canvas_w: 800.0,
+            kv_canvas_h: 300.0,
+            raw_style_groups: serde_json::Value::Array(Vec::new()),
+            raw_style_groups_queue: serde_json::Value::Array(Vec::new()),
+            raw_style_groups_kv: serde_json::Value::Array(Vec::new()),
         }
     }
 }
