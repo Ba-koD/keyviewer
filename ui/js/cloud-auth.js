@@ -140,7 +140,9 @@ const CloudAuth = (function() {
   }
   
   function handleCallback() {
-    const params = new URLSearchParams(location.search);
+    const hash = location.hash;
+    if (!hash || hash.length < 2) return false;
+    const params = new URLSearchParams(hash.substring(1));
     
     // GitHub callback
     const githubToken = params.get('github_token');
