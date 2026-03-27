@@ -157,6 +157,11 @@
 		}
 		.overlay-preview .chip.hide{opacity:0; transform: translateY(8px); transition: transform var(--fade-out, 120ms) ease, opacity var(--fade-out, 120ms) ease}
 
+		/* Image preview hover edit button */
+		.img-preview-wrap{position:relative; display:inline-block; vertical-align:middle; margin-left:8px}
+		.img-preview-wrap:hover .img-edit-btn{opacity:1 !important}
+		.img-edit-btn{position:absolute; inset:0; width:100%; height:100%; background:rgba(0,0,0,0.65); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:11px; opacity:0; transition:opacity 0.2s; display:flex; align-items:center; justify-content:center; white-space:nowrap}
+
 		/* Image Crop Modal */
 		.crop-container{position:relative; width:100%; max-height:400px; overflow:hidden; background:#000; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:move}
 		.crop-canvas{max-width:100%; max-height:400px}
@@ -391,9 +396,12 @@
 						<label data-text-ko="기본 텍스트 숨김" data-text-en="Hide Text by Default">기본 텍스트 숨김</label>
 						<div class="field"><input type="checkbox" id="ki_default_hide"/> <span class="help" data-text-ko="체크하면 모든 키 텍스트 숨김" data-text-en="Check to hide all key text">체크하면 모든 키 텍스트 숨김</span></div>
 					</div>
-					<div id="ki_default_preview" style="margin-top:8px; display:none">
+					<div id="ki_default_preview" style="margin-top:8px; display:none; align-items:center">
 						<span style="font-size:12px; opacity:0.7" data-text-ko="미리보기:" data-text-en="Preview:">미리보기:</span>
-						<img id="ki_default_preview_img" style="max-height:48px; max-width:100px; border-radius:6px; vertical-align:middle; margin-left:8px"/>
+						<div class="img-preview-wrap">
+							<img id="ki_default_preview_img" style="max-height:48px; max-width:100px; border-radius:6px; display:block"/>
+							<button class="img-edit-btn" onclick="openEditDefaultImage()" data-text-ko="✏️ 편집" data-text-en="✏️ Edit">✏️ 편집</button>
+						</div>
 					</div>
 				</div>
 
@@ -420,9 +428,12 @@
 						<label data-text-ko="텍스트 숨김" data-text-en="Hide Text">텍스트 숨김</label>
 						<div class="field"><input type="checkbox" id="ki_key_hide"/> <span class="help" data-text-ko="이 키만 텍스트 숨김" data-text-en="Hide text for this key only">이 키만 텍스트 숨김</span></div>
 					</div>
-					<div id="ki_key_preview" style="margin-top:8px; display:none">
+					<div id="ki_key_preview" style="margin-top:8px; display:none; align-items:center">
 						<span style="font-size:12px; opacity:0.7" data-text-ko="미리보기:" data-text-en="Preview:">미리보기:</span>
-						<img id="ki_key_preview_img" style="max-height:48px; max-width:100px; border-radius:6px; vertical-align:middle; margin-left:8px"/>
+						<div class="img-preview-wrap">
+							<img id="ki_key_preview_img" style="max-height:48px; max-width:100px; border-radius:6px; display:block"/>
+							<button class="img-edit-btn" onclick="openEditCurrentKeyImage()" data-text-ko="✏️ 편집" data-text-en="✏️ Edit">✏️ 편집</button>
+						</div>
 					</div>
 					<button id="ki_key_save" class="primary" style="margin-top:10px" data-text-ko="이 키 저장" data-text-en="Save This Key">이 키 저장</button>
 				</div>
@@ -594,9 +605,12 @@
 								<div data-text-ko="이미지를 드래그하거나 클릭" data-text-en="Drag image or click">이미지를 드래그하거나 클릭</div>
 								<input type="file" id="usBgImageFile" accept="image/*" style="display:none"/>
 							</div>
-							<div id="usBgImagePreview" style="display:none; margin-top:8px">
-								<img id="usBgImagePreviewImg" src="" style="max-width:100%; max-height:100px; border-radius:6px"/>
-								<button id="usBgImageClear" class="danger" style="margin-left:8px" data-text-ko="제거" data-text-en="Remove">제거</button>
+							<div id="usBgImagePreview" style="display:none; margin-top:8px; align-items:center; gap:8px">
+								<div id="usBgImagePreviewWrap" class="img-preview-wrap" style="margin-left:0">
+									<img id="usBgImagePreviewImg" src="" style="max-width:100%; max-height:100px; border-radius:6px; display:block"/>
+									<button class="img-edit-btn" onclick="openEditUnifiedBgImage()" data-text-ko="✏️ 편집" data-text-en="✏️ Edit">✏️ 편집</button>
+								</div>
+								<button id="usBgImageClear" class="danger" data-text-ko="제거" data-text-en="Remove">제거</button>
 							</div>
 						</div>
 					</div>
@@ -684,7 +698,10 @@
 								<div data-text-ko="이미지 업로드" data-text-en="Upload Image">이미지 업로드</div>
 								<input type="file" id="usGroupImageFile" accept="image/*" style="display:none"/>
 							</div>
-							<img id="usGroupImagePreview" src="" style="display:none;max-width:100px;margin-top:8px;border-radius:6px"/>
+							<div id="usGroupImagePreviewWrap" class="img-preview-wrap" style="display:none; margin-top:8px; margin-left:0">
+								<img id="usGroupImagePreview" src="" style="display:block;max-width:100px;border-radius:6px"/>
+								<button class="img-edit-btn" onclick="openEditUnifiedGroupImage()" data-text-ko="✏️ 편집" data-text-en="✏️ Edit">✏️ 편집</button>
+							</div>
 						</div>
 
 						<!-- ── 칩 크기 + 폰트 (나란히) ── -->
@@ -1001,12 +1018,14 @@
 		}
 		function setKeyImages(data) {
 			localStorage.setItem(STORAGE_KEY_IMAGES, JSON.stringify(data));
+			syncLegacyKeyImagesToOverlayData();
 		}
 		function getHideKeyText() {
 			try { return JSON.parse(localStorage.getItem(STORAGE_KEY_HIDE) || '{}'); } catch(e) { return {}; }
 		}
 		function setHideKeyText(data) {
 			localStorage.setItem(STORAGE_KEY_HIDE, JSON.stringify(data));
+			syncLegacyKeyImagesToOverlayData();
 		}
 
 		function fileToBase64(file) {
@@ -1339,6 +1358,34 @@
 			kiKeyImg.value = '';
 		};
 
+		// Open image editor for the currently selected key's uploaded image
+		window.openEditCurrentKeyImage = function() {
+			if (!pendingKeyImage || !currentEditKey) return;
+			openImageEditor(pendingKeyImage, 'wide', (result) => {
+				pendingKeyImage = result.image;
+				if (kiKeyPreviewImg) kiKeyPreviewImg.src = result.image;
+				if (kiKeyHide) kiKeyHide.checked = result.textOpacity === 0;
+			}, { hideText: !!kiKeyHide?.checked });
+		};
+
+		// Open image editor for the default image
+		window.openEditDefaultImage = function() {
+			const images = getKeyImages();
+			if (!images['default']) return;
+			openImageEditor(images['default'], 'wide', (result) => {
+				const imgs = getKeyImages();
+				const hides = getHideKeyText();
+				imgs['default'] = result.image;
+				setKeyImages(imgs);
+				if (kiDefaultPreviewImg) kiDefaultPreviewImg.src = result.image;
+				if (kiDefaultHide) kiDefaultHide.checked = result.textOpacity === 0;
+				if (result.textOpacity === 0) hides['default'] = true;
+				else delete hides['default'];
+				setHideKeyText(hides);
+				updateKIPreview();
+			}, { hideText: !!kiDefaultHide?.checked });
+		};
+
 		window.removeKeyImage = function(key) {
 			const images = getKeyImages();
 			const hides = getHideKeyText();
@@ -1511,6 +1558,7 @@
 			if (confirm(confirmText)) {
 				localStorage.removeItem(STORAGE_KEY_IMAGES);
 				localStorage.removeItem(STORAGE_KEY_HIDE);
+				syncLegacyKeyImagesToOverlayData();
 				loadKeyImageSettings();
 				updateConfiguredList();
 				updateKIPreview();
@@ -1631,6 +1679,8 @@
 		let currentEditingMode = 'queue'; // which mode's groups are being edited in modal
 		let usRecording = false;
 		let usRecordedKeysList = [];
+		let usHasChanges = false; // tracks unsaved changes in Key Style modal
+		let usGroupEditorSnapshot = null;
 
 		const debugMode = document.getElementById('debugMode');
 		const debugValue = document.getElementById('debugValue');
@@ -1764,8 +1814,86 @@
 
 		
 		// ========== Unified Style Modal Functions ==========
+		function getUnsavedUnifiedStyleMessage() {
+			return currentLanguage === 'ko'
+				? '저장되지 않은 변경사항이 있습니다. 닫으시겠습니까?'
+				: 'There are unsaved changes. Close anyway?';
+		}
+
+		function buildCurrentGroupEditorDraft() {
+			if (!usGroupEditor || usGroupEditor.style.display === 'none') return null;
+			const type = usGroupType?.value || 'individual';
+			const chipPadVVal = document.getElementById('usGroupChipPadV')?.value;
+			const chipPadHVal = document.getElementById('usGroupChipPadH')?.value;
+			const chipRadiusVal = document.getElementById('usGroupChipRadius')?.value;
+			const fontFamilyVal = document.getElementById('usGroupFontFamily')?.value || '';
+			const fontSizeVal = document.getElementById('usGroupFontSize')?.value || '';
+			const fontWeightVal = document.getElementById('usGroupFontWeight')?.value || '';
+			const fontColorVal = document.getElementById('usGroupFontColorText')?.value || '';
+			return {
+				id: usGroupEditId?.value || '',
+				name: usGroupName?.value || '',
+				type,
+				keys: type === 'all' ? ['*'] : [...usRecordedKeysList],
+				bgMode: usGroupBgMode?.value || 'solid',
+				bgColor: document.getElementById('usGroupBgColor')?.value || '#000000',
+				gradStops: groupGradEditor.getStops(),
+				gradAngle: groupGradEditor.getAngle(),
+				image: usGroupImageData,
+				textOpacity: usGroupTextOpacity,
+				fontFamily: fontFamilyVal,
+				fontSize: fontSizeVal,
+				fontWeight: fontWeightVal,
+				fontColor: fontColorVal,
+				chipPadV: chipPadVVal ?? '',
+				chipPadH: chipPadHVal ?? '',
+				chipRadius: chipRadiusVal ?? ''
+			};
+		}
+
+		function getPreviewStyleGroups(mode = currentEditingMode) {
+			const baseGroups = JSON.parse(JSON.stringify(styleGroupsByMode[mode] || []));
+			if (mode !== currentEditingMode) return baseGroups;
+			const draft = buildCurrentGroupEditorDraft();
+			if (!draft) return baseGroups;
+			const normalizedDraft = {
+				...draft,
+				fontFamily: draft.fontFamily || null,
+				fontSize: draft.fontSize !== '' ? Number(draft.fontSize) : null,
+				fontWeight: draft.fontWeight || null,
+				fontColor: draft.fontColor || null,
+				chipPadV: draft.chipPadV !== '' ? Number(draft.chipPadV) : null,
+				chipPadH: draft.chipPadH !== '' ? Number(draft.chipPadH) : null,
+				chipRadius: draft.chipRadius !== '' ? Number(draft.chipRadius) : null
+			};
+			if (normalizedDraft.id) {
+				const idx = baseGroups.findIndex(g => g.id === normalizedDraft.id);
+				if (idx >= 0) baseGroups[idx] = normalizedDraft;
+				else baseGroups.push(normalizedDraft);
+			} else if (
+				normalizedDraft.name.trim() ||
+				normalizedDraft.type === 'all' ||
+				normalizedDraft.keys.length > 0 ||
+				normalizedDraft.image
+			) {
+				baseGroups.push({ ...normalizedDraft, id: '__draft__' });
+			}
+			return baseGroups;
+		}
+
+		function snapshotGroupEditorState() {
+			usGroupEditorSnapshot = JSON.stringify(buildCurrentGroupEditorDraft());
+		}
+
+		function hasUnsavedGroupEditorChanges() {
+			if (!usGroupEditor || usGroupEditor.style.display === 'none') return false;
+			return JSON.stringify(buildCurrentGroupEditorDraft()) !== usGroupEditorSnapshot;
+		}
+
 		function openModalUnifiedStyle() {
 			modalUnifiedStyle.style.display = 'flex';
+			usHasChanges = false;
+			usGroupEditorSnapshot = null;
 			loadUnifiedStyleConfig();
 			loadKvConfig();
 			switchUnifiedTab('bg');
@@ -1786,6 +1914,11 @@
 		window.setEditingMode = setEditingMode;
 		
 		function closeModalUnifiedStyle() {
+			if (hasUnsavedGroupEditorChanges() || usHasChanges) {
+				if (!confirm(getUnsavedUnifiedStyleMessage())) return;
+			}
+			usHasChanges = false;
+			usGroupEditorSnapshot = null;
 			modalUnifiedStyle.style.display = 'none';
 			usGroupEditor.style.display = 'none';
 			detachLiveKeyListeners();
@@ -1822,6 +1955,7 @@
 		// Background transparency toggle
 		if (us_bg_transparent) {
 			us_bg_transparent.addEventListener('change', () => {
+				usHasChanges = true;
 				if (usBgColorSection) {
 					usBgColorSection.style.display = us_bg_transparent.checked ? 'none' : 'block';
 				}
@@ -1831,6 +1965,7 @@
 		// Background mode toggle
 		if (us_bg_mode) {
 			us_bg_mode.addEventListener('change', () => {
+				usHasChanges = true;
 				const mode = us_bg_mode.value;
 				if (usBgSolid) usBgSolid.style.display = mode === 'solid' ? 'block' : 'none';
 				if (usBgGradient) usBgGradient.style.display = mode === 'gradient' ? 'block' : 'none';
@@ -1842,9 +1977,21 @@
 		// Font family toggle for custom URL
 		if (us_font_family) {
 			us_font_family.addEventListener('change', () => {
+				usHasChanges = true;
 				if (usFontUrlSection) {
 					usFontUrlSection.style.display = us_font_family.value === 'custom' ? 'block' : 'none';
 				}
+			});
+		}
+		
+		// Default chip/font inputs — mark unsaved when user edits them
+		{
+			const _usTrackInputs = ['us_chip_gap','us_chip_pad_v','us_chip_pad_h','us_chip_radius',
+				'us_font_size','us_font_weight','us_font_color','us_font_color_picker',
+				'us_font_shadow','us_bg_color','us_bg_color_picker','us_font_url'];
+			_usTrackInputs.forEach(id => {
+				const el = document.getElementById(id);
+				if (el) el.addEventListener(el.type === 'checkbox' ? 'change' : 'input', () => { usHasChanges = true; });
 			});
 		}
 		
@@ -1854,6 +2001,7 @@
 				if (usGroupKeysSection) {
 					usGroupKeysSection.style.display = usGroupType.value === 'all' ? 'none' : 'block';
 				}
+				updateUnifiedPreview();
 			});
 		}
 		
@@ -1864,6 +2012,7 @@
 				if (usGroupBgSolid) usGroupBgSolid.style.display = mode === 'solid' ? 'block' : 'none';
 				if (usGroupBgGrad) usGroupBgGrad.style.display = mode === 'gradient' ? 'block' : 'none';
 				if (usGroupBgImage) usGroupBgImage.style.display = mode === 'image' ? 'block' : 'none';
+				updateUnifiedPreview();
 			});
 		}
 		
@@ -1879,7 +2028,8 @@
 				usGroupImageData = null;
 				usGroupTextOpacity = 1;
 				resetGroupGrad();
-				if (usGroupImagePreview) usGroupImagePreview.style.display = 'none';
+				if (usGroupImagePreview) usGroupImagePreview.src = '';
+				if (usGroupImagePreviewWrap) usGroupImagePreviewWrap.style.display = 'none';
 				if (usGroupBgSolid) usGroupBgSolid.style.display = 'block';
 				if (usGroupBgGrad) usGroupBgGrad.style.display = 'none';
 				if (usGroupBgImage) usGroupBgImage.style.display = 'none';
@@ -1905,45 +2055,35 @@
 				if (usGroupKeysSection) usGroupKeysSection.style.display = 'block';
 				usGroupEditor.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 				updateMouseButtonStates();
+				captureCurrentPreviewConfig();
+				updateUnifiedPreview();
+				snapshotGroupEditorState();
 			});
 		}
 		
 		// Group save button
 		if (usGroupSave) {
 			usGroupSave.addEventListener('click', () => {
-				const name = usGroupName.value.trim() || 'Unnamed Group';
-				const type = usGroupType.value;
-				const keys = type === 'all' ? ['*'] : usRecordedKeysList;
-				const bgMode = usGroupBgMode.value;
-				
-				// Read font override fields from group editor
-				const fontFamilyVal = document.getElementById('usGroupFontFamily')?.value || '';
-				const fontSizeVal = document.getElementById('usGroupFontSize')?.value || '';
-				const fontWeightVal = document.getElementById('usGroupFontWeight')?.value || '';
-				const fontColorVal = document.getElementById('usGroupFontColorText')?.value || '';
-				// Read chip size override fields
-				const chipPadVVal = document.getElementById('usGroupChipPadV')?.value;
-				const chipPadHVal = document.getElementById('usGroupChipPadH')?.value;
-				const chipRadiusVal = document.getElementById('usGroupChipRadius')?.value;
-				
+				usHasChanges = true;
+				const draft = buildCurrentGroupEditorDraft() || {};
 				const group = {
-					id: usGroupEditId.value || Date.now().toString(),
-					name,
-					type,
-					keys,
-					bgMode,
-					bgColor: document.getElementById('usGroupBgColor')?.value || '#000000',
-					gradStops: groupGradEditor.getStops(),
-					gradAngle: groupGradEditor.getAngle(),
-					image: usGroupImageData,
-					textOpacity: usGroupTextOpacity,
-					fontFamily: fontFamilyVal || null,
-					fontSize: fontSizeVal ? parseInt(fontSizeVal) : null,
-					fontWeight: fontWeightVal || null,
-					fontColor: fontColorVal || null,
-					chipPadV: chipPadVVal !== '' && chipPadVVal != null ? Number(chipPadVVal) : null,
-					chipPadH: chipPadHVal !== '' && chipPadHVal != null ? Number(chipPadHVal) : null,
-					chipRadius: chipRadiusVal !== '' && chipRadiusVal != null ? Number(chipRadiusVal) : null
+					id: draft.id || Date.now().toString(),
+					name: draft.name.trim() || 'Unnamed Group',
+					type: draft.type || 'individual',
+					keys: draft.keys || [],
+					bgMode: draft.bgMode || 'solid',
+					bgColor: draft.bgColor || '#000000',
+					gradStops: draft.gradStops || [],
+					gradAngle: draft.gradAngle ?? 180,
+					image: draft.image || null,
+					textOpacity: draft.textOpacity,
+					fontFamily: draft.fontFamily || null,
+					fontSize: draft.fontSize !== '' ? parseInt(draft.fontSize, 10) : null,
+					fontWeight: draft.fontWeight || null,
+					fontColor: draft.fontColor || null,
+					chipPadV: draft.chipPadV !== '' && draft.chipPadV != null ? Number(draft.chipPadV) : null,
+					chipPadH: draft.chipPadH !== '' && draft.chipPadH != null ? Number(draft.chipPadH) : null,
+					chipRadius: draft.chipRadius !== '' && draft.chipRadius != null ? Number(draft.chipRadius) : null
 				};
 				
 				// Find and update or add in current mode's groups
@@ -1959,6 +2099,7 @@
 				localStorage.setItem('keyviewer_style_groups_' + currentEditingMode, JSON.stringify(groups));
 				
 				usGroupEditor.style.display = 'none';
+				usGroupEditorSnapshot = null;
 				renderStyleGroupsList();
 				updateUnifiedPreview();
 			});
@@ -1967,7 +2108,12 @@
 		// Group cancel button
 		if (usGroupCancel) {
 			usGroupCancel.addEventListener('click', () => {
+				if (hasUnsavedGroupEditorChanges()) {
+					if (!confirm(getUnsavedUnifiedStyleMessage())) return;
+				}
 				usGroupEditor.style.display = 'none';
+				usGroupEditorSnapshot = null;
+				updateUnifiedPreview();
 			});
 		}
 		
@@ -2064,10 +2210,12 @@
 		const usBgImageDrop = document.getElementById('usBgImageDrop');
 		const usBgImageFile = document.getElementById('usBgImageFile');
 		const usBgImagePreview = document.getElementById('usBgImagePreview');
+		const usBgImagePreviewWrap = document.getElementById('usBgImagePreviewWrap');
 		const usBgImagePreviewImg = document.getElementById('usBgImagePreviewImg');
 		const usBgImageClear = document.getElementById('usBgImageClear');
 		const usGroupImageDrop = document.getElementById('usGroupImageDrop');
 		const usGroupImageFile = document.getElementById('usGroupImageFile');
+		const usGroupImagePreviewWrap = document.getElementById('usGroupImagePreviewWrap');
 		const usGroupImagePreview = document.getElementById('usGroupImagePreview');
 		
 		let usBgImageData = null;
@@ -2101,17 +2249,30 @@
 				// Open image editor
 				openImageEditor(imageSrc, 'wide', (result) => {
 					usBgImageData = result.image;
+					usHasChanges = true;
 					if (usBgImagePreviewImg) usBgImagePreviewImg.src = usBgImageData;
 					if (usBgImagePreview) usBgImagePreview.style.display = 'flex';
 					updateUnifiedPreview();
-				});
+				}, { hideText: false });
 			};
 			reader.readAsDataURL(file);
 		}
+
+		window.openEditUnifiedBgImage = function() {
+			if (!usBgImageData) return;
+			openImageEditor(usBgImageData, 'wide', (result) => {
+				usBgImageData = result.image;
+				usHasChanges = true;
+				if (usBgImagePreviewImg) usBgImagePreviewImg.src = usBgImageData;
+				if (usBgImagePreview) usBgImagePreview.style.display = 'flex';
+				updateUnifiedPreview();
+			}, { hideText: false });
+		};
 		
 		if (usBgImageClear) {
 			usBgImageClear.addEventListener('click', () => {
 				usBgImageData = null;
+				usHasChanges = true;
 				if (usBgImagePreview) usBgImagePreview.style.display = 'none';
 				updateUnifiedPreview();
 			});
@@ -2146,12 +2307,28 @@
 					usGroupTextOpacity = result.textOpacity;
 					if (usGroupImagePreview) {
 						usGroupImagePreview.src = usGroupImageData;
-						usGroupImagePreview.style.display = 'block';
 					}
-				});
+					if (usGroupImagePreviewWrap) {
+						usGroupImagePreviewWrap.style.display = 'inline-block';
+					}
+					captureCurrentPreviewConfig();
+					updateUnifiedPreview();
+				}, { hideText: usGroupTextOpacity === 0 });
 			};
 			reader.readAsDataURL(file);
 		}
+
+		window.openEditUnifiedGroupImage = function() {
+			if (!usGroupImageData) return;
+			openImageEditor(usGroupImageData, 'wide', (result) => {
+				usGroupImageData = result.image;
+				usGroupTextOpacity = result.textOpacity;
+				if (usGroupImagePreview) usGroupImagePreview.src = usGroupImageData;
+				if (usGroupImagePreviewWrap) usGroupImagePreviewWrap.style.display = 'inline-block';
+				captureCurrentPreviewConfig();
+				updateUnifiedPreview();
+			}, { hideText: usGroupTextOpacity === 0 });
+		};
 		
 		// Render style groups list
 		function renderStyleGroupsList() {
@@ -2226,6 +2403,7 @@
 			} else if (dir === 'down' && idx < groups.length - 1) {
 				[groups[idx], groups[idx + 1]] = [groups[idx + 1], groups[idx]];
 			}
+			usHasChanges = true;
 			renderStyleGroupsList();
 			updateUnifiedPreview();
 		};
@@ -2251,6 +2429,7 @@
 						const groups = styleGroupsByMode[currentEditingMode];
 						const moved = groups.splice(sgDragSrcIdx, 1)[0];
 						groups.splice(destIdx, 0, moved);
+						usHasChanges = true;
 						renderStyleGroupsList();
 						updateUnifiedPreview();
 					}
@@ -2267,13 +2446,13 @@
 		if (usGroupFontColor && usGroupFontColorText) {
 			usGroupFontColor.addEventListener('input', () => {
 				usGroupFontColorText.value = usGroupFontColor.value;
-				captureCurrentPreviewConfig();
+				updateUnifiedPreview();
 			});
 			usGroupFontColorText.addEventListener('input', () => {
 				if (/^#[0-9A-Fa-f]{6}$/.test(usGroupFontColorText.value)) {
 					usGroupFontColor.value = usGroupFontColorText.value;
 				}
-				captureCurrentPreviewConfig();
+				updateUnifiedPreview();
 			});
 		}
 
@@ -2281,7 +2460,7 @@
 		['usGroupChipPadV','usGroupChipPadH','usGroupChipRadius',
 		 'usGroupFontFamily','usGroupFontSize','usGroupFontWeight'].forEach(id => {
 			const el = document.getElementById(id);
-			if (el) el.addEventListener('input', captureCurrentPreviewConfig);
+			if (el) el.addEventListener('input', updateUnifiedPreview);
 		});
 		
 		// Edit style group
@@ -2316,14 +2495,8 @@
 			// Load image data
 			usGroupImageData = group.image || null;
 			usGroupTextOpacity = group.textOpacity !== undefined ? group.textOpacity : 1;
-			if (usGroupImagePreview) {
-				if (usGroupImageData) {
-					usGroupImagePreview.src = usGroupImageData;
-					usGroupImagePreview.style.display = 'block';
-				} else {
-					usGroupImagePreview.style.display = 'none';
-				}
-			}
+			if (usGroupImagePreview) usGroupImagePreview.src = usGroupImageData || '';
+			if (usGroupImagePreviewWrap) usGroupImagePreviewWrap.style.display = usGroupImageData ? 'inline-block' : 'none';
 			
 			// Toggle sections
 			if (usGroupBgSolid) usGroupBgSolid.style.display = group.bgMode === 'solid' ? 'block' : 'none';
@@ -2353,6 +2526,9 @@
 			usGroupEditor.style.display = 'block';
 			usGroupEditor.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 			updateMouseButtonStates();
+			captureCurrentPreviewConfig();
+			updateUnifiedPreview();
+			snapshotGroupEditorState();
 		};
 		
 		// Delete style group
@@ -2360,6 +2536,7 @@
 			const confirmMsg = currentLanguage === 'ko' ? '이 스타일 그룹을 삭제하시겠습니까?' : 'Delete this style group?';
 			if (confirm(confirmMsg)) {
 				styleGroupsByMode[currentEditingMode] = styleGroupsByMode[currentEditingMode].filter(g => g.id !== id);
+				usHasChanges = true;
 				renderStyleGroupsList();
 				updateUnifiedPreview();
 			}
@@ -2395,8 +2572,9 @@
 			us_preview_queue.style.gap = gap + 'px';
 			
 			// Resolve chip style with priority: individual > group > all
+			const previewGroups = getPreviewStyleGroups();
 			function resolveGroupBgForPreview(g) {
-				if (g.bgMode === 'image' && g.image) return { kind: 'image', image: g.image, textOpacity: g.textOpacity };
+				if (g.bgMode === 'image' && g.image) return { kind: 'image', image: g.image, textOpacity: g.textOpacity, fontColor: g.fontColor || null };
 				if (g.bgMode === 'gradient') {
 					let color;
 					if (g.gradStops && g.gradStops.length >= 2) {
@@ -2406,14 +2584,14 @@
 					} else {
 						color = `linear-gradient(180deg, ${g.gradColor1 || '#000'}, ${g.gradColor2 || '#333'})`;
 					}
-					return { kind: 'color', color };
+					return { kind: 'color', color, textOpacity: g.textOpacity, fontColor: g.fontColor || null };
 				}
-				if (g.bgMode === 'solid') return { kind: 'color', color: g.bgColor };
-				return null;
+				if (g.bgMode === 'solid') return { kind: 'color', color: g.bgColor, textOpacity: g.textOpacity, fontColor: g.fontColor || null };
+				return { kind: 'none', textOpacity: g.textOpacity, fontColor: g.fontColor || null };
 			}
 			function resolveChipStyleForPreview(key) {
 				// Strict array order: first matching group wins (index 0 = highest priority)
-				for (const g of styleGroupsByMode[currentEditingMode]) {
+				for (const g of previewGroups) {
 					if (g.type !== 'all' && !(g.keys?.includes(key))) continue;
 					const s = resolveGroupBgForPreview(g);
 					if (s) return s;
@@ -2443,13 +2621,16 @@
 					chip.style.background = '#222222';
 				}
 				
-				chip.style.color = fontColor;
+				chip.style.color = chipStyle?.fontColor || fontColor;
+				if (typeof chipStyle?.textOpacity === 'number' && chipStyle.textOpacity === 0) {
+					chip.style.color = 'transparent';
+				}
 				chip.style.padding = `${padV}px ${padH}px`;
 				chip.style.borderRadius = `${radius}px`;
 				chip.style.fontSize = `${fontSize}px`;
 				chip.style.fontWeight = fontWeight;
 				chip.style.fontFamily = fontFamily;
-				chip.style.textShadow = textShadow;
+				chip.style.textShadow = (typeof chipStyle?.textOpacity === 'number' && chipStyle.textOpacity === 0) ? 'none' : textShadow;
 				chip.style.minWidth = '44px';
 				chip.style.textAlign = 'center';
 				chip.style.display = 'inline-flex';
@@ -2480,13 +2661,13 @@
 					if (g.gradStops && g.gradStops.length >= 2) {
 						const sorted = [...g.gradStops].sort((a, b) => a.position - b.position);
 						const stops = sorted.map(s => `${s.color} ${s.position}%`).join(', ');
-						return { kind: 'color', color: `linear-gradient(${g.gradAngle||180}deg,${stops})` };
+						return { kind: 'color', color: `linear-gradient(${g.gradAngle||180}deg,${stops})`, textOpacity: g.textOpacity, fontColor: g.fontColor || null };
 					}
-					return { kind: 'color', color: `linear-gradient(180deg,${g.gradColor1||'#000'},${g.gradColor2||'#333'})` };
+					return { kind: 'color', color: `linear-gradient(180deg,${g.gradColor1||'#000'},${g.gradColor2||'#333'})`, textOpacity: g.textOpacity, fontColor: g.fontColor || null };
 				}
-				if (g.bgMode === 'solid') return { kind: 'color', color: g.bgColor };
-				if (g.bgMode === 'image' && g.image) return { kind: 'image', image: g.image };
-				return null;
+				if (g.bgMode === 'solid') return { kind: 'color', color: g.bgColor, textOpacity: g.textOpacity, fontColor: g.fontColor || null };
+				if (g.bgMode === 'image' && g.image) return { kind: 'image', image: g.image, textOpacity: g.textOpacity, fontColor: g.fontColor || null };
+				return { kind: 'none', textOpacity: g.textOpacity, fontColor: g.fontColor || null };
 			}
 			let chipStyle = null;
 			for (const g of groups) {
@@ -2508,7 +2689,10 @@
 			} else {
 				chip.style.background = '#222222';
 			}
-			chip.style.color = fontColor;
+			chip.style.color = chipStyle?.fontColor || fontColor;
+			if (typeof chipStyle?.textOpacity === 'number' && chipStyle.textOpacity === 0) {
+				chip.style.color = 'transparent';
+			}
 			chip.style.padding = `${padV}px ${padH}px`;
 			chip.style.borderRadius = `${radius}px`;
 			chip.style.fontSize = `${fontSize}px`;
@@ -2539,31 +2723,6 @@
 		}
 
 		function captureCurrentPreviewConfig() {
-			// Build a draft copy of groups, merging any unsaved form edits for the currently-open group
-			const baseGroups = JSON.parse(JSON.stringify(styleGroupsByMode[currentEditingMode] || []));
-			const editId = usGroupEditId?.value;
-			if (editId) {
-				const idx = baseGroups.findIndex(g => g.id === editId);
-				if (idx !== -1) {
-					const cpv = document.getElementById('usGroupChipPadV')?.value;
-					const cph = document.getElementById('usGroupChipPadH')?.value;
-					const cpr = document.getElementById('usGroupChipRadius')?.value;
-					const ff  = document.getElementById('usGroupFontFamily')?.value;
-					const fs  = document.getElementById('usGroupFontSize')?.value;
-					const fw  = document.getElementById('usGroupFontWeight')?.value;
-					const fc  = document.getElementById('usGroupFontColor')?.value;
-					baseGroups[idx] = {
-						...baseGroups[idx],
-						chipPadV:   cpv !== '' && cpv != null ? Number(cpv) : null,
-						chipPadH:   cph !== '' && cph != null ? Number(cph) : null,
-						chipRadius: cpr !== '' && cpr != null ? Number(cpr) : null,
-						fontFamily: ff  || null,
-						fontSize:   fs  !== '' && fs  != null ? Number(fs)  : null,
-						fontWeight: fw  || null,
-						fontColor:  fc  || null,
-					};
-				}
-			}
 			savedPreviewConfig = {
 				gap: Number(us_chip_gap?.value) || 8,
 				padV: Number(us_chip_pad_v?.value) || 10,
@@ -2573,8 +2732,9 @@
 				fontWeight: us_font_weight?.value || '700',
 				fontColor: us_font_color?.value || '#ffffff',
 				fontFamily: us_font_family?.value === 'custom' ? 'system-ui' : (us_font_family?.value || 'system-ui'),
-				groups: baseGroups
+				groups: getPreviewStyleGroups()
 			};
+			renderLivePreview();
 		}
 
 		// Keyboard listeners active only while modal is open
@@ -2777,6 +2937,7 @@
 				saveKeyImagesToStorage();
 				
 				captureCurrentPreviewConfig(); // update live preview to reflect saved state
+				usHasChanges = false;
 				closeModalUnifiedStyle();
 				updatePreview();
 			} catch(e) {
@@ -2792,6 +2953,7 @@
 		// Reset button handler
 		if (usStyleReset) {
 			usStyleReset.addEventListener('click', () => {
+				usHasChanges = true;
 				if (us_bg_transparent) us_bg_transparent.checked = true;
 				if (usBgColorSection) usBgColorSection.style.display = 'none';
 				if (us_chip_gap) us_chip_gap.value = 8;
@@ -3842,6 +4004,7 @@
 		let editorLastY = 0;
 		let editorCallback = null;
 		let editorKeyType = 'normal';
+		let editorDirtyTrackingEnabled = true;
 
 		// Key type dimensions (for cropping)
 		const KEY_SIZES = {
@@ -3850,11 +4013,12 @@
 			'extra-wide': { w: 120, h: 52, ratio: 2.3 }
 		};
 
-		function openImageEditor(imageSrc, keyType, callback) {
+		function openImageEditor(imageSrc, keyType, callback, options = {}) {
 			editorCallback = callback;
 			editorKeyType = 'wide'; // Always use wide (medium) key type
 			imgKeyType.value = editorKeyType;
 			editorHasChanges = false;
+			editorDirtyTrackingEnabled = false;
 			editorZoom = 1;
 			editorOffsetX = 0;
 			editorOffsetY = 0;
@@ -3862,7 +4026,7 @@
 			imgZoomVal.textContent = '100%';
 			imgQuality.value = 70;
 			imgQualityVal.textContent = '70%';
-			imgHideText.checked = false;
+			imgHideText.checked = !!options.hideText;
 
 			editorImage = new Image();
 			editorImage.onload = () => {
@@ -3878,8 +4042,10 @@
 				editorOffsetY = (canvasH - editorImage.height) / 2;
 				
 				drawEditor();
-				updateEditorPreview();
+				updateEditorPreview(false);
 				modalImageEditor.style.display = 'flex';
+				editorHasChanges = false;
+				editorDirtyTrackingEnabled = true;
 			};
 			editorImage.src = imageSrc;
 		}
@@ -3976,11 +4142,13 @@
 			return tempCanvas.toDataURL('image/webp', quality);
 		}
 
-		function updateEditorPreview() {
+		function updateEditorPreview(markDirty = true) {
 			const croppedUrl = getCroppedImage();
 			if (!croppedUrl) return;
 
-			editorHasChanges = true;
+			if (markDirty && editorDirtyTrackingEnabled) {
+				editorHasChanges = true;
+			}
 
 			// Update size info
 			const sizeKB = Math.round(croppedUrl.length * 0.75 / 1024);
@@ -4169,6 +4337,30 @@
 				if (storedKv) styleGroupsByMode.keyviewer = JSON.parse(storedKv);
 			} catch (e) {
 				console.error('Failed to load style groups:', e);
+			}
+		}
+
+		function syncLegacyKeyImagesToOverlayData() {
+			try {
+				const legacyImages = getKeyImages();
+				const legacyHides = getHideKeyText();
+				keyImagesData = Object.fromEntries(
+					Object.entries(legacyImages)
+						.filter(([key, image]) => key !== 'default' && !!image)
+						.map(([key, image]) => [key, {
+							image,
+							textOpacity: legacyHides[key] ? 0 : 1
+						}])
+				);
+				allKeysData = legacyImages.default
+					? {
+						image: legacyImages.default,
+						textOpacity: legacyHides.default ? 0 : 1
+					}
+					: null;
+				saveKeyImagesToStorage();
+			} catch (e) {
+				console.error('Failed to sync legacy key images:', e);
 			}
 		}
 
@@ -4981,6 +5173,7 @@
 					id: g.id, name: g.name, type: g.type, keys: g.keys,
 					bgMode: g.bgMode, bgColor: g.bgColor, gradStops: g.gradStops,
 					gradAngle: g.gradAngle, gradColor1: g.gradColor1, gradColor2: g.gradColor2, image: g.image,
+					textOpacity: g.textOpacity,
 					fontFamily: g.fontFamily, fontSize: g.fontSize, fontWeight: g.fontWeight, fontColor: g.fontColor,
 					chipPadV: g.chipPadV ?? null, chipPadH: g.chipPadH ?? null, chipRadius: g.chipRadius ?? null
 				})),
@@ -4988,6 +5181,7 @@
 					id: g.id, name: g.name, type: g.type, keys: g.keys,
 					bgMode: g.bgMode, bgColor: g.bgColor, gradStops: g.gradStops,
 					gradAngle: g.gradAngle, gradColor1: g.gradColor1, gradColor2: g.gradColor2, image: g.image,
+					textOpacity: g.textOpacity,
 					fontFamily: g.fontFamily, fontSize: g.fontSize, fontWeight: g.fontWeight, fontColor: g.fontColor,
 					chipPadV: g.chipPadV ?? null, chipPadH: g.chipPadH ?? null, chipRadius: g.chipRadius ?? null
 				}))

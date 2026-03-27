@@ -233,6 +233,8 @@
 			let toShow = keys;
 			if (rows > 0){ const cap = Math.max(1, cols * rows); toShow = keys.slice(Math.max(0, keys.length - cap)); }
 			if (overlayCfg?.direction === 'rtl') toShow = Array.from(toShow).reverse();
+			// Read kv_hide_key_text from localStorage (shared with control.html on same origin)
+			const kiHideMap = (() => { try { return JSON.parse(localStorage.getItem('kv_hide_key_text')||'{}'); } catch(e){return {};} })();
 			toShow.forEach(k => {
 				const chip = document.createElement('div');
 				chip.className = 'chip';
@@ -244,7 +246,8 @@
 					chip.style.backgroundSize = 'cover';
 					chip.style.backgroundPosition = 'center';
 					let tc = style.textColor || 'rgba(255,255,255,1)';
-					if (typeof style.textOpacity === 'number') tc = hexToRgba(tc, style.textOpacity);
+					// Only apply textOpacity if it's not 0 (0 = transparent, handled below)
+					if (typeof style.textOpacity === 'number' && style.textOpacity > 0) tc = hexToRgba(tc, style.textOpacity);
 					chip.style.color = tc;
 				} else if (style?.kind === 'color') {
 					chip.style.background = style.color;
@@ -258,6 +261,13 @@
 				if (style?.fontSize) chip.style.fontSize = style.fontSize + 'px';
 				if (style?.fontWeight) chip.style.fontWeight = style.fontWeight;
 				if (style?.fontColor) chip.style.color = style.fontColor;
+				// Hide text: textOpacity=0 takes final priority over fontColor override
+				if (typeof style?.textOpacity === 'number' && style.textOpacity === 0) {
+					chip.style.color = 'transparent';
+				}
+				// Also apply kv_hide_key_text from localStorage (Key Image Settings modal)
+				const kiHide = kiHideMap[k] !== undefined ? !!kiHideMap[k] : !!kiHideMap['default'];
+				if (kiHide) chip.style.color = 'transparent';
 				queueEl.appendChild(chip);
 			});
 		}
