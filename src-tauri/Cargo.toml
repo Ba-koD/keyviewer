@@ -55,7 +55,7 @@ objc = "0.2"
 
 # Linux-specific dependencies
 [target.'cfg(target_os = "linux")'.dependencies]
-x11 = { version = "2.21", features = ["xlib"] }
+x11 = { version = "2.21", default-features = false, features = ["xlib"] }
 
 [features]
 default = ["custom-protocol"]
