@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "[pre-push 1/3] cargo kfmt"
+cargo kfmt
+
+echo "[pre-push 2/3] cargo kclippy"
+cargo kclippy
+
+echo "[pre-push 3/3] cargo ktest"
+cargo ktest
+
+echo "pre-push checks passed."

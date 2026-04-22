@@ -55,6 +55,18 @@ cargo check
 cargo tauri dev
 ```
 
+## Git pre-push 훅
+
+이 저장소는 로컬 Git `pre-push` 훅으로 아래 검사를 실행하도록 설정됩니다.
+
+```bash
+cargo kfmt
+cargo kclippy
+cargo ktest
+```
+
+셋 중 하나라도 실패하면 push가 중단됩니다.
+
 ## 빌드
 
 ### GitHub Actions에서 사용하는 스크립트
