@@ -259,7 +259,10 @@ async fn get_obs_local_file(AxumState(state): AxumState<SharedState>) -> impl In
 
     let html = OVERLAY_HTML
         // 1. Remove favicon (not needed, avoids a failed request)
-        .replace(r#"<link rel="icon" href="/static/favicon.ico" type="image/x-icon" />"#, "")
+        .replace(
+            r#"<link rel="icon" href="/static/favicon.ico" type="image/x-icon" />"#,
+            "",
+        )
         // 2. Inline overlay.css
         .replace(
             r#"<link rel="stylesheet" href="/static/overlay.css">"#,
