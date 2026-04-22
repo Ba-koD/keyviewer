@@ -54,6 +54,7 @@ jobs:
             librsvg2-dev \
             patchelf \
             libx11-dev \
+            libxtst-dev \
             libxdo-dev \
             libxcb1-dev
       - name: fmt
@@ -111,6 +112,7 @@ jobs:
             librsvg2-dev \
             patchelf \
             libx11-dev \
+            libxtst-dev \
             libxdo-dev \
             libxcb1-dev
       - name: Build release binary
