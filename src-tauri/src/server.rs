@@ -221,6 +221,18 @@ fn create_router(state: SharedState) -> Router {
         .with_state(state)
 }
 
+fn replace_required(html: String, from: &str, to: &str, label: &str) -> Result<String, String> {
+    let replaced = html.replacen(from, to, 1);
+    if replaced == html {
+        Err(format!(
+            "Failed to generate OBS local file: missing {} marker",
+            label
+        ))
+    } else {
+        Ok(replaced)
+    }
+}
+
 async fn root_redirect() -> impl IntoResponse {
     (StatusCode::FOUND, [(header::LOCATION, "/control")])
 }
@@ -238,10 +250,8 @@ async fn get_obs_local_file(AxumState(state): AxumState<SharedState>) -> impl In
         (
             s.app_config.port,
             serde_json::to_string(&s.app_config.overlay).unwrap_or_else(|_| "null".to_string()),
-            serde_json::to_string(&s.app_config.key_images)
-                .unwrap_or_else(|_| "null".to_string()),
-            serde_json::to_string(&s.app_config.key_style)
-                .unwrap_or_else(|_| "null".to_string()),
+            serde_json::to_string(&s.app_config.key_images).unwrap_or_else(|_| "null".to_string()),
+            serde_json::to_string(&s.app_config.key_style).unwrap_or_else(|_| "null".to_string()),
         )
     };
     let base = format!("http://127.0.0.1:{}", port);
@@ -261,17 +271,29 @@ async fn get_obs_local_file(AxumState(state): AxumState<SharedState>) -> impl In
             &format!("<style>\n{}\n</style>", CHIP_CSS),
         )
         // 4. Mark as local file (boot_id placeholder → sentinel string)
-        .replace("__BOOT_ID__", "\"__KV_LOCAL__\"")
-        // 5. Disable the boot_id reload check (would cause infinite reload from local file)
-        .replace(
-            "if (data.boot_id !== undefined && data.boot_id !== SERVER_BOOT_ID) {\r\n\t\t\t\t\t\t\tlocation.reload();\r\n\t\t\t\t\t\t\treturn;\r\n\t\t\t\t\t\t}",
-            "/* [local file] boot_id reload disabled */",
-        )
-        // 6. On WS reconnect after shutdown, re-fetch config instead of reloading
-        .replace(
-            "if (didShutdown) { location.reload(); return; }",
-            "if (didShutdown) { didShutdown = false; initConfig(); loadKeyImagesConfig(); loadKeyStyleConfig(); return; }",
-        )
+        .replace("__BOOT_ID__", "\"__KV_LOCAL__\"");
+
+    let html = match replace_required(
+        html,
+        "if (data.boot_id !== undefined && data.boot_id !== SERVER_BOOT_ID) {",
+        "if (false && data.boot_id !== undefined && data.boot_id !== SERVER_BOOT_ID) {",
+        "boot_id reload guard",
+    ) {
+        Ok(html) => html,
+        Err(err) => return (StatusCode::INTERNAL_SERVER_ERROR, err).into_response(),
+    };
+
+    let html = match replace_required(
+        html,
+        "if (didShutdown) { location.reload(); return; }",
+        "if (didShutdown) { didShutdown = false; initConfig(); loadKeyImagesConfig(); loadKeyStyleConfig(); return; }",
+        "shutdown reconnect handler",
+    ) {
+        Ok(html) => html,
+        Err(err) => return (StatusCode::INTERNAL_SERVER_ERROR, err).into_response(),
+    };
+
+    let html = html
         // 7. Bake the current config into the downloaded file so it renders with the
         // current overlay/keyviewer layout before the server replies.
         .replace(
@@ -299,8 +321,7 @@ async fn get_obs_local_file(AxumState(state): AxumState<SharedState>) -> impl In
             &format!("const url = '{}'; // [local file] absolute URL", ws_url),
         )
         // 8. Make all fetch() calls use absolute URL
-        .replace("fetch('/api/", &format!("fetch('{}/api/", base))
-        .replace("fetch('/api/overlay-config',", &format!("fetch('{}/api/overlay-config',", base));
+        .replace("fetch('/api/", &format!("fetch('{}/api/", base));
 
     Response::builder()
         .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
