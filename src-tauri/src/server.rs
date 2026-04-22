@@ -225,16 +225,24 @@ async fn root_redirect() -> impl IntoResponse {
     (StatusCode::FOUND, [(header::LOCATION, "/control")])
 }
 
-// Generate and serve a fully self-contained OBS overlay HTML file.
+// Generate and serve the OBS local-file HTML.
 // Built by transforming overlay.html:
-//   1. CSS files are inlined so the page loads even when KV server is off
-//   2. All API/WS URLs become absolute (http://127.0.0.1:PORT/...)
-//   3. boot_id reload check is disabled (local file is always fresh)
-//   4. On WS reconnect after shutdown, config is re-fetched instead of page reload
+//   1. CSS files are inlined
+//   2. Current overlay/key images/key style snapshots are baked in
+//   3. All API/WS URLs become absolute (http://127.0.0.1:PORT/...)
+//   4. boot_id reload check is disabled (local file is always fresh)
+//   5. On WS reconnect after shutdown, config is re-fetched instead of page reload
 async fn get_obs_local_file(AxumState(state): AxumState<SharedState>) -> impl IntoResponse {
-    let port = {
+    let (port, overlay_snapshot, key_images_snapshot, key_style_snapshot) = {
         let s = state.read();
-        s.app_config.port
+        (
+            s.app_config.port,
+            serde_json::to_string(&s.app_config.overlay).unwrap_or_else(|_| "null".to_string()),
+            serde_json::to_string(&s.app_config.key_images)
+                .unwrap_or_else(|_| "null".to_string()),
+            serde_json::to_string(&s.app_config.key_style)
+                .unwrap_or_else(|_| "null".to_string()),
+        )
     };
     let base = format!("http://127.0.0.1:{}", port);
     let ws_url = format!("ws://127.0.0.1:{}/ws", port);
@@ -263,6 +271,27 @@ async fn get_obs_local_file(AxumState(state): AxumState<SharedState>) -> impl In
         .replace(
             "if (didShutdown) { location.reload(); return; }",
             "if (didShutdown) { didShutdown = false; initConfig(); loadKeyImagesConfig(); loadKeyStyleConfig(); return; }",
+        )
+        // 7. Bake the current config into the downloaded file so it renders with the
+        // current overlay/keyviewer layout before the server replies.
+        .replace(
+            "let ws; let lastKeys = []; let overlayCfg = null; let didShutdown = false;",
+            &format!(
+                "let ws; let lastKeys = []; let overlayCfg = {}; let didShutdown = false;",
+                overlay_snapshot
+            ),
+        )
+        .replace(
+            "let keyImagesConfig = null;",
+            &format!("let keyImagesConfig = {};", key_images_snapshot),
+        )
+        .replace(
+            "let keyStyleConfig = null;",
+            &format!("let keyStyleConfig = {};", key_style_snapshot),
+        )
+        .replace(
+            "Promise.all([initConfig(), loadKeyImagesConfig(), loadKeyStyleConfig()]).then(()=> setupConfigPanel()); connect();",
+            "if (overlayCfg) applyOverlayConfig(overlayCfg); Promise.all([initConfig(), loadKeyImagesConfig(), loadKeyStyleConfig()]).then(()=> setupConfigPanel()); connect();",
         )
         // 7. Make WS URL absolute
         .replace(
@@ -648,6 +677,9 @@ async fn api_set_overlay_config(
     if let Some(v) = payload.get("grad_dir").and_then(|x| x.as_str()) {
         overlay.grad_dir = v.to_string();
     }
+    if let Some(v) = payload.get("overlay_mode").and_then(|x| x.as_str()) {
+        overlay.overlay_mode = v.to_string();
+    }
 
     // Save overlay config to registry
     let _ = crate::settings::save_overlay_config(
@@ -670,6 +702,7 @@ async fn api_set_overlay_config(
         &overlay.grad_color1,
         &overlay.grad_color2,
         &overlay.grad_dir,
+        &overlay.overlay_mode,
     );
 
     Json(json!({ "ok": true }))

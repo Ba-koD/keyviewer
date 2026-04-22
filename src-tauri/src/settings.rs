@@ -321,6 +321,7 @@ pub fn save_overlay_config(
     grad_color1: &str,
     grad_color2: &str,
     grad_dir: &str,
+    overlay_mode: &str,
 ) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
@@ -368,6 +369,8 @@ pub fn save_overlay_config(
             .map_err(|e| format!("Failed to save grad_color2: {}", e))?;
         key.set_value("GradDir", &grad_dir.to_string())
             .map_err(|e| format!("Failed to save grad_dir: {}", e))?;
+        key.set_value("OverlayMode", &overlay_mode.to_string())
+            .map_err(|e| format!("Failed to save overlay_mode: {}", e))?;
 
         Ok(())
     }
@@ -396,6 +399,7 @@ pub fn save_overlay_config(
         macos_defaults::set_string("com.keyviewer.overlay.GradColor1", grad_color1);
         macos_defaults::set_string("com.keyviewer.overlay.GradColor2", grad_color2);
         macos_defaults::set_string("com.keyviewer.overlay.GradDir", grad_dir);
+        macos_defaults::set_string("com.keyviewer.overlay.OverlayMode", overlay_mode);
         Ok(())
     }
 
@@ -422,6 +426,7 @@ pub fn save_overlay_config(
             grad_color1,
             grad_color2,
             grad_dir,
+            overlay_mode,
         );
         Ok(())
     }
@@ -429,7 +434,7 @@ pub fn save_overlay_config(
 
 // Returns: (fade_in_ms, fade_out_ms, chip_bg, chip_fg, chip_gap, chip_pad_v, chip_pad_h,
 //           chip_radius, chip_font_px, chip_font_weight, background, cols, rows, align, direction,
-//           color_mode, grad_color1, grad_color2, grad_dir)
+//           color_mode, grad_color1, grad_color2, grad_dir, overlay_mode)
 #[allow(clippy::type_complexity)]
 pub fn load_overlay_config() -> (
     u32,
@@ -445,6 +450,7 @@ pub fn load_overlay_config() -> (
     String,
     u32,
     u32,
+    String,
     String,
     String,
     String,
@@ -493,6 +499,9 @@ pub fn load_overlay_config() -> (
             let grad_dir = key
                 .get_value("GradDir")
                 .unwrap_or_else(|_| "to bottom".to_string());
+            let overlay_mode = key
+                .get_value("OverlayMode")
+                .unwrap_or_else(|_| "queue".to_string());
 
             (
                 fade_in_ms,
@@ -514,6 +523,7 @@ pub fn load_overlay_config() -> (
                 grad_color1,
                 grad_color2,
                 grad_dir,
+                overlay_mode,
             )
         } else {
             // Return default values
@@ -537,6 +547,7 @@ pub fn load_overlay_config() -> (
                 "#000000".to_string(),
                 "#333333".to_string(),
                 "to bottom".to_string(),
+                "queue".to_string(),
             )
         }
     }
@@ -567,6 +578,7 @@ pub fn load_overlay_config() -> (
         let grad_color1 = macos_defaults::get_string("com.keyviewer.overlay.GradColor1", "#000000");
         let grad_color2 = macos_defaults::get_string("com.keyviewer.overlay.GradColor2", "#333333");
         let grad_dir = macos_defaults::get_string("com.keyviewer.overlay.GradDir", "to bottom");
+        let overlay_mode = macos_defaults::get_string("com.keyviewer.overlay.OverlayMode", "queue");
 
         (
             fade_in_ms,
@@ -588,6 +600,7 @@ pub fn load_overlay_config() -> (
             grad_color1,
             grad_color2,
             grad_dir,
+            overlay_mode,
         )
     }
 
@@ -614,6 +627,7 @@ pub fn load_overlay_config() -> (
             "#000000".to_string(),
             "#333333".to_string(),
             "to bottom".to_string(),
+            "queue".to_string(),
         )
     }
 }

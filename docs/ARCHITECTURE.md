@@ -140,7 +140,7 @@ overlay.html (실시간 키 표시)
 | `control.html` | 웹 컨트롤 패널 (설정 대시보드) | HTTP `/control` |
 | `overlay.html` | OBS 오버레이 (키 표시) | HTTP `/overlay` |
 | `permissions.html` | macOS 권한 안내 | Tauri 내부 |
-| `obs-local-template.html` | OBS 로컬 파일 소스 (독립형) | HTTP `/obs-local-file` |
+| `obs-local-template.html` | OBS 로컬 파일 구형 템플릿 참고용 (현재 직접 사용 안 함) | 저장소 참고 파일 |
 | `control.css` | 컨트롤 패널 스타일 | HTTP `/static/control.css` |
 | `overlay.css` | 오버레이 스타일 | HTTP `/static/overlay.css` |
 | `launcher.css` | 런처 스타일 (밝은 테마) | Tauri 내부 |
@@ -252,13 +252,12 @@ overlay.html (실시간 키 표시)
 - 2초 간격 폴링으로 실시간 상태 표시
 - 모든 권한 부여 시 Continue 버튼 활성화
 
-#### obs-local-template.html (OBS 로컬 파일)
-**특징**: 서버 없이 독립 동작하는 완전한 HTML
+#### obs-local-template.html (레거시 참고 파일)
+**상태**: 현재 `/obs-local-file` 라우트에서 직접 사용하지 않는 구형 참고 템플릿.
 
-- `__PORT__` 템플릿 변수 → 다운로드 시 실제 포트로 치환
-- 모든 CSS 인라인
-- WS 재연결 로직 (1.5초 재시도)
-- 15초마다 설정 재로드
+- 최신 OBS 로컬 파일 다운로드는 `overlay.html`을 기반으로 서버에서 동적으로 생성
+- 저장 시점의 overlay / key images / key style 스냅샷을 HTML에 주입
+- 절대 URL(`http://127.0.0.1:{port}` / `ws://127.0.0.1:{port}/ws`)과 인라인 CSS를 사용
 
 ### 3.4 JS 모듈 상세
 
@@ -313,7 +312,7 @@ overlay.html (실시간 키 표시)
 | `/static/{name}.css` | GET | CSS | no-cache | 스타일시트 (control/overlay/launcher/chip) |
 | `/static/favicon.ico` | GET | ICO | Cache 1h | 파비콘 |
 | `/js/{name}.js` | GET | JS | no-cache | JS 모듈 (utils/gradient-editor/chip-preview/cloud-auth) |
-| `/obs-local-file` | GET | HTML (self-contained) | no-cache | OBS 로컬 파일. CSS 인라인 + 포트 바인딩 |
+| `/obs-local-file` | GET | HTML (generated) | no-cache | OBS 로컬 파일. `overlay.html` 기반 + CSS 인라인 + 포트 바인딩 + 현재 설정 스냅샷 |
 
 #### REST API
 
@@ -491,23 +490,24 @@ pub struct OverlayConfig {
     pub chip_pad_v: u32,        // 세로 패딩
     pub chip_pad_h: u32,        // 가로 패딩
     pub chip_radius: u32,       // 모서리 반경
-    pub chip_font_size: u32,    // 폰트 크기
+    pub chip_font_px: u32,      // 폰트 크기
     pub chip_font_weight: u32,  // 폰트 두께
 
     // 레이아웃
     pub cols: u32,              // 열 수
     pub rows: u32,              // 행 수 (0 = 무제한)
     pub single_line: bool,      // 단일 줄 모드
-    pub align: String,          // "start" | "center" | "end"
+    pub align: String,          // "left" | "center" | "right"
     pub direction: String,      // "ltr" | "rtl"
 
     // 그라디언트
     pub color_mode: String,     // "solid" | "gradient"
-    pub gradient_colors: Vec<GradientStop>,
-    pub gradient_direction: u32, // 각도 (0-360)
+    pub grad_color1: String,    // 그라디언트 시작 색
+    pub grad_color2: String,    // 그라디언트 끝 색
+    pub grad_dir: String,       // CSS 방향 문자열 ("to bottom" 등)
 
     // 표시 모드
-    pub display_mode: String,   // "queue" | "keyviewer"
+    pub overlay_mode: String,   // "queue" | "keyviewer"
 }
 ```
 
@@ -727,9 +727,9 @@ styleGroups[n] → "all" type?            → 폴백 적용
 - OBS 브라우저 소스는 새로고침 시 WS 재연결
 
 **로컬 파일 소스** (대안):
-- `/obs-local-file` 엔드포인트에서 독립형 HTML 다운로드
-- CSS 인라인, 포트 바인딩
-- WS 재연결 로직 내장
+- `/obs-local-file` 엔드포인트에서 `overlay.html` 기반 다운로드 HTML 생성
+- CSS 인라인, 포트 바인딩, 현재 overlay/key-style/key-images 스냅샷 포함
+- WS 재연결 및 서버 설정 재동기화 로직 내장
 
 ---
 

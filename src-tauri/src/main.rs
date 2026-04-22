@@ -791,6 +791,7 @@ fn main() {
         grad_color1,
         grad_color2,
         grad_dir,
+        overlay_mode,
     ) = settings::load_overlay_config();
     initial_state.app_config.overlay.fade_in_ms = fade_in_ms;
     initial_state.app_config.overlay.fade_out_ms = fade_out_ms;
@@ -811,6 +812,7 @@ fn main() {
     initial_state.app_config.overlay.grad_color1 = grad_color1;
     initial_state.app_config.overlay.grad_color2 = grad_color2;
     initial_state.app_config.overlay.grad_dir = grad_dir;
+    initial_state.app_config.overlay.overlay_mode = overlay_mode;
     println!("Loaded overlay config from registry");
 
     // Load key images config from file

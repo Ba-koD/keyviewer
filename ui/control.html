@@ -2906,20 +2906,7 @@
 				
 				// Merge key viewer layout into existing key style config (preserve other fields)
 				try {
-					const existing = await (await fetch('/api/key-style')).json().catch(() => ({}));
-					const kvPayload = Object.assign({}, existing, {
-						keyViewerLayout: kvChips,
-						kvCanvasW: kvCanvasW,
-						kvCanvasH: kvCanvasH,
-						rawStyleGroups: styleGroupsByMode.queue, // legacy compat
-						rawStyleGroupsQueue: styleGroupsByMode.queue,
-						rawStyleGroupsKv: styleGroupsByMode.keyviewer
-					});
-					await fetch('/api/key-style', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify(kvPayload)
-					});
+					await saveKeyStyleState();
 				} catch(e) { console.warn('Failed to save key viewer layout', e); }
 				
 				// Also save to key images format for overlay compatibility
@@ -3601,7 +3588,8 @@
 				cols: Number(ov_cols?.value) || 8,
 				rows: Number(ov_rows?.value) || 1,
 				align: ov_align?.value || 'left',
-				direction: ov_direction?.value || 'ltr'
+				direction: ov_direction?.value || 'ltr',
+				overlay_mode: currentKvOverlayMode || 'queue'
 			};
 			try{
 				await fetch('/api/overlay-config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
@@ -5151,23 +5139,80 @@
 
 		// ==================== Gist Import/Export ====================
 		// Get current overlay config for export
-		function getOverlayConfigForExport() {
+		async function getOverlayConfigForExport() {
+			try {
+				const res = await fetch('/api/overlay-config');
+				const overlay = await res.json();
+				return {
+					fade_in_ms: Number(overlay.fade_in_ms ?? 0) || 0,
+					fade_out_ms: Number(overlay.fade_out_ms ?? 0) || 0,
+					background: overlay.background || 'rgba(0,0,0,0)',
+					chip_bg: overlay.chip_bg || '#000000',
+					chip_fg: overlay.chip_fg || '#ffffff',
+					chip_gap: Number(overlay.chip_gap ?? 8) || 8,
+					chip_pad_v: Number(overlay.chip_pad_v ?? 10) || 10,
+					chip_pad_h: Number(overlay.chip_pad_h ?? 14) || 14,
+					chip_radius: Number(overlay.chip_radius ?? 10) || 10,
+					chip_font_px: Number(overlay.chip_font_px ?? 24) || 24,
+					chip_font_weight: Number(overlay.chip_font_weight ?? 700) || 700,
+					cols: Number(overlay.cols ?? 8) || 8,
+					rows: Number(overlay.rows ?? 1) || 1,
+					align: overlay.align || 'left',
+					direction: overlay.direction || 'ltr',
+					color_mode: overlay.color_mode || 'solid',
+					grad_color1: overlay.grad_color1 || '#000000',
+					grad_color2: overlay.grad_color2 || '#333333',
+					grad_dir: overlay.grad_dir || 'to bottom',
+					overlay_mode: overlay.overlay_mode || currentKvOverlayMode || 'queue'
+				};
+			} catch (e) {
+				return {
+					fade_in_ms: Number(ov_fade_in?.value) || 0,
+					fade_out_ms: Number(ov_fade_out?.value) || 0,
+					background: ov_bg_trans?.checked !== false ? 'rgba(0,0,0,0)' : (ov_bg?.value || 'rgba(0,0,0,0)'),
+					chip_bg: ov_chip_bg?.value || '#000000',
+					chip_fg: ov_chip_fg?.value || '#ffffff',
+					chip_gap: Number(ov_gap?.value) || 8,
+					chip_pad_v: Number(ov_pad_v?.value) || 10,
+					chip_pad_h: Number(ov_pad_h?.value) || 14,
+					chip_radius: Number(ov_radius?.value) || 10,
+					chip_font_px: Number(ov_font_px?.value) || 24,
+					chip_font_weight: Number(ov_font_w?.value) || 700,
+					cols: Number(ov_cols?.value) || 8,
+					rows: Number(ov_rows?.value) || 1,
+					align: ov_align?.value || 'left',
+					direction: ov_direction?.value || 'ltr',
+					color_mode: 'solid',
+					grad_color1: '#000000',
+					grad_color2: '#333333',
+					grad_dir: 'to bottom',
+					overlay_mode: currentKvOverlayMode || 'queue'
+				};
+			}
+		}
+
+		async function saveKeyStyleState(override = {}) {
+			const existing = await (await fetch('/api/key-style')).json().catch(() => ({}));
+			const payload = Object.assign({}, existing, {
+				keyViewerLayout: override.keyViewerLayout ?? kvChips,
+				kvCanvasW: override.kvCanvasW ?? kvCanvasW,
+				kvCanvasH: override.kvCanvasH ?? kvCanvasH,
+				rawStyleGroups: override.rawStyleGroups ?? styleGroupsByMode.queue,
+				rawStyleGroupsQueue: override.rawStyleGroupsQueue ?? styleGroupsByMode.queue,
+				rawStyleGroupsKv: override.rawStyleGroupsKv ?? styleGroupsByMode.keyviewer
+			});
+			await fetch('/api/key-style', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(payload)
+			});
+		}
+
+		function getKeyViewerStateForExport() {
 			return {
-				fade_in_ms: Number(ov_fade_in?.value) || 0,
-				fade_out_ms: Number(ov_fade_out?.value) || 0,
-				background: ov_bg_trans?.checked !== false ? 'rgba(0,0,0,0)' : (ov_bg?.value || 'rgba(0,0,0,0)'),
-				chip_bg: ov_chip_bg?.value || '#000000',
-				chip_fg: ov_chip_fg?.value || '#ffffff',
-				chip_gap: Number(ov_gap?.value) || 8,
-				chip_pad_v: Number(ov_pad_v?.value) || 10,
-				chip_pad_h: Number(ov_pad_h?.value) || 14,
-				chip_radius: Number(ov_radius?.value) || 10,
-				chip_font_px: Number(ov_font_px?.value) || 24,
-				chip_font_weight: Number(ov_font_w?.value) || 700,
-				cols: Number(ov_cols?.value) || 8,
-				rows: Number(ov_rows?.value) || 1,
-				align: ov_align?.value || 'left',
-				direction: ov_direction?.value || 'ltr'
+				keyViewerLayout: kvChips.map(chip => ({ ...chip })),
+				kvCanvasW,
+				kvCanvasH
 			};
 		}
 		
@@ -5198,37 +5243,7 @@
 		async function applyImportedOverlayConfig(overlay) {
 			if (!overlay) return;
 			
-			const isTrans = overlay.background === 'rgba(0,0,0,0)' || overlay.background === 'transparent';
-			
-			// Apply values with null checks
-			if (ov_fade_in) ov_fade_in.value = overlay.fade_in_ms ?? 0;
-			if (ov_fade_out) ov_fade_out.value = overlay.fade_out_ms ?? 0;
-			if (ov_bg_trans) ov_bg_trans.checked = isTrans;
-			if (ov_bg) {
-				ov_bg.disabled = isTrans;
-				ov_bg.value = isTrans ? '#000000' : (overlay.background || '#000000');
-			}
-			if (ov_bg_pickBtn) ov_bg_pickBtn.disabled = isTrans;
-			if (ov_chip_bg) ov_chip_bg.value = overlay.chip_bg || '#000000';
-			if (ov_chip_fg) ov_chip_fg.value = overlay.chip_fg || '#ffffff';
-			if (ov_gap) ov_gap.value = overlay.chip_gap ?? 8;
-			if (ov_pad_v) ov_pad_v.value = overlay.chip_pad_v ?? 10;
-			if (ov_pad_h) ov_pad_h.value = overlay.chip_pad_h ?? 14;
-			if (ov_radius) ov_radius.value = overlay.chip_radius ?? 10;
-			if (ov_font_px) ov_font_px.value = overlay.chip_font_px ?? 24;
-			if (ov_font_w) ov_font_w.value = overlay.chip_font_weight ?? 700;
-			if (ov_cols) ov_cols.value = overlay.cols ?? 8;
-			if (ov_rows) ov_rows.value = overlay.rows ?? 1;
-			if (ov_align) ov_align.value = overlay.align || 'left';
-			if (ov_direction) ov_direction.value = overlay.direction || 'ltr';
-			
-			if (ov_bg_pickBtn && ov_bg) setPickBtn(ov_bg_pickBtn, ov_bg.value);
-			if (ov_chip_bg_pickBtn && ov_chip_bg) setPickBtn(ov_chip_bg_pickBtn, ov_chip_bg.value);
-			if (ov_chip_fg_pickBtn && ov_chip_fg) setPickBtn(ov_chip_fg_pickBtn, ov_chip_fg.value);
-			updatePreview();
-			
-			// Save to server with the imported overlay data directly
-			await saveOverlayConfig({
+			const nextOverlay = {
 				fade_in_ms: overlay.fade_in_ms ?? 0,
 				fade_out_ms: overlay.fade_out_ms ?? 0,
 				background: overlay.background || 'rgba(0,0,0,0)',
@@ -5243,12 +5258,53 @@
 				cols: overlay.cols ?? 8,
 				rows: overlay.rows ?? 1,
 				align: overlay.align || 'left',
-				direction: overlay.direction || 'ltr'
-			});
+				direction: overlay.direction || 'ltr',
+				color_mode: overlay.color_mode || 'solid',
+				grad_color1: overlay.grad_color1 || '#000000',
+				grad_color2: overlay.grad_color2 || '#333333',
+				grad_dir: overlay.grad_dir || 'to bottom',
+				overlay_mode: overlay.overlay_mode || 'queue'
+			};
+			
+			const isTrans = nextOverlay.background === 'rgba(0,0,0,0)' || nextOverlay.background === 'transparent';
+			
+			// Apply values with null checks
+			if (ov_fade_in) ov_fade_in.value = nextOverlay.fade_in_ms;
+			if (ov_fade_out) ov_fade_out.value = nextOverlay.fade_out_ms;
+			if (ov_bg_trans) ov_bg_trans.checked = isTrans;
+			if (ov_bg) {
+				ov_bg.disabled = isTrans;
+				ov_bg.value = isTrans ? '#000000' : nextOverlay.background;
+			}
+			if (ov_bg_pickBtn) ov_bg_pickBtn.disabled = isTrans;
+			if (ov_chip_bg) ov_chip_bg.value = nextOverlay.chip_bg;
+			if (ov_chip_fg) ov_chip_fg.value = nextOverlay.chip_fg;
+			if (ov_gap) ov_gap.value = nextOverlay.chip_gap;
+			if (ov_pad_v) ov_pad_v.value = nextOverlay.chip_pad_v;
+			if (ov_pad_h) ov_pad_h.value = nextOverlay.chip_pad_h;
+			if (ov_radius) ov_radius.value = nextOverlay.chip_radius;
+			if (ov_font_px) ov_font_px.value = nextOverlay.chip_font_px;
+			if (ov_font_w) ov_font_w.value = nextOverlay.chip_font_weight;
+			if (ov_cols) ov_cols.value = nextOverlay.cols;
+			if (ov_rows) ov_rows.value = nextOverlay.rows;
+			if (ov_align) ov_align.value = nextOverlay.align;
+			if (ov_direction) ov_direction.value = nextOverlay.direction;
+			currentKvOverlayMode = nextOverlay.overlay_mode;
+			selectOverlayMode(currentKvOverlayMode);
+			
+			if (ov_bg_pickBtn && ov_bg) setPickBtn(ov_bg_pickBtn, ov_bg.value);
+			if (ov_chip_bg_pickBtn && ov_chip_bg) setPickBtn(ov_chip_bg_pickBtn, ov_chip_bg.value);
+			if (ov_chip_fg_pickBtn && ov_chip_fg) setPickBtn(ov_chip_fg_pickBtn, ov_chip_fg.value);
+			updatePreview();
+			
+			// Save to server with the imported overlay data directly
+			await saveOverlayConfig(nextOverlay);
 		}
 
 		// Create export data (shared by all export methods)
-		function createExportData() {
+		async function createExportData() {
+			const overlay = await getOverlayConfigForExport();
+			const keyViewerState = getKeyViewerStateForExport();
 			return {
 				keyImages: { 
 					individual: keyImagesData, 
@@ -5256,8 +5312,11 @@
 					allKeys: allKeysData
 				},
 				styleGroups: getStyleGroupsForExport(),
-				overlay: getOverlayConfigForExport(),
-				version: 3
+				overlay,
+				keyViewerLayout: keyViewerState.keyViewerLayout,
+				kvCanvasW: keyViewerState.kvCanvasW,
+				kvCanvasH: keyViewerState.kvCanvasH,
+				version: 4
 			};
 		}
 
@@ -5290,7 +5349,7 @@
 			try {
 				// Step 1: Prepare data
 				updateExportProgress(10, currentLanguage === 'ko' ? '데이터 준비 중...' : 'Preparing data...');
-				const data = createExportData();
+				const data = await createExportData();
 				await new Promise(r => setTimeout(r, 100)); // Small delay for UI update
 				
 				// Step 2: Serialize
@@ -5402,11 +5461,11 @@
 
 		// JSON Export/Import
 		jsonExportBtn.addEventListener('click', async () => {
-			const data = createExportData();
+			const data = await createExportData();
 			const json = JSON.stringify(data, null, 2);
 			try {
 				await navigator.clipboard.writeText(json);
-				alert(currentLanguage === 'ko' ? 'JSON이 클립보드에 복사되었습니다! (키 이미지 + 스타일 그룹 + 오버레이 설정)' : 'JSON copied to clipboard! (Key images + Style groups + Overlay settings)');
+				alert(currentLanguage === 'ko' ? 'JSON이 클립보드에 복사되었습니다! (키 이미지 + 스타일 그룹 + 키뷰어 레이아웃 + 오버레이 설정)' : 'JSON copied to clipboard! (Key images + Style groups + Key Viewer layout + Overlay settings)');
 			} catch (e) {
 				// Fallback: show in prompt
 				prompt(currentLanguage === 'ko' ? 'JSON을 복사하세요:' : 'Copy the JSON:', json);
@@ -5430,17 +5489,40 @@
 					styleGroupsByMode.queue = Array.isArray(data.styleGroups) ? data.styleGroups : [];
 					styleGroupsByMode.keyviewer = [];
 				}
+
+				const hasKeyViewerState =
+					Array.isArray(data.keyViewerLayout) ||
+					typeof data.kvCanvasW === 'number' ||
+					typeof data.kvCanvasH === 'number';
+				if (hasKeyViewerState) {
+					kvChips = (Array.isArray(data.keyViewerLayout) ? data.keyViewerLayout : []).map(c => ({
+						id: c.id || ('kv-' + Math.random().toString(36).slice(2,8)),
+						key: c.key,
+						x: c.x || 0,
+						y: c.y || 0,
+						w: c.w || 52,
+						h: c.h || 40,
+						bgOverride: c.bgOverride || null,
+						fgOverride: c.fgOverride || null,
+						radiusOverride: c.radiusOverride ?? null
+					}));
+					kvCanvasW = Math.max(200, Math.min(3840, Number(data.kvCanvasW) || 800));
+					kvCanvasH = Math.max(80, Math.min(2160, Number(data.kvCanvasH) || 300));
+					updateKvCanvasAspect();
+				}
 				
 				// Save to localStorage
 				localStorage.setItem('keyviewer_style_groups_queue', JSON.stringify(styleGroupsByMode.queue));
 				localStorage.setItem('keyviewer_style_groups_kv', JSON.stringify(styleGroupsByMode.keyviewer));
 				saveKeyImagesToStorage();
+				await saveKeyStyleState();
 				
 				if (data.overlay) {
 					await applyImportedOverlayConfig(data.overlay);
 				}
 				renderStyleGroupsList();
 				updateUnifiedPreview();
+				renderKvFreeCanvas();
 			} else if (data.version === 2) {
 				// Version 2: nested format with overlay
 				keyImagesData = data.keyImages?.individual || {};
@@ -5465,7 +5547,7 @@
 				const json = await navigator.clipboard.readText();
 				const data = JSON.parse(json);
 				await processImportedData(data);
-				alert(currentLanguage === 'ko' ? '불러오기 성공! (키 이미지 + 오버레이 설정)' : 'Import successful! (Key images + Overlay settings)');
+				alert(currentLanguage === 'ko' ? '불러오기 성공! (키 이미지 + 키뷰어 레이아웃 + 오버레이 설정)' : 'Import successful! (Key images + Key Viewer layout + Overlay settings)');
 			} catch (e) {
 				// Fallback: prompt input
 				const json = prompt(currentLanguage === 'ko' ? 'JSON을 붙여넣으세요:' : 'Paste JSON:');
@@ -5473,7 +5555,7 @@
 					try {
 						const data = JSON.parse(json);
 						await processImportedData(data);
-						alert(currentLanguage === 'ko' ? '불러오기 성공! (키 이미지 + 오버레이 설정)' : 'Import successful! (Key images + Overlay settings)');
+						alert(currentLanguage === 'ko' ? '불러오기 성공! (키 이미지 + 키뷰어 레이아웃 + 오버레이 설정)' : 'Import successful! (Key images + Key Viewer layout + Overlay settings)');
 					} catch (e2) {
 						alert(currentLanguage === 'ko' ? 'JSON 파싱 실패: ' + e2.message : 'Failed to parse JSON: ' + e2.message);
 					}
