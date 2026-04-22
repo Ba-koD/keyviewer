@@ -57,12 +57,12 @@ cargo tauri dev
 
 ## Git pre-push 훅
 
-이 저장소는 로컬 Git `pre-push` 훅으로 아래 검사를 실행하도록 설정됩니다.
+이 저장소는 로컬 Git `pre-push` 훅으로 push 대상 ref가 있을 때만 아래 검사를 실행하도록 설정됩니다.
 
 ```bash
-cargo kfmt
-cargo kclippy
-cargo ktest
+cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
+cargo test --manifest-path src-tauri/Cargo.toml --all-targets --all-features
 ```
 
 셋 중 하나라도 실패하면 push가 중단됩니다.

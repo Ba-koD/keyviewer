@@ -111,7 +111,7 @@ overlay.html (실시간 키 표시)
 | `build-portable.ps1` | Windows 포터블 빌드 (`cargo tauri build`) |
 | `check-all.ps1` / `.sh` | 품질 검사: fmt → clippy → test |
 | `convert-icon.ps1` | ICO → PNG 변환 (.NET System.Drawing) |
-| `.githooks/pre-push` | 로컬 Git pre-push 훅. `cargo kfmt` → `cargo kclippy` → `cargo ktest` 실행 |
+| `.githooks/pre-push` | 로컬 Git pre-push 훅. push 대상 ref가 있을 때 `cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check` → `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings` → `cargo test --manifest-path src-tauri/Cargo.toml --all-targets --all-features` 실행 |
 | `docker-compose.yml` | 로컬 크로스빌드 (linux-build, macos-check) |
 | `Dockerfile.linux` | Ubuntu 22.04 기반 Linux 빌드 이미지 |
 | `Dockerfile.macos-cross` | macOS 크로스 컴파일 체크용 이미지 |

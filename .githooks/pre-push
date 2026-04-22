@@ -1,13 +1,47 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 
-echo "[pre-push 1/3] cargo kfmt"
-cargo kfmt
+if command -v cargo >/dev/null 2>&1; then
+  CARGO_BIN="$(command -v cargo)"
+elif [ -n "${USERPROFILE:-}" ] && [ -x "${USERPROFILE}/.cargo/bin/cargo.exe" ]; then
+  CARGO_BIN="${USERPROFILE}/.cargo/bin/cargo.exe"
+elif [ -n "${HOME:-}" ] && [ -x "${HOME}/.cargo/bin/cargo.exe" ]; then
+  CARGO_BIN="${HOME}/.cargo/bin/cargo.exe"
+elif [ -n "${HOME:-}" ] && [ -x "${HOME}/.cargo/bin/cargo" ]; then
+  CARGO_BIN="${HOME}/.cargo/bin/cargo"
+else
+  echo "pre-push: cargo executable not found." >&2
+  exit 1
+fi
 
-echo "[pre-push 2/3] cargo kclippy"
-cargo kclippy
+run_check() {
+  label="$1"
+  shift
+  echo "$label"
+  "$CARGO_BIN" "$@"
+}
 
-echo "[pre-push 3/3] cargo ktest"
-cargo ktest
+has_updates=0
+while read -r local_ref local_sha remote_ref remote_sha
+do
+  if [ "${local_sha}" != "${remote_sha}" ]; then
+    has_updates=1
+    break
+  fi
+done
+
+if [ "${has_updates}" -eq 0 ]; then
+  echo "pre-push: nothing to push, skipping checks."
+  exit 0
+fi
+
+run_check "[pre-push 1/3] cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check" \
+  fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+
+run_check "[pre-push 2/3] cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings" \
+  clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
+
+run_check "[pre-push 3/3] cargo test --manifest-path src-tauri/Cargo.toml --all-targets --all-features" \
+  test --manifest-path src-tauri/Cargo.toml --all-targets --all-features
 
 echo "pre-push checks passed."
