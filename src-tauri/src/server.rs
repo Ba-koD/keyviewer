@@ -4,7 +4,7 @@ use axum::{
     body::Body,
     extract::{
         ws::{Message, WebSocket},
-        State as AxumState, WebSocketUpgrade,
+        Query, State as AxumState, WebSocketUpgrade,
     },
     http::{header, StatusCode},
     response::{IntoResponse, Json, Response},
@@ -237,6 +237,12 @@ async fn root_redirect() -> impl IntoResponse {
     (StatusCode::FOUND, [(header::LOCATION, "/control")])
 }
 
+#[derive(serde::Deserialize, Default)]
+struct ObsLocalFileQuery {
+    #[serde(rename = "hideKeyText")]
+    hide_key_text: Option<String>,
+}
+
 // Generate and serve the OBS local-file HTML.
 // Built by transforming overlay.html:
 //   1. CSS files are inlined
@@ -244,7 +250,10 @@ async fn root_redirect() -> impl IntoResponse {
 //   3. All API/WS URLs become absolute (http://127.0.0.1:PORT/...)
 //   4. boot_id reload check is disabled (local file is always fresh)
 //   5. On WS reconnect after shutdown, config is re-fetched instead of page reload
-async fn get_obs_local_file(AxumState(state): AxumState<SharedState>) -> impl IntoResponse {
+async fn get_obs_local_file(
+    Query(query): Query<ObsLocalFileQuery>,
+    AxumState(state): AxumState<SharedState>,
+) -> impl IntoResponse {
     let (port, overlay_snapshot, key_images_snapshot, key_style_snapshot) = {
         let s = state.read();
         (
@@ -254,6 +263,12 @@ async fn get_obs_local_file(AxumState(state): AxumState<SharedState>) -> impl In
             serde_json::to_string(&s.app_config.key_style).unwrap_or_else(|_| "null".to_string()),
         )
     };
+    let hide_key_text_snapshot = query
+        .hide_key_text
+        .as_deref()
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())
+        .unwrap_or_else(|| json!({}))
+        .to_string();
     let base = format!("http://127.0.0.1:{}", port);
     let ws_url = format!("ws://127.0.0.1:{}/ws", port);
 
@@ -313,6 +328,10 @@ async fn get_obs_local_file(AxumState(state): AxumState<SharedState>) -> impl In
         .replace(
             "let keyStyleConfig = null;",
             &format!("let keyStyleConfig = {};", key_style_snapshot),
+        )
+        .replace(
+            "const BAKED_HIDE_KEY_TEXT = {};",
+            &format!("const BAKED_HIDE_KEY_TEXT = {};", hide_key_text_snapshot),
         )
         .replace(
             "Promise.all([initConfig(), loadKeyImagesConfig(), loadKeyStyleConfig()]).then(()=> setupConfigPanel()); connect();",

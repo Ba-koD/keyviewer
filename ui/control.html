@@ -3850,9 +3850,16 @@
 		closeOverlay.addEventListener('click', ()=> closeModalOverlay());
 		saveOverlay.addEventListener('click', saveOverlayConfig);
 
-		document.getElementById('downloadObsFile').addEventListener('click', () => {
+		document.getElementById('downloadObsFile').addEventListener('click', async () => {
+			try {
+				syncLegacyKeyImagesToOverlayData();
+				await saveKeyImagesToServer();
+			} catch (e) {}
 			const a = document.createElement('a');
-			a.href = '/obs-local-file';
+			const params = new URLSearchParams({
+				hideKeyText: JSON.stringify(getHideKeyText())
+			});
+			a.href = '/obs-local-file?' + params.toString();
 			a.download = 'keyviewer-obs-overlay.html';
 			a.click();
 		});

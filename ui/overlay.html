@@ -117,6 +117,7 @@
 			let keyStyleConfig = null;
 		const STORAGE_KEY_IMAGES = 'kv_key_images';
 		const STORAGE_KEY_HIDE = 'kv_hide_key_text';
+		const BAKED_HIDE_KEY_TEXT = {};
 
 		function applyOverlayConfig(cfg){
 			if (!cfg) return; overlayCfg = cfg; const root = document.documentElement;
@@ -155,6 +156,7 @@
 				const res = await fetch('/api/key-style?cb=' + buster, { cache: 'no-store' });
 				keyStyleConfig = await res.json();
 				if (isKeyViewerMode()) renderKeyViewerFree(lastKeys);
+				else placeChips(lastKeys, true);
 			}catch(e){}
 		}
 
@@ -163,6 +165,8 @@
 				const buster = Date.now();
 				const res = await fetch('/api/key-images?cb=' + buster, { cache: 'no-store' });
 				keyImagesConfig = await res.json();
+				if (isKeyViewerMode()) renderKeyViewerFree(lastKeys);
+				else placeChips(lastKeys, true);
 			}catch(e){}
 		}
 
@@ -223,51 +227,81 @@
 			return null;
 		}
 
-		function placeChips(keys){
+		function getHideKeyTextMap() {
+			let localHideMap = {};
+			try { localHideMap = JSON.parse(localStorage.getItem(STORAGE_KEY_HIDE) || '{}'); } catch(e) {}
+			if (BAKED_HIDE_KEY_TEXT && Object.keys(BAKED_HIDE_KEY_TEXT).length > 0) {
+				return { ...localHideMap, ...BAKED_HIDE_KEY_TEXT };
+			}
+			return localHideMap;
+		}
+
+		function isKeyTextHidden(key, style, hideMap) {
+			const kiHide = hideMap[key] !== undefined ? !!hideMap[key] : !!hideMap['default'];
+			return kiHide || (typeof style?.textOpacity === 'number' && style.textOpacity === 0);
+		}
+
+		function applyResolvedChipStyle(el, key, style, hideMap, { keyViewer = false } = {}) {
+			el.style.background = '';
+			el.style.backgroundImage = '';
+			el.style.backgroundSize = '';
+			el.style.backgroundPosition = '';
+			el.style.color = '';
+			el.style.borderRadius = '';
+			el.style.fontFamily = '';
+			el.style.fontWeight = '';
+			el.style.textShadow = '';
+			if (!keyViewer) {
+				el.style.paddingTop = '';
+				el.style.paddingBottom = '';
+				el.style.paddingLeft = '';
+				el.style.paddingRight = '';
+				el.style.fontSize = '';
+			}
+
+			if (style?.kind === 'image' && style.image) {
+				el.style.backgroundImage = `url(${style.image})`;
+				el.style.backgroundSize = 'cover';
+				el.style.backgroundPosition = 'center';
+				let tc = style.textColor || 'rgba(255,255,255,1)';
+				if (typeof style.textOpacity === 'number' && style.textOpacity > 0) tc = hexToRgba(tc, style.textOpacity);
+				el.style.color = tc;
+			} else if (style?.kind === 'color') {
+				el.style.background = style.color;
+			}
+
+			if (style?.chipPadV != null && !keyViewer) el.style.paddingTop = el.style.paddingBottom = style.chipPadV + 'px';
+			if (style?.chipPadH != null && !keyViewer) el.style.paddingLeft = el.style.paddingRight = style.chipPadH + 'px';
+			if (style?.chipRadius != null) el.style.borderRadius = style.chipRadius + 'px';
+			if (style?.fontFamily) el.style.fontFamily = style.fontFamily;
+			if (style?.fontWeight) el.style.fontWeight = style.fontWeight;
+			if (style?.fontSize && !keyViewer) el.style.fontSize = style.fontSize + 'px';
+			if (style?.fontColor) el.style.color = style.fontColor;
+
+			if (isKeyTextHidden(key, style, hideMap)) {
+				el.style.color = 'transparent';
+				el.style.textShadow = 'none';
+			}
+		}
+
+		function placeChips(keys, forceRender = false){
 			try {
 				const current = Array.from(queueEl.children).map(c => c.dataset.key || '');
-				if (current.length === keys.length && current.every((v,i)=> v === keys[i])) return;
+				if (!forceRender && current.length === keys.length && current.every((v,i)=> v === keys[i])) return;
 			} catch(e){}
 			queueEl.innerHTML = '';
 			const cols = Number(overlayCfg?.cols ?? 8); const rows = Number(overlayCfg?.rows ?? 1);
 			let toShow = keys;
 			if (rows > 0){ const cap = Math.max(1, cols * rows); toShow = keys.slice(Math.max(0, keys.length - cap)); }
 			if (overlayCfg?.direction === 'rtl') toShow = Array.from(toShow).reverse();
-			// Read kv_hide_key_text from localStorage (shared with control.html on same origin)
-			const kiHideMap = (() => { try { return JSON.parse(localStorage.getItem('kv_hide_key_text')||'{}'); } catch(e){return {};} })();
+			const kiHideMap = getHideKeyTextMap();
 			toShow.forEach(k => {
 				const chip = document.createElement('div');
 				chip.className = 'chip';
 				chip.dataset.key = k;
 				chip.textContent = k;
 				const style = resolveChipStyle(k);
-				if (style?.kind === 'image' && style.image) {
-					chip.style.backgroundImage = `url(${style.image})`;
-					chip.style.backgroundSize = 'cover';
-					chip.style.backgroundPosition = 'center';
-					let tc = style.textColor || 'rgba(255,255,255,1)';
-					// Only apply textOpacity if it's not 0 (0 = transparent, handled below)
-					if (typeof style.textOpacity === 'number' && style.textOpacity > 0) tc = hexToRgba(tc, style.textOpacity);
-					chip.style.color = tc;
-				} else if (style?.kind === 'color') {
-					chip.style.background = style.color;
-				}
-				// Per-group chip size overrides
-				if (style?.chipPadV != null) chip.style.paddingTop = chip.style.paddingBottom = style.chipPadV + 'px';
-				if (style?.chipPadH != null) chip.style.paddingLeft = chip.style.paddingRight = style.chipPadH + 'px';
-				if (style?.chipRadius != null) chip.style.borderRadius = style.chipRadius + 'px';
-				// Per-group font overrides
-				if (style?.fontFamily) chip.style.fontFamily = style.fontFamily;
-				if (style?.fontSize) chip.style.fontSize = style.fontSize + 'px';
-				if (style?.fontWeight) chip.style.fontWeight = style.fontWeight;
-				if (style?.fontColor) chip.style.color = style.fontColor;
-				// Hide text: textOpacity=0 takes final priority over fontColor override
-				if (typeof style?.textOpacity === 'number' && style.textOpacity === 0) {
-					chip.style.color = 'transparent';
-				}
-				// Also apply kv_hide_key_text from localStorage (Key Image Settings modal)
-				const kiHide = kiHideMap[k] !== undefined ? !!kiHideMap[k] : !!kiHideMap['default'];
-				if (kiHide) chip.style.color = 'transparent';
+				applyResolvedChipStyle(chip, k, style, kiHideMap);
 				queueEl.appendChild(chip);
 			});
 		}
@@ -295,6 +329,7 @@
 			const canvasW = keyStyleConfig?.kvCanvasW || 800;
 			const canvasH = keyStyleConfig?.kvCanvasH || 300;
 			const pressed = new Set(pressedKeys);
+			const kiHideMap = getHideKeyTextMap();
 
 			// Fit canvas into viewport, maintaining aspect ratio
 			const vw = kvWrapEl.clientWidth || 800;
@@ -336,7 +371,22 @@
 				el.classList.toggle('pressed', pressed.has(el.dataset.key));
 				// Re-apply font scale if viewport changed
 				const chip = layout.find(c => c.id === el.dataset.id);
-				if (chip) el.style.fontSize = Math.max(9, chip.h * scale * 0.38) + 'px';
+				if (!chip) return;
+				const style = resolveChipStyle(chip.key);
+				applyResolvedChipStyle(el, chip.key, style, kiHideMap, { keyViewer: true });
+				el.style.fontSize = Math.max(9, chip.h * scale * 0.38) + 'px';
+				if (chip.bgOverride) {
+					el.style.background = chip.bgOverride;
+					el.style.backgroundImage = '';
+				}
+				if (chip.fgOverride && !isKeyTextHidden(chip.key, style, kiHideMap)) {
+					el.style.color = chip.fgOverride;
+				}
+				if (chip.radiusOverride != null) el.style.borderRadius = chip.radiusOverride + 'px';
+				if (isKeyTextHidden(chip.key, style, kiHideMap)) {
+					el.style.color = 'transparent';
+					el.style.textShadow = 'none';
+				}
 			});
 		}
 
@@ -494,8 +544,8 @@
 		// Listen for localStorage changes (from control.html)
 		window.addEventListener('storage', (e) => {
 			if (e.key === STORAGE_KEY_IMAGES || e.key === STORAGE_KEY_HIDE) {
-				// Re-render chips with new settings
-				placeChips(lastKeys);
+				if (isKeyViewerMode()) renderKeyViewerFree(lastKeys);
+				else placeChips(lastKeys, true);
 			}
 		});
 
