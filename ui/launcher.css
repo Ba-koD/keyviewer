@@ -186,6 +186,57 @@ h1 {
     cursor: pointer;
 }
 
+.update-section {
+    padding: 10px;
+    border: 1px solid #d7e6f7;
+    border-radius: 4px;
+    background: #f7fbff;
+}
+
+.update-status {
+    font-size: 12px;
+    line-height: 1.5;
+    color: #333;
+    margin-bottom: 6px;
+}
+
+.update-status.available {
+    color: #b85b00;
+    font-weight: 600;
+}
+
+.update-status.error {
+    color: #c82333;
+}
+
+.update-status.ok {
+    color: #207a37;
+}
+
+.update-link {
+    display: inline-block;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: #007bff;
+    text-decoration: none;
+}
+
+.update-link:hover {
+    text-decoration: underline;
+}
+
+.update-actions {
+    margin-bottom: 0;
+}
+
+.btn-update-install {
+    background: #28a745;
+}
+
+.btn-update-install:hover:not(:disabled) {
+    background: #218838;
+}
+
 .btn-secondary {
     flex: 1;
     padding: 8px;

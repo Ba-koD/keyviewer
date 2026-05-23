@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release builds
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod app_update;
 mod keyboard;
 mod server;
 mod settings;
@@ -129,6 +130,12 @@ pub struct PortProcessInfo {
     name: String,
 }
 
+#[derive(Debug, Serialize)]
+struct AppUpdateCheckResult {
+    current_version: String,
+    update: Option<app_update::ReleaseUpdate>,
+}
+
 // macOS permission status
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct MacOSPermissions {
@@ -249,6 +256,19 @@ fn open_macos_permission_settings(permission_type: String) -> Result<(), String>
 #[tauri::command]
 fn get_launcher_settings() -> LauncherSettings {
     LauncherSettings::load()
+}
+
+#[tauri::command]
+fn check_app_update() -> Result<AppUpdateCheckResult, String> {
+    Ok(AppUpdateCheckResult {
+        current_version: app_update::CURRENT_VERSION.to_string(),
+        update: app_update::check_latest_release()?,
+    })
+}
+
+#[tauri::command]
+fn install_app_update() -> Result<(), String> {
+    app_update::install_latest_update()
 }
 
 #[tauri::command]
@@ -643,9 +663,16 @@ fn minimize_to_tray(window: tauri::Window<Wry>) -> Result<(), String> {
 #[tauri::command]
 fn set_run_on_startup(enabled: bool) -> Result<(), String> {
     let mut settings = LauncherSettings::load();
+    let previous_enabled = settings.run_on_startup;
     settings.run_on_startup = enabled;
-    settings.save()?;
-    settings::set_windows_startup(enabled)
+
+    settings::set_windows_startup(enabled)?;
+    if let Err(err) = settings.save() {
+        let _ = settings::set_windows_startup(previous_enabled);
+        return Err(err);
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -740,6 +767,18 @@ fn main() {
     let settings = LauncherSettings::load();
     initial_state.language = settings.language.clone();
     println!("Initial language: {}", initial_state.language);
+
+    #[cfg(target_os = "windows")]
+    {
+        if settings.run_on_startup {
+            if let Err(e) = settings::set_windows_startup(true) {
+                eprintln!(
+                    "[Startup] Failed to repair Windows startup registration: {}",
+                    e
+                );
+            }
+        }
+    }
 
     // Try to reserve the port from Windows dynamic allocation
     #[cfg(target_os = "windows")]
@@ -982,6 +1021,8 @@ fn main() {
         .manage(app_handle)
         .invoke_handler(tauri::generate_handler![
             get_launcher_settings,
+            check_app_update,
+            install_app_update,
             save_port_setting,
             save_language_setting,
             get_server_status,

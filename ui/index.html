@@ -61,6 +61,17 @@
             </div>
         </div>
 
+        <!-- App Update Section -->
+        <div class="section update-section">
+            <div class="section-title" data-i18n="app_update">앱 업데이트</div>
+            <div class="update-status" id="update-status" data-i18n="update_idle">업데이트 확인 준비됨</div>
+            <a href="#" class="update-link" id="update-release-link" style="display:none"></a>
+            <div class="button-group update-actions">
+                <button class="btn-secondary" id="btn-check-update" data-i18n="check_update">업데이트 확인</button>
+                <button class="btn-secondary btn-update-install" id="btn-install-update" data-i18n="install_update" style="display:none">설치 후 재시작</button>
+            </div>
+        </div>
+
         <!-- Action Buttons Section -->
         <div class="section">
             <div class="button-group">
@@ -174,6 +185,18 @@
                 overlay: '오버레이',
                 minimize_to_tray: '트레이로 최소화',
                 reset_settings: '설정 초기화',
+                app_update: '앱 업데이트',
+                update_idle: '업데이트 확인 준비됨',
+                checking_update: '업데이트 확인 중...',
+                update_available: '새 버전을 사용할 수 있습니다',
+                update_ready: '설치 준비 완료',
+                update_latest: '최신 버전입니다',
+                update_failed: '업데이트 확인 실패',
+                installing_update: '업데이트 설치 중...',
+                install_update: '설치 후 재시작',
+                check_update: '업데이트 확인',
+                open_release: '릴리스 열기',
+                update_install_confirm: '새 버전을 설치하고 앱을 재시작할까요?',
                 info_1: '1. 서버를 시작하세요',
                 info_2: '2. 서버를 시작하면 열면, 대상 창을 설정하세요',
                 info_3: '3. OBS 소스 목록에서 브라우저를 추가하세요',
@@ -199,6 +222,18 @@
                 overlay: 'Overlay',
                 minimize_to_tray: 'Minimize to Tray',
                 reset_settings: 'Reset Settings',
+                app_update: 'App Update',
+                update_idle: 'Update check is ready.',
+                checking_update: 'Checking for updates...',
+                update_available: 'A new version is available',
+                update_ready: 'Ready to install',
+                update_latest: 'You are on the latest version',
+                update_failed: 'Update check failed',
+                installing_update: 'Installing update...',
+                install_update: 'Install & Restart',
+                check_update: 'Check Update',
+                open_release: 'Open Release',
+                update_install_confirm: 'Install the new version and restart the app?',
                 info_1: '1. Start the server you want',
                 info_2: '2. Once started, set the target window',
                 info_3: '3. Display the overlay in OBS streaming software',
@@ -222,6 +257,10 @@
         const consoleToggle = document.getElementById('run-on-boot');
         const runOnStartup = document.getElementById('run-on-startup');
         const overlayUrl = document.getElementById('overlay-url');
+        const updateStatus = document.getElementById('update-status');
+        const btnCheckUpdate = document.getElementById('btn-check-update');
+        const btnInstallUpdate = document.getElementById('btn-install-update');
+        const updateReleaseLink = document.getElementById('update-release-link');
 
         // Apply translations
         function applyTranslations(lang) {
@@ -266,6 +305,70 @@
             }
             overlayUrl.textContent = `http://localhost:${currentPort}/overlay`;
             overlayUrl.href = `http://localhost:${currentPort}/overlay`;
+        }
+
+        function setUpdateStatus(message, level = '') {
+            updateStatus.textContent = message;
+            updateStatus.classList.remove('available', 'error', 'ok');
+            if (level) updateStatus.classList.add(level);
+        }
+
+        function formatUpdateSize(size) {
+            if (!size) return '';
+            const mb = size / 1024 / 1024;
+            return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.round(size / 1024)} KB`;
+        }
+
+        async function checkForAppUpdate(manual = false) {
+            const t = translations[currentLanguage];
+            btnCheckUpdate.disabled = true;
+            btnInstallUpdate.style.display = 'none';
+            updateReleaseLink.style.display = 'none';
+            setUpdateStatus(t.checking_update);
+
+            try {
+                const result = await invoke('check_app_update');
+                const update = result.update;
+                if (!update) {
+                    setUpdateStatus(`${t.update_latest} (${result.current_version})`, 'ok');
+                    return;
+                }
+
+                const sizeText = formatUpdateSize(update.asset_size);
+                const suffix = sizeText ? ` / ${sizeText}` : '';
+                setUpdateStatus(`${t.update_available}: ${update.current_version} -> ${update.latest_version}${suffix}`, 'available');
+                updateReleaseLink.textContent = `${t.open_release}: ${update.tag_name}`;
+                updateReleaseLink.href = update.release_url;
+                updateReleaseLink.style.display = 'inline-block';
+                btnInstallUpdate.style.display = 'block';
+
+                if (!manual) {
+                    console.log('App update available:', update);
+                }
+            } catch (error) {
+                console.error('Failed to check app update:', error);
+                setUpdateStatus(`${t.update_failed}: ${error}`, 'error');
+            } finally {
+                btnCheckUpdate.disabled = false;
+            }
+        }
+
+        async function installAppUpdate() {
+            const t = translations[currentLanguage];
+            if (!confirm(t.update_install_confirm)) return;
+
+            btnCheckUpdate.disabled = true;
+            btnInstallUpdate.disabled = true;
+            setUpdateStatus(t.installing_update);
+
+            try {
+                await invoke('install_app_update');
+            } catch (error) {
+                console.error('Failed to install app update:', error);
+                setUpdateStatus(`${t.update_failed}: ${error}`, 'error');
+                btnCheckUpdate.disabled = false;
+                btnInstallUpdate.disabled = false;
+            }
         }
 
         // Load settings from backend
@@ -450,6 +553,21 @@
             }
         });
 
+        btnCheckUpdate.addEventListener('click', () => {
+            checkForAppUpdate(true);
+        });
+
+        btnInstallUpdate.addEventListener('click', () => {
+            installAppUpdate();
+        });
+
+        updateReleaseLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (updateReleaseLink.href && updateReleaseLink.href !== '#') {
+                invoke('open_url', { url: updateReleaseLink.href });
+            }
+        });
+
         // Reset settings button
         btnResetSettings.addEventListener('click', async () => {
             const t = translations[currentLanguage];
@@ -486,7 +604,7 @@
 
         // Initialize
         console.log('Initializing launcher...');
-        loadSettings();
+        loadSettings().finally(() => checkForAppUpdate(false));
         } // end of initApp
     </script>
 </body>

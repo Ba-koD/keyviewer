@@ -4,6 +4,8 @@ use crate::state::{KeyImagesConfig, KeyStyleConfig};
 use serde::{Deserialize, Serialize};
 
 #[cfg(target_os = "windows")]
+use std::process::Command;
+#[cfg(target_os = "windows")]
 use winreg::enums::*;
 #[cfg(target_os = "windows")]
 use winreg::RegKey;
@@ -201,31 +203,92 @@ impl LauncherSettings {
     }
 }
 
-// Windows startup registry functions
+// Windows startup registration
 #[cfg(target_os = "windows")]
-pub fn set_windows_startup(enabled: bool) -> Result<(), String> {
+const STARTUP_TASK_NAME: &str = "KeyQueueViewer";
+#[cfg(target_os = "windows")]
+const LEGACY_RUN_VALUE_NAME: &str = "KeyViewer";
+
+#[cfg(target_os = "windows")]
+fn powershell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
+#[cfg(target_os = "windows")]
+fn run_powershell(script: &str, action: &str) -> Result<(), String> {
+    let output = Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            script,
+        ])
+        .output()
+        .map_err(|e| format!("Failed to launch PowerShell for {}: {}", action, e))?;
+
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let details = format!("{} {}", stderr.trim(), stdout.trim())
+        .trim()
+        .to_string();
+    if details.is_empty() {
+        Err(format!("Failed to {}", action))
+    } else {
+        Err(format!("Failed to {}: {}", action, details))
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn remove_legacy_run_value() {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let path = r"Software\Microsoft\Windows\CurrentVersion\Run";
-    let key = hkcu
-        .open_subkey_with_flags(path, KEY_WRITE)
-        .map_err(|e| format!("Failed to open registry key: {}", e))?;
+    if let Ok(key) = hkcu.open_subkey_with_flags(path, KEY_WRITE) {
+        let _ = key.delete_value(LEGACY_RUN_VALUE_NAME);
+    }
+}
 
+#[cfg(target_os = "windows")]
+pub fn set_windows_startup(enabled: bool) -> Result<(), String> {
     if enabled {
         let exe_path =
             std::env::current_exe().map_err(|e| format!("Failed to get exe path: {}", e))?;
-        // Quote the full path to handle spaces in path
-        let exe_str = exe_path.to_string_lossy().to_string();
-        let quoted = if exe_str.contains(' ') {
-            format!("\"{}\"", exe_str)
-        } else {
-            exe_str
-        };
-        key.set_value("KeyViewer", &quoted)
-            .map_err(|e| format!("Failed to set registry value: {}", e))?;
+        let working_dir = exe_path
+            .parent()
+            .ok_or_else(|| "Failed to get exe directory".to_string())?;
+        let exe_path = powershell_quote(&exe_path.to_string_lossy());
+        let working_dir = powershell_quote(&working_dir.to_string_lossy());
+        let task_name = powershell_quote(STARTUP_TASK_NAME);
+
+        let script = format!(
+            r#"
+$ErrorActionPreference = 'Stop'
+$user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+$action = New-ScheduledTaskAction -Execute {exe_path} -WorkingDirectory {working_dir}
+$trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
+$principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Highest
+$task = New-ScheduledTask -Action $action -Trigger $trigger -Principal $principal
+Register-ScheduledTask -TaskName {task_name} -InputObject $task -Force | Out-Null
+"#
+        );
+
+        run_powershell(&script, "register Windows startup task")?;
     } else {
-        key.delete_value("KeyViewer").ok();
+        let task_name = powershell_quote(STARTUP_TASK_NAME);
+        let script = format!(
+            r#"
+Unregister-ScheduledTask -TaskName {task_name} -Confirm:$false -ErrorAction SilentlyContinue
+"#
+        );
+
+        run_powershell(&script, "unregister Windows startup task")?;
     }
 
+    remove_legacy_run_value();
     Ok(())
 }
 
@@ -729,6 +792,10 @@ fn get_config_dir() -> Result<std::path::PathBuf, String> {
 pub fn reset_all_settings() -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
+        if let Err(e) = set_windows_startup(false) {
+            eprintln!("Warning: failed to remove Windows startup task: {}", e);
+        }
+
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         let key_path = r"Software\KeyViewer";
 

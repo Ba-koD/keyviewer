@@ -27,7 +27,7 @@
 | 프로젝트명 | KeyViewer (KeyQueueViewer) |
 | 바이너리명 | `KBQV` |
 | 식별자 | `com.keyviewer` |
-| 버전 관리 | `version.txt` + `src-tauri/Cargo.toml` (현재 1.1.0) |
+| 버전 관리 | `version.txt` + `src-tauri/Cargo.toml` (현재 1.1.1) |
 | 프레임워크 | Tauri 2.0 (Rust 백엔드 + Web UI) |
 | 지원 OS | Windows, macOS, Linux |
 | 라이선스 | MIT |
@@ -105,7 +105,7 @@ overlay.html (실시간 키 표시)
 
 | 파일 | 역할 |
 |------|------|
-| `version.txt` | 버전 문자열 (1.1.0), CI/CD에서 참조 |
+| `version.txt` | 버전 문자열 (1.1.1), CI/CD에서 참조 |
 | `README.md` | 사용자 대상 설치/실행 가이드 |
 | `CHANGELOG.md` | 버전별 변경 이력 |
 | `build-portable.ps1` | Windows 포터블 빌드 (`cargo tauri build`) |
@@ -399,7 +399,9 @@ overlay.html (실시간 키 표시)
 | `start_server` | `port: u16` | `Result<(), String>` | HTTP/WS 서버 시작 |
 | `stop_server` | - | `Result<(), String>` | 서버 중지 |
 | `minimize_to_tray` | - | - | 창 숨기고 트레이 아이콘 생성 |
-| `set_run_on_startup` | `enabled: bool` | `Result<(), String>` | Windows Run 레지스트리 등록 |
+| `set_run_on_startup` | `enabled: bool` | `Result<(), String>` | Windows 작업 스케줄러 등록 |
+| `check_app_update` | - | `AppUpdateCheckResult` | GitHub 최신 릴리스 확인 |
+| `install_app_update` | - | `Result<(), String>` | 최신 Windows 릴리스 exe 설치 후 재시작 |
 | `set_console_visible` | `visible: bool` | - | Windows 디버그 콘솔 표시/숨김 |
 | `reset_settings` | - | `Result<(), String>` | 모든 설정 초기화 |
 | `check_macos_permissions` | - | `MacOSPermissions` | 3개 권한 상태 |
@@ -658,7 +660,7 @@ main.rs 시작
 | `save_overlay_config()` / `load_overlay_config()` | W/R | 오버레이 전체 설정 |
 | `save_key_images_config()` / `load_key_images_config()` | W/R | 키 이미지 JSON |
 | `save_key_style_config()` / `load_key_style_config()` | W/R | 키 스타일 JSON |
-| `set_windows_startup()` | W | Windows Run 레지스트리 |
+| `set_windows_startup()` | W | Windows 작업 스케줄러 |
 | `reset_all_settings()` | W | 모든 설정 삭제 |
 | `get_config_dir()` | R | 플랫폼별 설정 디렉터리 경로 |
 

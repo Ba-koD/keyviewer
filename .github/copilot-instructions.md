@@ -8,7 +8,7 @@
 ## 1. 프로젝트 개요
 
 - **이름**: KeyViewer (바이너리명: `KBQV`, 식별자: `com.keyviewer`)
-- **버전**: `version.txt` 및 `src-tauri/Cargo.toml`에서 관리 (현재 1.1.0)
+- **버전**: `version.txt` 및 `src-tauri/Cargo.toml`에서 관리 (현재 1.1.1)
 - **유형**: Tauri 2.0 데스크톱 앱 (Rust 백엔드 + 웹 UI 프론트엔드)
 - **목적**: 키보드 입력을 실시간 모니터링하여 OBS 등 스트리밍 소프트웨어에 오버레이로 표시
 - **지원 OS**: Windows, macOS, Linux
