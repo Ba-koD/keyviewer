@@ -61,17 +61,3 @@ x11 = { version = "2.21", default-features = false, features = ["xlib"] }
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
-
-[profile.release]
-panic = "abort"   # Strip expensive panic clean-up logic
-codegen-units = 1 # Compile crates one after another for optimization
-lto = true        # Enable link-time optimization
-opt-level = "z"   # Optimize for size
-strip = true      # Strip symbols from binary
-
-# Fast CI build profile (use with: cargo build --profile ci-release)
-[profile.ci-release]
-inherits = "release"
-lto = "thin"          # Faster than full LTO
-codegen-units = 16    # Parallel compilation
-opt-level = 2         # Balance speed/size

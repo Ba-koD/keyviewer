@@ -19,6 +19,7 @@ dist/
 !dist/KBQV-Portable-*.zip
 
 # Rust/Cargo
+/target/
 src-tauri/target/
 src-tauri/gen/
 *.rs.bk
