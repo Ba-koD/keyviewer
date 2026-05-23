@@ -341,6 +341,8 @@ pub struct KeyImagesConfig {
     pub groups: Vec<KeyGroupData>,
     #[serde(rename = "allKeys")]
     pub all_keys: Option<KeyImageData>,
+    #[serde(rename = "hideKeyText", default)]
+    pub hide_key_text: HashMap<String, bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

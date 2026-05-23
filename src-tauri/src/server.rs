@@ -794,6 +794,7 @@ async fn api_get_key_images(AxumState(state): AxumState<SharedState>) -> impl In
         "individual": state_lock.app_config.key_images.individual,
         "groups": state_lock.app_config.key_images.groups,
         "allKeys": state_lock.app_config.key_images.all_keys,
+        "hideKeyText": state_lock.app_config.key_images.hide_key_text,
     }))
 }
 

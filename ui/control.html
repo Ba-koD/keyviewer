@@ -2983,7 +2983,8 @@
 		function kvSnap(v) { return kvSnapEnabled ? Math.round(v / kvSnapGrid) * kvSnapGrid : Math.round(v); }
 
 		// --- Mode card selector ---
-		function selectOverlayMode(mode) {
+		let overlayModeSaveTimer = null;
+		function selectOverlayMode(mode, persist = true) {
 			currentKvOverlayMode = mode;
 			// Update main panel mode buttons
 			const mainQ = document.getElementById('mainModeQueue');
@@ -2994,6 +2995,18 @@
 			const layoutSec = document.getElementById('kvLayoutSection');
 			if (layoutSec) layoutSec.style.display = mode === 'keyviewer' ? 'block' : 'none';
 			if (mode === 'keyviewer') { updateKvCanvasAspect(); setTimeout(renderKvFreeCanvas, 50); }
+			if (persist) {
+				if (overlayModeSaveTimer) clearTimeout(overlayModeSaveTimer);
+				overlayModeSaveTimer = setTimeout(async () => {
+					try {
+						const overlay = await getOverlayConfigForExport();
+						overlay.overlay_mode = currentKvOverlayMode || 'queue';
+						await saveOverlayConfig(overlay);
+					} catch(e) {
+						console.warn('Failed to persist overlay mode:', e);
+					}
+				}, 150);
+			}
 		}
 		window.selectOverlayMode = selectOverlayMode;
 
@@ -3375,7 +3388,7 @@
 				const res = await fetch('/api/overlay-config');
 				const cfg = await res.json();
 				currentKvOverlayMode = cfg.overlay_mode || 'queue';
-				selectOverlayMode(currentKvOverlayMode);
+				selectOverlayMode(currentKvOverlayMode, false);
 			} catch(e) {}
 			setTimeout(renderKvFreeCanvas, 60); // Let DOM settle
 		}
@@ -3850,11 +3863,36 @@
 		closeOverlay.addEventListener('click', ()=> closeModalOverlay());
 		saveOverlay.addEventListener('click', saveOverlayConfig);
 
-		document.getElementById('downloadObsFile').addEventListener('click', async () => {
+		async function syncObsLocalFileSnapshot() {
+			try {
+				localStorage.setItem('keyviewer_style_groups_queue', JSON.stringify(styleGroupsByMode.queue || []));
+				localStorage.setItem('keyviewer_style_groups_kv', JSON.stringify(styleGroupsByMode.keyviewer || []));
+			} catch(e) {}
+
+			try {
+				const overlay = await getOverlayConfigForExport();
+				overlay.overlay_mode = currentKvOverlayMode || overlay.overlay_mode || 'queue';
+				await saveOverlayConfig(overlay);
+			} catch(e) {
+				console.warn('Failed to sync overlay config before OBS export:', e);
+			}
+
+			try {
+				await saveKeyStyleState();
+			} catch(e) {
+				console.warn('Failed to sync key style before OBS export:', e);
+			}
+
 			try {
 				syncLegacyKeyImagesToOverlayData();
 				await saveKeyImagesToServer();
-			} catch (e) {}
+			} catch(e) {
+				console.warn('Failed to sync key images before OBS export:', e);
+			}
+		}
+
+		document.getElementById('downloadObsFile').addEventListener('click', async () => {
+			await syncObsLocalFileSnapshot();
 			const a = document.createElement('a');
 			const params = new URLSearchParams({
 				hideKeyText: JSON.stringify(getHideKeyText())
@@ -4307,6 +4345,7 @@
 		let keyImagesData = {};
 		let keyGroupsData = [];
 		let allKeysData = null;
+		let keyImagesHideTextData = {};
 
 		// Load key images from localStorage
 		function loadKeyImagesFromStorage() {
@@ -4317,6 +4356,7 @@
 					keyImagesData = data.individual || {};
 					keyGroupsData = data.groups || [];
 					allKeysData = data.allKeys || null;
+					keyImagesHideTextData = data.hideKeyText || {};
 				}
 			} catch (e) {
 				console.error('Failed to load key images:', e);
@@ -4339,6 +4379,7 @@
 			try {
 				const legacyImages = getKeyImages();
 				const legacyHides = getHideKeyText();
+				keyImagesHideTextData = legacyHides;
 				keyImagesData = Object.fromEntries(
 					Object.entries(legacyImages)
 						.filter(([key, image]) => key !== 'default' && !!image)
@@ -4362,7 +4403,7 @@
 		// Save key images to localStorage
 		function saveKeyImagesToStorage() {
 			try {
-				const data = { individual: keyImagesData, groups: keyGroupsData, allKeys: allKeysData };
+				const data = { individual: keyImagesData, groups: keyGroupsData, allKeys: allKeysData, hideKeyText: getHideKeyText() };
 				localStorage.setItem('keyviewer_key_images', JSON.stringify(data));
 				// Also notify server
 				saveKeyImagesToServer();
@@ -4374,7 +4415,8 @@
 		// Save to server
 		async function saveKeyImagesToServer() {
 			try {
-				const payload = { individual: keyImagesData, groups: keyGroupsData, allKeys: allKeysData };
+				keyImagesHideTextData = getHideKeyText();
+				const payload = { individual: keyImagesData, groups: keyGroupsData, allKeys: allKeysData, hideKeyText: keyImagesHideTextData };
 				await fetch('/api/key-images', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
@@ -5297,7 +5339,7 @@
 			if (ov_align) ov_align.value = nextOverlay.align;
 			if (ov_direction) ov_direction.value = nextOverlay.direction;
 			currentKvOverlayMode = nextOverlay.overlay_mode;
-			selectOverlayMode(currentKvOverlayMode);
+			selectOverlayMode(currentKvOverlayMode, false);
 			
 			if (ov_bg_pickBtn && ov_bg) setPickBtn(ov_bg_pickBtn, ov_bg.value);
 			if (ov_chip_bg_pickBtn && ov_chip_bg) setPickBtn(ov_chip_bg_pickBtn, ov_chip_bg.value);
@@ -5316,7 +5358,8 @@
 				keyImages: { 
 					individual: keyImagesData, 
 					groups: keyGroupsData,
-					allKeys: allKeysData
+					allKeys: allKeysData,
+					hideKeyText: getHideKeyText()
 				},
 				styleGroups: getStyleGroupsForExport(),
 				overlay,
@@ -5486,6 +5529,8 @@
 				keyImagesData = data.keyImages?.individual || {};
 				keyGroupsData = data.keyImages?.groups || [];
 				allKeysData = data.keyImages?.allKeys || null;
+				keyImagesHideTextData = data.keyImages?.hideKeyText || data.hideKeyText || {};
+				localStorage.setItem(STORAGE_KEY_HIDE, JSON.stringify(keyImagesHideTextData));
 				// Import per-mode style groups
 				if (data.styleGroups && typeof data.styleGroups === 'object' && !Array.isArray(data.styleGroups)) {
 					// New per-mode format
@@ -5535,6 +5580,8 @@
 				keyImagesData = data.keyImages?.individual || {};
 				keyGroupsData = data.keyImages?.groups || [];
 				allKeysData = data.keyImages?.allKeys || null;
+				keyImagesHideTextData = data.keyImages?.hideKeyText || data.hideKeyText || {};
+				localStorage.setItem(STORAGE_KEY_HIDE, JSON.stringify(keyImagesHideTextData));
 				saveKeyImagesToStorage();
 				if (data.overlay) {
 					await applyImportedOverlayConfig(data.overlay);
@@ -5544,6 +5591,8 @@
 				keyImagesData = data.individual || {};
 				keyGroupsData = data.groups || [];
 				allKeysData = data.allKeys || null;
+				keyImagesHideTextData = data.hideKeyText || {};
+				localStorage.setItem(STORAGE_KEY_HIDE, JSON.stringify(keyImagesHideTextData));
 			}
 			saveKeyImagesToStorage();
 			renderStyleGroupsList(); // Refresh style groups list

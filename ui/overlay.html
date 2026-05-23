@@ -108,6 +108,7 @@
 	// boot_id and the page will reload itself to get a fresh copy.
 	const SERVER_BOOT_ID = __BOOT_ID__;
 	(function(){
+		const IS_LOCAL_FILE = SERVER_BOOT_ID === "__KV_LOCAL__";
 		const queueEl = document.getElementById('queue');
 		const wrapEl = document.querySelector('.queue-wrap');
 		const kvWrapEl = document.getElementById('kv-wrap');
@@ -192,11 +193,13 @@
 						fontFamily: g.fontFamily || null,
 						fontSize: g.fontSize || null,
 						fontWeight: g.fontWeight || null,
-						fontColor: g.fontColor || null
+						fontColor: g.fontColor || null,
+						textColor: g.textColor || null,
+						textOpacity: typeof g.textOpacity === 'number' ? g.textOpacity : null
 					};
 					// Found the matching group – extract style
 					if (g.bgMode === 'image' && g.image) {
-						return { kind: 'image', image: g.image, textColor: g.textColor, textOpacity: g.textOpacity, ...overrides };
+						return { kind: 'image', image: g.image, ...overrides };
 					}
 					if (g.bgMode === 'gradient') {
 						let css;
@@ -228,12 +231,15 @@
 		}
 
 		function getHideKeyTextMap() {
+			const hasServerHideMap = keyImagesConfig?.hideKeyText && typeof keyImagesConfig.hideKeyText === 'object';
+			const serverHideMap = hasServerHideMap ? keyImagesConfig.hideKeyText : {};
+			if (IS_LOCAL_FILE) return hasServerHideMap ? serverHideMap : (BAKED_HIDE_KEY_TEXT || {});
 			let localHideMap = {};
 			try { localHideMap = JSON.parse(localStorage.getItem(STORAGE_KEY_HIDE) || '{}'); } catch(e) {}
 			if (BAKED_HIDE_KEY_TEXT && Object.keys(BAKED_HIDE_KEY_TEXT).length > 0) {
-				return { ...localHideMap, ...BAKED_HIDE_KEY_TEXT };
+				return { ...serverHideMap, ...localHideMap, ...BAKED_HIDE_KEY_TEXT };
 			}
-			return localHideMap;
+			return { ...serverHideMap, ...localHideMap };
 		}
 
 		function isKeyTextHidden(key, style, hideMap) {
@@ -276,6 +282,7 @@
 			if (style?.fontFamily) el.style.fontFamily = style.fontFamily;
 			if (style?.fontWeight) el.style.fontWeight = style.fontWeight;
 			if (style?.fontSize && !keyViewer) el.style.fontSize = style.fontSize + 'px';
+			if (style?.textColor) el.style.color = style.textColor;
 			if (style?.fontColor) el.style.color = style.fontColor;
 
 			if (isKeyTextHidden(key, style, hideMap)) {
@@ -552,6 +559,7 @@
 		Promise.all([initConfig(), loadKeyImagesConfig(), loadKeyStyleConfig()]).then(()=> setupConfigPanel()); connect();
 		
 		// Periodically refresh key images config (every 5 seconds)
+		setInterval(initConfig, 5000);
 		setInterval(loadKeyImagesConfig, 5000);
 		setInterval(loadKeyStyleConfig, 5000);
 	})();
