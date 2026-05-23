@@ -6,6 +6,10 @@ on:
     types: [completed]
   workflow_dispatch:
 
+permissions:
+  actions: read
+  contents: write
+
 jobs:
   release:
     if: >-
@@ -99,6 +103,47 @@ jobs:
             echo "full_changelog=" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Delete existing release for version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          tagName="v$version"
+          releaseIds=$(gh api --paginate "repos/${{ github.repository }}/releases" --jq ".[] | select(.tag_name == \"$tagName\") | .id")
+          if [ -z "$releaseIds" ]; then
+            echo "No existing release found for $tagName."
+            exit 0
+          fi
+          for releaseId in $releaseIds; do
+            echo "Deleting existing release $releaseId for $tagName..."
+            gh api -X DELETE "repos/${{ github.repository }}/releases/$releaseId"
+          done
+
+      - name: Configure GPG signing
+        id: gpg
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          if [ -z "$GPG_PRIVATE_KEY" ]; then
+            echo "GPG_PRIVATE_KEY secret is not configured."
+            exit 1
+          fi
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          fingerprint=$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr:/ { print $10; exit }')
+          if [ -z "$fingerprint" ]; then
+            echo "No imported GPG signing key found."
+            exit 1
+          fi
+          git config user.name "Ba-koD"
+          git config user.email "rudghrnt12@naver.com"
+          git config user.signingkey "$fingerprint"
+          git config commit.gpgsign true
+          git config tag.gpgSign true
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+
       - name: Create/Update tag
         run: |
           version="${{ steps.version.outputs.version }}"
@@ -107,7 +152,7 @@ jobs:
             git tag -d "$tagName" || true
             git push origin ":refs/tags/$tagName" || true
           fi
-          git tag "$tagName"
+          git tag -s "$tagName" -m "KeyQueueViewer $tagName"
           git push origin "$tagName"
 
       - name: Create Release
