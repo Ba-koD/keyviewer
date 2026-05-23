@@ -4,6 +4,8 @@ use crate::state::{KeyImagesConfig, KeyStyleConfig};
 use serde::{Deserialize, Serialize};
 
 #[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+#[cfg(target_os = "windows")]
 use std::process::Command;
 #[cfg(target_os = "windows")]
 use winreg::enums::*;
@@ -208,6 +210,15 @@ impl LauncherSettings {
 const STARTUP_TASK_NAME: &str = "KeyQueueViewer";
 #[cfg(target_os = "windows")]
 const LEGACY_RUN_VALUE_NAME: &str = "KeyViewer";
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+#[cfg(target_os = "windows")]
+fn hidden_command(program: &str) -> Command {
+    let mut command = Command::new(program);
+    command.creation_flags(CREATE_NO_WINDOW);
+    command
+}
 
 #[cfg(target_os = "windows")]
 fn powershell_quote(value: &str) -> String {
@@ -216,7 +227,7 @@ fn powershell_quote(value: &str) -> String {
 
 #[cfg(target_os = "windows")]
 fn run_powershell(script: &str, action: &str) -> Result<(), String> {
-    let output = Command::new("powershell")
+    let output = hidden_command("powershell")
         .args([
             "-NoProfile",
             "-ExecutionPolicy",

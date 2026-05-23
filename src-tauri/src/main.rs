@@ -31,7 +31,19 @@ use crate::state::AppState;
 #[cfg(target_os = "windows")]
 use std::collections::HashSet;
 #[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+#[cfg(target_os = "windows")]
 use std::process::Command;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+#[cfg(target_os = "windows")]
+fn hidden_command(program: &str) -> Command {
+    let mut command = Command::new(program);
+    command.creation_flags(CREATE_NO_WINDOW);
+    command
+}
 
 #[cfg(target_os = "windows")]
 fn is_running_as_admin() -> bool {
@@ -81,7 +93,7 @@ fn try_relaunch_as_admin() -> Result<(), String> {
         )
     };
 
-    let status = Command::new("powershell")
+    let status = hidden_command("powershell")
         .args([
             "-NoProfile",
             "-ExecutionPolicy",
@@ -323,7 +335,7 @@ fn open_url(url: String) -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 fn list_port_processes_windows(port: u16) -> Result<Vec<PortProcessInfo>, String> {
-    let output = Command::new("netstat")
+    let output = hidden_command("netstat")
         .args(["-ano", "-p", "tcp"])
         .output()
         .map_err(|e| format!("Failed to run netstat: {}", e))?;
@@ -379,7 +391,7 @@ fn list_port_processes_windows(port: u16) -> Result<Vec<PortProcessInfo>, String
 #[cfg(target_os = "windows")]
 fn process_name_windows(pid: u32) -> Option<String> {
     let filter = format!("PID eq {}", pid);
-    let output = Command::new("tasklist")
+    let output = hidden_command("tasklist")
         .args(["/FI", &filter, "/FO", "CSV", "/NH"])
         .output()
         .ok()?;
@@ -448,7 +460,7 @@ fn get_port_processes(port: u16) -> Result<Vec<PortProcessInfo>, String> {
 #[cfg(target_os = "windows")]
 fn reserve_port_from_windows(port: u16) -> Result<(), String> {
     // First, try to get current excluded port ranges
-    let output = Command::new("netsh")
+    let output = hidden_command("netsh")
         .args(["int", "ipv4", "show", "excludedportrange", "protocol=tcp"])
         .output()
         .map_err(|e| format!("Failed to check excluded ports: {}", e))?;
@@ -469,10 +481,10 @@ fn reserve_port_from_windows(port: u16) -> Result<(), String> {
                     eprintln!("[Port] Port {} is in Windows excluded range {}-{}, attempting to reserve...", port, start, end);
 
                     // Stop WinNAT service temporarily to modify excluded ports
-                    let _ = Command::new("net").args(["stop", "winnat"]).output();
+                    let _ = hidden_command("net").args(["stop", "winnat"]).output();
 
                     // Start WinNAT again
-                    let _ = Command::new("net").args(["start", "winnat"]).output();
+                    let _ = hidden_command("net").args(["start", "winnat"]).output();
 
                     eprintln!("[Port] Restarted WinNAT service to clear excluded port ranges");
                     break;
@@ -500,7 +512,7 @@ pub fn get_port_processes_static(port: u16) -> Vec<PortProcessInfo> {
 fn kill_process(pid: u32) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
-        let status = Command::new("taskkill")
+        let status = hidden_command("taskkill")
             .args(["/PID", &pid.to_string(), "/F"])
             .status()
             .map_err(|e| format!("Failed to run taskkill: {}", e))?;
@@ -771,6 +783,7 @@ fn main() {
     let mut initial_state = AppState::new();
     let settings = LauncherSettings::load();
     initial_state.language = settings.language.clone();
+    initial_state.app_config.port = settings.port;
     println!("Initial language: {}", initial_state.language);
 
     #[cfg(target_os = "windows")]
@@ -871,6 +884,13 @@ fn main() {
 
     // Create server controller
     let server_controller = Arc::new(Mutex::new(ServerController::new()));
+
+    if let Err(e) = server_controller
+        .lock()
+        .start(app_state.clone(), settings.port)
+    {
+        eprintln!("[Server] Failed to auto-start on launch: {}", e);
+    }
 
     // Start keyboard hook in background (with permission check on macOS)
     #[cfg(target_os = "macos")]

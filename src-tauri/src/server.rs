@@ -94,6 +94,7 @@ impl ServerController {
             // Mark server alive in shared state and bump cache buster
             {
                 let mut s = state.write();
+                s.app_config.port = port;
                 s.server_alive = true;
                 s.bump_cache_buster();
             }

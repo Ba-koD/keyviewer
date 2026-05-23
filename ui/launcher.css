@@ -68,6 +68,40 @@ h1 {
     white-space: nowrap;
 }
 
+.header-update-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 0;
+    margin-left: auto;
+}
+
+.header-update-status {
+    min-width: 0;
+    max-width: 170px;
+    overflow: hidden;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #8a8f98;
+    font-size: 12px;
+    line-height: 1;
+}
+
+.header-update-status.available {
+    color: #b85b00;
+    font-weight: 600;
+}
+
+.header-update-status.error {
+    color: #c82333;
+}
+
+.header-update-status.ok {
+    color: #8a8f98;
+}
+
 .btn-header-update {
     flex: 0 0 auto;
     width: auto;
@@ -386,6 +420,15 @@ h1 {
 
     .app-header {
         align-items: flex-start;
+    }
+
+    .header-update-wrap {
+        max-width: 62%;
+    }
+
+    .header-update-status {
+        max-width: 90px;
+        font-size: 11px;
     }
 
     .btn-header-update {

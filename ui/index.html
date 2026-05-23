@@ -13,7 +13,10 @@
                 <h1 data-i18n="app_title">KeyQueueViewer</h1>
                 <span class="app-version" id="app-version"></span>
             </div>
-            <button class="btn-secondary btn-header-update" id="btn-check-update" data-i18n="check_update">업데이트 확인</button>
+            <div class="header-update-wrap">
+                <span class="header-update-status" id="header-update-status" aria-live="polite"></span>
+                <button class="btn-secondary btn-header-update" id="btn-check-update" data-i18n="check_update">업데이트 확인</button>
+            </div>
         </div>
 
         <div class="update-notice" id="update-notice" style="display:none">
@@ -261,6 +264,7 @@
         const runOnStartup = document.getElementById('run-on-startup');
         const overlayUrl = document.getElementById('overlay-url');
         const appVersion = document.getElementById('app-version');
+        const headerUpdateStatus = document.getElementById('header-update-status');
         const updateNotice = document.getElementById('update-notice');
         const updateNoticeActions = document.getElementById('update-notice-actions');
         const updateStatus = document.getElementById('update-status');
@@ -332,6 +336,13 @@
             if (updateNotice) updateNotice.style.display = visible ? 'block' : 'none';
         }
 
+        function setHeaderUpdateStatus(message, level = '') {
+            if (!headerUpdateStatus) return;
+            headerUpdateStatus.textContent = message || '';
+            headerUpdateStatus.classList.remove('available', 'error', 'ok');
+            if (level) headerUpdateStatus.classList.add(level);
+        }
+
         function hideUpdateNotice() {
             if (updateNotice) updateNotice.style.display = 'none';
             setUpdateActionsVisible(false);
@@ -353,23 +364,21 @@
             btnInstallUpdate.style.display = 'none';
             updateReleaseLink.style.display = 'none';
             setUpdateActionsVisible(false);
-            setUpdateStatus(t.checking_update, '', manual);
+            hideUpdateNotice();
+            setHeaderUpdateStatus(t.checking_update);
 
             try {
                 const result = await invoke('check_app_update');
                 setAppVersion(result.current_version);
                 const update = result.update;
                 if (!update) {
-                    if (manual) {
-                        setUpdateStatus(`${t.update_latest} (${result.current_version})`, 'ok');
-                    } else {
-                        hideUpdateNotice();
-                    }
+                    setHeaderUpdateStatus(t.update_latest, 'ok');
                     return;
                 }
 
                 const sizeText = formatUpdateSize(update.asset_size);
                 const suffix = sizeText ? ` / ${sizeText}` : '';
+                setHeaderUpdateStatus(`${t.update_available}: v${update.latest_version}`, 'available');
                 setUpdateStatus(`${t.update_available}: ${update.current_version} -> ${update.latest_version}${suffix}`, 'available');
                 updateReleaseLink.textContent = `${t.open_release}: ${update.tag_name}`;
                 updateReleaseLink.href = update.release_url;
@@ -382,6 +391,7 @@
                 }
             } catch (error) {
                 console.error('Failed to check app update:', error);
+                setHeaderUpdateStatus(t.update_failed, 'error');
                 if (manual) {
                     setUpdateStatus(`${t.update_failed}: ${error}`, 'error');
                 } else {
@@ -398,12 +408,14 @@
 
             btnCheckUpdate.disabled = true;
             btnInstallUpdate.disabled = true;
+            setHeaderUpdateStatus(t.installing_update);
             setUpdateStatus(t.installing_update);
 
             try {
                 await invoke('install_app_update');
             } catch (error) {
                 console.error('Failed to install app update:', error);
+                setHeaderUpdateStatus(t.update_failed, 'error');
                 setUpdateStatus(`${t.update_failed}: ${error}`, 'error');
                 btnCheckUpdate.disabled = false;
                 btnInstallUpdate.disabled = false;
