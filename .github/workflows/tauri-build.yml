@@ -162,9 +162,9 @@ jobs:
           name: KeyQueueViewer v${{ steps.version.outputs.version }}
           body: |
             Portable builds only:
-            - Windows: `KBQV-<version>-windows-x64.exe` or `.zip`
-            - Linux: `KBQV-<version>-linux-x64` or `.tar.gz`
-            - macOS: `KBQV-<version>-macos-<arch>` or `.zip`
+            - Windows: `KBQV-windows-x64.exe` or `.zip`
+            - Linux: `KBQV-linux-x64` or `.tar.gz`
+            - macOS: `KBQV-macos-<arch>` or `.zip`
 
             ### Build Status
             ${{ steps.check_builds.outputs.checklist }}

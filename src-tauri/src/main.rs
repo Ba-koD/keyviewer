@@ -267,6 +267,11 @@ fn check_app_update() -> Result<AppUpdateCheckResult, String> {
 }
 
 #[tauri::command]
+fn get_app_version() -> String {
+    app_update::CURRENT_VERSION.to_string()
+}
+
+#[tauri::command]
 fn install_app_update() -> Result<(), String> {
     app_update::install_latest_update()
 }
@@ -1022,6 +1027,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             get_launcher_settings,
             check_app_update,
+            get_app_version,
             install_app_update,
             save_port_setting,
             save_language_setting,

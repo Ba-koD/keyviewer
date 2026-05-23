@@ -8,7 +8,21 @@
 </head>
 <body>
     <div class="container">
-        <h1 data-i18n="app_title">KeyQueueViewer</h1>
+        <div class="app-header">
+            <div class="app-title-wrap">
+                <h1 data-i18n="app_title">KeyQueueViewer</h1>
+                <span class="app-version" id="app-version"></span>
+            </div>
+            <button class="btn-secondary btn-header-update" id="btn-check-update" data-i18n="check_update">업데이트 확인</button>
+        </div>
+
+        <div class="update-notice" id="update-notice" style="display:none">
+            <div class="update-status" id="update-status" data-i18n="update_idle">업데이트 확인 준비됨</div>
+            <div class="update-notice-actions" id="update-notice-actions" style="display:none">
+                <a href="#" class="update-link" id="update-release-link" style="display:none"></a>
+                <button class="btn-secondary btn-update-install" id="btn-install-update" data-i18n="install_update" style="display:none">설치 후 재시작</button>
+            </div>
+        </div>
 
         <!-- Settings Section -->
         <div class="section">
@@ -58,17 +72,6 @@
             <div class="checkbox-row">
                 <input type="checkbox" id="run-on-startup">
                 <label for="run-on-startup" data-i18n="run_on_startup">Windows 시작 시 실행</label>
-            </div>
-        </div>
-
-        <!-- App Update Section -->
-        <div class="section update-section">
-            <div class="section-title" data-i18n="app_update">앱 업데이트</div>
-            <div class="update-status" id="update-status" data-i18n="update_idle">업데이트 확인 준비됨</div>
-            <a href="#" class="update-link" id="update-release-link" style="display:none"></a>
-            <div class="button-group update-actions">
-                <button class="btn-secondary" id="btn-check-update" data-i18n="check_update">업데이트 확인</button>
-                <button class="btn-secondary btn-update-install" id="btn-install-update" data-i18n="install_update" style="display:none">설치 후 재시작</button>
             </div>
         </div>
 
@@ -204,7 +207,7 @@
                 info_note: '※ 주의: 사용자 지정 CSS를 비우고 사이트에서 보이나 OBS에서 안 보이는 경우 현재 페이지의 캐시 버튼을 눌러 새로고침 해주세요.'
             },
             en: {
-                app_title: 'Key Queue Viewer',
+                app_title: 'KeyQueueViewer',
                 settings: 'Settings',
                 language: 'Language:',
                 port: 'Port:',
@@ -257,6 +260,9 @@
         const consoleToggle = document.getElementById('run-on-boot');
         const runOnStartup = document.getElementById('run-on-startup');
         const overlayUrl = document.getElementById('overlay-url');
+        const appVersion = document.getElementById('app-version');
+        const updateNotice = document.getElementById('update-notice');
+        const updateNoticeActions = document.getElementById('update-notice-actions');
         const updateStatus = document.getElementById('update-status');
         const btnCheckUpdate = document.getElementById('btn-check-update');
         const btnInstallUpdate = document.getElementById('btn-install-update');
@@ -307,10 +313,32 @@
             overlayUrl.href = `http://localhost:${currentPort}/overlay`;
         }
 
-        function setUpdateStatus(message, level = '') {
+        function setAppVersion(version) {
+            if (appVersion && version) appVersion.textContent = `v${version}`;
+        }
+
+        async function loadAppVersion() {
+            try {
+                setAppVersion(await invoke('get_app_version'));
+            } catch (error) {
+                console.warn('Failed to load app version:', error);
+            }
+        }
+
+        function setUpdateStatus(message, level = '', visible = true) {
             updateStatus.textContent = message;
             updateStatus.classList.remove('available', 'error', 'ok');
             if (level) updateStatus.classList.add(level);
+            if (updateNotice) updateNotice.style.display = visible ? 'block' : 'none';
+        }
+
+        function hideUpdateNotice() {
+            if (updateNotice) updateNotice.style.display = 'none';
+            setUpdateActionsVisible(false);
+        }
+
+        function setUpdateActionsVisible(visible) {
+            if (updateNoticeActions) updateNoticeActions.style.display = visible ? 'flex' : 'none';
         }
 
         function formatUpdateSize(size) {
@@ -324,13 +352,19 @@
             btnCheckUpdate.disabled = true;
             btnInstallUpdate.style.display = 'none';
             updateReleaseLink.style.display = 'none';
-            setUpdateStatus(t.checking_update);
+            setUpdateActionsVisible(false);
+            setUpdateStatus(t.checking_update, '', manual);
 
             try {
                 const result = await invoke('check_app_update');
+                setAppVersion(result.current_version);
                 const update = result.update;
                 if (!update) {
-                    setUpdateStatus(`${t.update_latest} (${result.current_version})`, 'ok');
+                    if (manual) {
+                        setUpdateStatus(`${t.update_latest} (${result.current_version})`, 'ok');
+                    } else {
+                        hideUpdateNotice();
+                    }
                     return;
                 }
 
@@ -340,14 +374,19 @@
                 updateReleaseLink.textContent = `${t.open_release}: ${update.tag_name}`;
                 updateReleaseLink.href = update.release_url;
                 updateReleaseLink.style.display = 'inline-block';
-                btnInstallUpdate.style.display = 'block';
+                btnInstallUpdate.style.display = 'inline-block';
+                setUpdateActionsVisible(true);
 
                 if (!manual) {
                     console.log('App update available:', update);
                 }
             } catch (error) {
                 console.error('Failed to check app update:', error);
-                setUpdateStatus(`${t.update_failed}: ${error}`, 'error');
+                if (manual) {
+                    setUpdateStatus(`${t.update_failed}: ${error}`, 'error');
+                } else {
+                    hideUpdateNotice();
+                }
             } finally {
                 btnCheckUpdate.disabled = false;
             }
@@ -604,6 +643,7 @@
 
         // Initialize
         console.log('Initializing launcher...');
+        loadAppVersion();
         loadSettings().finally(() => checkForAppUpdate(false));
         } // end of initApp
     </script>

@@ -37,12 +37,42 @@ body::-webkit-scrollbar-thumb:hover {
     background: #555;
 }
 
-h1 {
-    font-size: 16px;
-    margin-bottom: 15px;
-    color: #333;
+.app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
     border-bottom: 2px solid #007bff;
     padding-bottom: 8px;
+}
+
+.app-title-wrap {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    min-width: 0;
+}
+
+h1 {
+    font-size: 16px;
+    color: #333;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.app-version {
+    color: #8a8f98;
+    font-size: 12px;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.btn-header-update {
+    flex: 0 0 auto;
+    width: auto;
+    padding: 6px 10px;
+    font-size: 12px;
 }
 
 .section {
@@ -186,8 +216,9 @@ h1 {
     cursor: pointer;
 }
 
-.update-section {
-    padding: 10px;
+.update-notice {
+    margin: -4px 0 10px;
+    padding: 8px 10px;
     border: 1px solid #d7e6f7;
     border-radius: 4px;
     background: #f7fbff;
@@ -197,7 +228,6 @@ h1 {
     font-size: 12px;
     line-height: 1.5;
     color: #333;
-    margin-bottom: 6px;
 }
 
 .update-status.available {
@@ -215,7 +245,6 @@ h1 {
 
 .update-link {
     display: inline-block;
-    margin-bottom: 8px;
     font-size: 12px;
     color: #007bff;
     text-decoration: none;
@@ -225,11 +254,18 @@ h1 {
     text-decoration: underline;
 }
 
-.update-actions {
-    margin-bottom: 0;
+.update-notice-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
 }
 
 .btn-update-install {
+    flex: 0 0 auto;
+    padding: 6px 10px;
+    font-size: 12px;
     background: #28a745;
 }
 
@@ -255,6 +291,16 @@ h1 {
 .btn-secondary:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+.app-header .btn-header-update {
+    flex: 0 0 auto;
+    width: auto;
+}
+
+.update-notice .btn-update-install {
+    flex: 0 0 auto;
+    width: auto;
 }
 
 .info-box {
@@ -293,10 +339,13 @@ h1 {
         padding: 10px;
     }
     
+    .app-header {
+        margin-bottom: 8px;
+        padding-bottom: 6px;
+    }
+
     h1 {
         font-size: 15px;
-        margin-bottom: 10px;
-        padding-bottom: 6px;
     }
     
     .section {
@@ -334,6 +383,15 @@ h1 {
     h1 {
         font-size: 14px;
     }
+
+    .app-header {
+        align-items: flex-start;
+    }
+
+    .btn-header-update {
+        padding: 5px 8px;
+        font-size: 11px;
+    }
     
     .form-row {
         flex-direction: column;
@@ -356,6 +414,11 @@ h1 {
     
     .btn, .btn-secondary {
         width: 100%;
+    }
+
+    .btn-header-update,
+    .btn-update-install {
+        width: auto;
     }
     
     .info-box p {

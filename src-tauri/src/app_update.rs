@@ -16,6 +16,7 @@ const GITHUB_LATEST_RELEASE_URL: &str =
     "https://api.github.com/repos/Ba-koD/keyviewer/releases/latest";
 const GITHUB_RELEASES_URL: &str =
     "https://api.github.com/repos/Ba-koD/keyviewer/releases?per_page=100";
+const WINDOWS_ASSET_NAME: &str = "KBQV-windows-x64.exe";
 const USER_AGENT: &str = "KeyQueueViewer";
 
 #[derive(Clone, Debug, Serialize)]
@@ -135,7 +136,17 @@ fn select_update_asset(
 
     assets
         .iter()
-        .find(|asset| asset.name.eq_ignore_ascii_case(&expected_windows_exe))
+        .find(|asset| asset.name.eq_ignore_ascii_case(WINDOWS_ASSET_NAME))
+        .or_else(|| {
+            assets
+                .iter()
+                .find(|asset| asset.name.eq_ignore_ascii_case("KBQV.exe"))
+        })
+        .or_else(|| {
+            assets
+                .iter()
+                .find(|asset| asset.name.eq_ignore_ascii_case(&expected_windows_exe))
+        })
         .or_else(|| {
             assets.iter().find(|asset| {
                 let name = asset.name.to_ascii_lowercase();
@@ -202,10 +213,18 @@ fn schedule_replace_and_restart(downloaded_exe: &Path, current_exe: &Path) -> Re
     let current_dir = current_exe
         .parent()
         .ok_or_else(|| "Current executable path has no parent directory".to_string())?;
+    let target_temp = current_exe.with_file_name(format!(
+        "{}.new",
+        current_exe
+            .file_name()
+            .ok_or_else(|| "Current executable path has no file name".to_string())?
+            .to_string_lossy()
+    ));
     let log_file = staging_dir.join("update.log");
     let script = format!(
         "$ErrorActionPreference = 'Stop'; \
          $log = {log}; \
+         $targetTemp = {target_temp}; \
          function Write-UpdateLog([string]$message) {{ \
              Add-Content -LiteralPath $log -Value ((Get-Date -Format o) + ' ' + $message) -Encoding UTF8 -ErrorAction SilentlyContinue; \
          }} \
@@ -216,7 +235,8 @@ fn schedule_replace_and_restart(downloaded_exe: &Path, current_exe: &Path) -> Re
              $copied = $false; \
              for ($attempt = 1; $attempt -le 20; $attempt++) {{ \
                  try {{ \
-                     Copy-Item -LiteralPath {downloaded} -Destination {current} -Force -ErrorAction Stop; \
+                     Copy-Item -LiteralPath {downloaded} -Destination $targetTemp -Force -ErrorAction Stop; \
+                     Move-Item -LiteralPath $targetTemp -Destination {current} -Force -ErrorAction Stop; \
                      $copied = $true; \
                      break; \
                  }} catch {{ \
@@ -228,9 +248,11 @@ fn schedule_replace_and_restart(downloaded_exe: &Path, current_exe: &Path) -> Re
              Write-UpdateLog 'Starting updated app.'; \
              Start-Process -FilePath {current} -WorkingDirectory {current_dir}; \
              Start-Sleep -Seconds 2; \
+             Remove-Item -LiteralPath $targetTemp -Force -ErrorAction SilentlyContinue; \
              Remove-Item -LiteralPath {downloaded} -Force -ErrorAction SilentlyContinue; \
              Remove-Item -LiteralPath {staging} -Recurse -Force -ErrorAction SilentlyContinue; \
          }} catch {{ \
+             Remove-Item -LiteralPath $targetTemp -Force -ErrorAction SilentlyContinue; \
              Write-UpdateLog ('Update failed: ' + $_.Exception.Message); \
              exit 1; \
          }}",
@@ -238,6 +260,7 @@ fn schedule_replace_and_restart(downloaded_exe: &Path, current_exe: &Path) -> Re
         downloaded = powershell_literal(downloaded_exe),
         current = powershell_literal(current_exe),
         current_dir = powershell_literal(current_dir),
+        target_temp = powershell_literal(&target_temp),
         staging = powershell_literal(staging_dir),
         log = powershell_literal(&log_file),
     );
@@ -334,5 +357,24 @@ mod tests {
 
         let selected = select_update_asset(&assets, parse_version("v1.2.3").unwrap()).unwrap();
         assert_eq!(selected.name, "KBQV-1.2.3-windows-x64.exe");
+    }
+
+    #[test]
+    fn prefers_stable_windows_exe_asset_name() {
+        let assets = vec![
+            GithubAsset {
+                name: "KBQV-1.2.3-windows-x64.exe".to_string(),
+                browser_download_url: "https://example.invalid/versioned".to_string(),
+                size: Some(1),
+            },
+            GithubAsset {
+                name: "KBQV-windows-x64.exe".to_string(),
+                browser_download_url: "https://example.invalid/stable".to_string(),
+                size: Some(2),
+            },
+        ];
+
+        let selected = select_update_asset(&assets, parse_version("v1.2.3").unwrap()).unwrap();
+        assert_eq!(selected.name, "KBQV-windows-x64.exe");
     }
 }
