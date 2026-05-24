@@ -31,6 +31,10 @@ use crate::state::AppState;
 #[cfg(target_os = "windows")]
 use std::collections::HashSet;
 #[cfg(target_os = "windows")]
+use std::ffi::OsStr;
+#[cfg(target_os = "windows")]
+use std::os::windows::ffi::OsStrExt;
+#[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 #[cfg(target_os = "windows")]
 use std::process::Command;
@@ -77,37 +81,65 @@ fn is_running_as_admin() -> bool {
 }
 
 #[cfg(target_os = "windows")]
+fn wide_null(value: &OsStr) -> Vec<u16> {
+    value.encode_wide().chain(std::iter::once(0)).collect()
+}
+
+#[cfg(target_os = "windows")]
+fn quote_windows_arg(arg: &OsStr) -> String {
+    let value = arg.to_string_lossy();
+    if value.is_empty() || value.chars().any(|c| c.is_whitespace() || c == '"') {
+        format!("\"{}\"", value.replace('"', "\\\""))
+    } else {
+        value.into_owned()
+    }
+}
+
+#[cfg(target_os = "windows")]
 fn try_relaunch_as_admin() -> Result<(), String> {
+    use windows::core::{w, PCWSTR};
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
     let exe_path = std::env::current_exe()
         .map_err(|e| format!("Failed to get current executable path: {}", e))?;
-    let exe_path = exe_path.to_string_lossy().replace('\'', "''");
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    let args_joined = args.join(" ").replace('\'', "''");
+    let working_dir = exe_path
+        .parent()
+        .ok_or_else(|| "Failed to get executable directory".to_string())?;
+    let args_joined = std::env::args_os()
+        .skip(1)
+        .map(|arg| quote_windows_arg(&arg))
+        .collect::<Vec<_>>()
+        .join(" ");
 
-    let command = if args_joined.is_empty() {
-        format!("Start-Process -FilePath '{}' -Verb RunAs", exe_path)
+    let exe_path_w = wide_null(exe_path.as_os_str());
+    let working_dir_w = wide_null(working_dir.as_os_str());
+    let args_w = wide_null(OsStr::new(&args_joined));
+    let args_ptr = if args_joined.is_empty() {
+        PCWSTR::null()
     } else {
-        format!(
-            "Start-Process -FilePath '{}' -ArgumentList '{}' -Verb RunAs",
-            exe_path, args_joined
-        )
+        PCWSTR(args_w.as_ptr())
     };
 
-    let status = hidden_command("powershell")
-        .args([
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            &command,
-        ])
-        .status()
-        .map_err(|e| format!("Failed to launch elevation prompt: {}", e))?;
+    let result = unsafe {
+        ShellExecuteW(
+            None,
+            w!("runas"),
+            PCWSTR(exe_path_w.as_ptr()),
+            args_ptr,
+            PCWSTR(working_dir_w.as_ptr()),
+            SW_SHOWNORMAL,
+        )
+    };
+    let code = result.0 as usize;
 
-    if status.success() {
+    if code > 32 {
         Ok(())
     } else {
-        Err("Elevation prompt was canceled or failed.".to_string())
+        Err(format!(
+            "Elevation prompt was canceled or failed (ShellExecuteW error {}).",
+            code
+        ))
     }
 }
 
@@ -786,7 +818,7 @@ fn main() {
     initial_state.app_config.port = settings.port;
     println!("Initial language: {}", initial_state.language);
 
-    #[cfg(target_os = "windows")]
+    #[cfg(all(target_os = "windows", not(debug_assertions)))]
     {
         if settings.run_on_startup {
             if let Err(e) = settings::set_windows_startup(true) {

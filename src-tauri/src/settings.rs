@@ -265,6 +265,14 @@ fn remove_legacy_run_value() {
 
 #[cfg(target_os = "windows")]
 pub fn set_windows_startup(enabled: bool) -> Result<(), String> {
+    if enabled && cfg!(debug_assertions) {
+        remove_legacy_run_value();
+        return Err(
+            "Refusing to register a debug build for Windows startup. Use a release executable."
+                .to_string(),
+        );
+    }
+
     if enabled {
         let exe_path =
             std::env::current_exe().map_err(|e| format!("Failed to get exe path: {}", e))?;
