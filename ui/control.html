@@ -214,9 +214,15 @@
 				<div class="help" id="settingsLabel" data-text-ko="설정" data-text-en="Settings">설정</div>
 				<button id="openUnifiedStyle" class="right primary" data-text-ko="🎨 키 스타일" data-text-en="🎨 Key Style">🎨 키 스타일</button>
 				<button id="openOverlayCfg" data-text-ko="⚙️ 오버레이" data-text-en="⚙️ Overlay">⚙️ 오버레이</button>
+				<label for="obsTargetPolicy" data-text-ko="HTML 입력 조건" data-text-en="HTML Input Target">HTML 입력 조건</label>
+				<select id="obsTargetPolicy" style="min-width:180px">
+					<option value="inherit" selected data-text-ko="컨트롤러 따라가기" data-text-en="Follow Controller">컨트롤러 따라가기</option>
+					<option value="fixed" data-text-ko="현재 조건 고정" data-text-en="Lock Current Target">현재 조건 고정</option>
+					<option value="all" data-text-ko="모든 창 입력" data-text-en="All Windows">모든 창 입력</option>
+				</select>
 				<button id="downloadObsFile" title="OBS 브라우저 소스에서 로컬 파일로 등록할 수 있는 독립형 HTML 다운로드" data-text-ko="💾 OBS 파일 저장" data-text-en="💾 Save OBS File">💾 OBS 파일 저장</button>
 			</div>
-			<div class="help" style="margin-top:6px; font-size:11px; color:var(--muted); line-height:1.5" data-text-ko="💡 OBS 파일 저장: OBS 브라우저 소스 캐시 문제 해결용 — 다운로드한 HTML을 브라우저 소스에서 URL 대신 로컬 파일로 등록하면 KV를 껐다 켜도 자동으로 재연결됩니다." data-text-en="💡 <b>Save OBS File</b>: Fixes OBS browser source cache issues — register the downloaded HTML as a <b>local file</b> in OBS (not URL) for automatic reconnection when KV restarts.">💡 <b>OBS 파일 저장</b>: OBS 브라우저 소스 캐시 문제 해결용 — 다운로드한 HTML을 브라우저 소스에서 URL 대신 <b>로컬 파일</b>로 등록하면 KV를 껐다 켜도 자동으로 재연결됩니다.</div>
+			<div class="help" style="margin-top:6px; font-size:11px; color:var(--muted); line-height:1.5" data-text-ko="💡 OBS 파일 저장: 다운로드한 HTML을 브라우저 소스에서 URL 대신 로컬 파일로 등록합니다. 입력 조건은 컨트롤러 따라가기, 현재 조건 고정, 모든 창 입력 중 선택할 수 있습니다." data-text-en="💡 <b>Save OBS File</b>: Register the downloaded HTML as a <b>local file</b> in OBS (not URL). The file can follow the controller, lock the current target, or listen to all windows.">💡 <b>OBS 파일 저장</b>: 다운로드한 HTML을 브라우저 소스에서 URL 대신 <b>로컬 파일</b>로 등록합니다. 입력 조건은 컨트롤러 따라가기, 현재 조건 고정, 모든 창 입력 중 선택할 수 있습니다.</div>
 		</div>
 
 		<!-- Overlay Mode Selector -->
@@ -976,6 +982,7 @@
 		const listEl = null;
 		const fginfoEl = document.getElementById('fginfo');
 		const valuePick = document.getElementById('valuePick');
+		const obsTargetPolicy = document.getElementById('obsTargetPolicy');
 		let lastWindows = [];
 		const winTableBody = document.getElementById('winTableBody');
 		let sortKey = 'process';
@@ -1686,6 +1693,7 @@
 		const debugValue = document.getElementById('debugValue');
 		const debugStatus = document.getElementById('debugStatus');
 
+		let savedMode = 'disabled';
 		let savedValue = '';
 		let currentLanguage = 'ko'; // 기본값을 한국어로 설정
 		let currentStatus = ''; // 현재 작동 상태 저장
@@ -3615,6 +3623,7 @@
 				const res = await fetch('/api/target');
 				const j = await res.json();
 				modeEl.value = j.mode || 'process'; // 기본값: 프로세스
+				savedMode = j.mode || 'process';
 				valuePick.value = j.value || '';
 				savedValue = j.value || '';
 				
@@ -3637,6 +3646,7 @@
 					const lastValue = localStorage.getItem('last_value');
 					if (lastMode) {
 						modeEl.value = lastMode;
+						savedMode = lastMode;
 						savedValue = lastValue || '';
 						
 						// Auto-apply if we have saved settings
@@ -3647,6 +3657,7 @@
 				} catch(localErr) {
 					// If localStorage fails, use defaults
 					modeEl.value = 'disabled';
+					savedMode = 'disabled';
 					savedValue = '';
 				}
 				
@@ -3667,6 +3678,7 @@
 			try{
 				await fetch('/api/target', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, value }) });
 				statusEl.textContent = currentLanguage === 'ko' ? '적용됨' : 'Applied';
+				savedMode = mode || 'disabled';
 				savedValue = value || '';
 				
 				// Save to localStorage for portable
@@ -3891,12 +3903,29 @@
 			}
 		}
 
+		function appendObsTargetPolicy(params) {
+			const policy = obsTargetPolicy?.value || 'inherit';
+			if (policy === 'all') {
+				params.set('targetMode', 'all');
+				return;
+			}
+			if (policy !== 'fixed') return;
+
+			const mode = savedMode || modeEl.value || 'disabled';
+			params.set('targetMode', mode);
+			if (!['disabled', 'all'].includes(mode)) {
+				const value = savedValue || '';
+				if (value) params.set('targetValue', value);
+			}
+		}
+
 		document.getElementById('downloadObsFile').addEventListener('click', async () => {
 			await syncObsLocalFileSnapshot();
 			const a = document.createElement('a');
 			const params = new URLSearchParams({
 				hideKeyText: JSON.stringify(getHideKeyText())
 			});
+			appendObsTargetPolicy(params);
 			a.href = '/obs-local-file?' + params.toString();
 			a.download = 'keyviewer-obs-overlay.html';
 			a.click();

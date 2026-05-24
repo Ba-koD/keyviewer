@@ -323,24 +323,14 @@ pub fn start_keyboard_hook(state: Arc<RwLock<AppState>>) {
             let state_clone = Arc::clone(&state);
             std::mem::forget(state); // Don't drop the Arc
 
-            // Check target config first
-            let target_config = {
-                let state_lock = state_clone.read();
-                state_lock.target_config.clone()
-            };
-
-            if !should_process_event(&target_config) {
-                return Some(event.to_owned());
-            }
-
             match event_type {
                 CGEventType::KeyDown => {
                     let keycode = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE);
                     let label = keycode_to_label(keycode as u16);
-                    eprintln!("[Keyboard Hook] Key down: {} (keycode {})", label, keycode);
 
+                    let source_window = window_info::get_foreground_window();
                     let mut state_lock = state_clone.write();
-                    state_lock.add_key(keycode as u32, label);
+                    state_lock.add_key_with_window(keycode as u32, label, source_window);
                 }
                 CGEventType::KeyUp => {
                     let keycode = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE);
@@ -355,12 +345,6 @@ pub fn start_keyboard_hook(state: Arc<RwLock<AppState>>) {
                     MODIFIER_STATE.store(flags.bits(), Ordering::Relaxed);
 
                     let label = keycode_to_label(keycode as u16);
-                    eprintln!(
-                        "[Keyboard Hook] FlagsChanged: {} (keycode {}, flags 0x{:X})",
-                        label,
-                        keycode,
-                        flags.bits()
-                    );
 
                     // Determine if key was pressed or released based on flag changes
                     let is_pressed = match keycode {
@@ -381,7 +365,8 @@ pub fn start_keyboard_hook(state: Arc<RwLock<AppState>>) {
 
                     let mut state_lock = state_clone.write();
                     if is_pressed {
-                        state_lock.add_key(keycode as u32, label);
+                        let source_window = window_info::get_foreground_window();
+                        state_lock.add_key_with_window(keycode as u32, label, source_window);
                     } else {
                         state_lock.remove_key(keycode as u32);
                     }
@@ -497,12 +482,6 @@ pub fn start_keyboard_hook(state: Arc<RwLock<AppState>>) {
 // Process input events in a separate thread (Linux only)
 #[cfg(target_os = "linux")]
 fn process_input_events(rx: mpsc::Receiver<InputEvent>, state: Arc<RwLock<AppState>>) {
-    // Cache for target config to reduce lock contention
-    let mut cached_target_mode = String::new();
-    let mut cached_target_value: Option<String> = None;
-    let mut config_check_counter = 0u32;
-    const CONFIG_REFRESH_INTERVAL: u32 = 50; // Refresh config every N events
-
     loop {
         // Wait for next event
         let event = match rx.recv() {
@@ -513,182 +492,25 @@ fn process_input_events(rx: mpsc::Receiver<InputEvent>, state: Arc<RwLock<AppSta
             }
         };
 
-        // Periodically refresh cached target config
-        config_check_counter += 1;
-        if config_check_counter >= CONFIG_REFRESH_INTERVAL || cached_target_mode.is_empty() {
-            config_check_counter = 0;
-            let state_lock = state.read();
-            cached_target_mode = state_lock.target_config.mode.clone();
-            cached_target_value = state_lock.target_config.value.clone();
-        }
-
         match event {
             InputEvent::KeyPress { code, label } => {
-                // Check if target window matches (uses cached config)
-                if !should_process_event_cached(&cached_target_mode, &cached_target_value) {
-                    continue;
-                }
-
-                eprintln!("[Event Processor] KeyPress: code={}, label={}", code, label);
+                let source_window = window_info::get_foreground_window();
                 let mut state_lock = state.write();
-                state_lock.add_key(code, label);
+                state_lock.add_key_with_window(code, label, source_window);
             }
             InputEvent::KeyRelease { code } => {
-                // For release events: process if key is tracked OR mode is "all"
-                let should_process = {
-                    let state_lock = state.read();
-                    state_lock.is_key_pressed(code) || cached_target_mode == "all"
-                };
-
-                if should_process {
-                    eprintln!("[Event Processor] KeyRelease: code={}", code);
-                    let mut state_lock = state.write();
-                    state_lock.remove_key(code);
-                }
+                let mut state_lock = state.write();
+                state_lock.remove_key(code);
             }
             InputEvent::ButtonPress { code, label } => {
-                if !should_process_event_cached(&cached_target_mode, &cached_target_value) {
-                    continue;
-                }
-
-                eprintln!(
-                    "[Event Processor] ButtonPress: code={}, label={}",
-                    code, label
-                );
+                let source_window = window_info::get_foreground_window();
                 let mut state_lock = state.write();
-                state_lock.add_key(code, label);
+                state_lock.add_key_with_window(code, label, source_window);
             }
             InputEvent::ButtonRelease { code } => {
-                let should_process = {
-                    let state_lock = state.read();
-                    state_lock.is_key_pressed(code) || cached_target_mode == "all"
-                };
-
-                if should_process {
-                    eprintln!("[Event Processor] ButtonRelease: code={}", code);
-                    let mut state_lock = state.write();
-                    state_lock.remove_key(code);
-                }
+                let mut state_lock = state.write();
+                state_lock.remove_key(code);
             }
-        }
-    }
-}
-
-// Optimized version that uses cached config (reduces lock contention)
-#[cfg(not(target_os = "macos"))]
-fn should_process_event_cached(mode: &str, value: &Option<String>) -> bool {
-    match mode {
-        "disabled" => false,
-        "all" => true,
-        "title" | "process" | "hwnd" | "class" => {
-            // Get foreground window info and check if it matches
-            if let Some(window_info) = window_info::get_foreground_window() {
-                match mode {
-                    "title" => {
-                        if let Some(v) = value {
-                            window_info.title.to_lowercase().contains(&v.to_lowercase())
-                        } else {
-                            false
-                        }
-                    }
-                    "process" => {
-                        if let Some(v) = value {
-                            window_info.process.to_lowercase() == v.to_lowercase()
-                        } else {
-                            false
-                        }
-                    }
-                    "hwnd" => {
-                        if let Some(v) = value {
-                            window_info.hwnd == *v
-                        } else {
-                            false
-                        }
-                    }
-                    "class" => {
-                        if let Some(v) = value {
-                            window_info.class.to_lowercase() == v.to_lowercase()
-                        } else {
-                            false
-                        }
-                    }
-                    _ => false,
-                }
-            } else {
-                false
-            }
-        }
-        _ => false,
-    }
-}
-
-#[cfg(target_os = "macos")]
-fn should_process_event(target_config: &crate::state::TargetConfig) -> bool {
-    let mode = target_config.mode.as_str();
-
-    match mode {
-        "disabled" => {
-            eprintln!("[Keyboard Hook] Mode is 'disabled' - ignoring event");
-            false
-        }
-        "all" => {
-            eprintln!("[Keyboard Hook] Mode is 'all' - accepting event");
-            true
-        }
-        "title" | "process" | "hwnd" | "class" => {
-            // Get foreground window info and check if it matches
-            if let Some(window_info) = window_info::get_foreground_window() {
-                eprintln!(
-                    "[Keyboard Hook] Checking window - title: '{}', process: '{}'",
-                    window_info.title, window_info.process
-                );
-
-                let result = match mode {
-                    "title" => {
-                        if let Some(value) = &target_config.value {
-                            window_info
-                                .title
-                                .to_lowercase()
-                                .contains(&value.to_lowercase())
-                        } else {
-                            false
-                        }
-                    }
-                    "process" => {
-                        if let Some(value) = &target_config.value {
-                            window_info.process.to_lowercase() == value.to_lowercase()
-                        } else {
-                            false
-                        }
-                    }
-                    "hwnd" => {
-                        if let Some(value) = &target_config.value {
-                            window_info.hwnd == *value
-                        } else {
-                            false
-                        }
-                    }
-                    "class" => {
-                        if let Some(value) = &target_config.value {
-                            window_info.class.to_lowercase() == value.to_lowercase()
-                        } else {
-                            false
-                        }
-                    }
-                    _ => false,
-                };
-
-                eprintln!("[Keyboard Hook] Filter result: {}", result);
-
-                result
-            } else {
-                eprintln!("[Keyboard Hook] Could not get foreground window");
-                false
-            }
-        }
-        _ => {
-            eprintln!("[Keyboard Hook] Unknown mode: {}", mode);
-            false
         }
     }
 }
@@ -825,43 +647,10 @@ fn validate_key_state_loop(state: Arc<RwLock<AppState>>) {
 
     loop {
         std::thread::sleep(Duration::from_millis(KEY_POLLING_INTERVAL_MS));
-
-        // Check target window filter
-        let target_config = {
-            let s = state.read();
-            s.target_config.clone()
-        };
-
-        // Skip if disabled
-        if target_config.mode == "disabled" {
-            // Clear all keys when disabled
-            let has_keys = { !state.read().key_labels.is_empty() };
-            if has_keys {
-                state.write().clear_keys();
-                polling_state.clear();
-            }
-            continue;
-        }
-
-        // Check if current window matches target (for non-"all" modes)
-        let should_track = if target_config.mode == "all" {
-            true
-        } else {
-            should_process_event_cached(&target_config.mode, &target_config.value)
-        };
-
-        if !should_track {
-            // Clear keys when not in target window
-            let has_keys = { !state.read().key_labels.is_empty() };
-            if has_keys {
-                state.write().clear_keys();
-                polling_state.clear();
-            }
-            continue;
-        }
+        let source_window = window_info::get_foreground_window();
 
         // Poll all monitored keys
-        let mut keys_to_add: Vec<(i32, &str)> = Vec::new();
+        let mut keys_to_add: Vec<(i32, &str, Option<window_info::WindowInfo>)> = Vec::new();
         let mut keys_to_remove: Vec<i32> = Vec::new();
 
         for &(vk, label) in MONITORED_KEYS {
@@ -871,18 +660,10 @@ fn validate_key_state_loop(state: Arc<RwLock<AppState>>) {
 
             if is_down && !was_down {
                 // Key just pressed
-                eprintln!(
-                    "[Poller] PRESS: {} (vk=0x{:02X}, raw_state=0x{:04X})",
-                    label, vk, key_state
-                );
-                keys_to_add.push((vk, label));
+                keys_to_add.push((vk, label, source_window.clone()));
                 polling_state.insert(vk, true);
             } else if !is_down && was_down {
                 // Key just released
-                eprintln!(
-                    "[Poller] RELEASE: {} (vk=0x{:02X}, raw_state=0x{:04X})",
-                    label, vk, key_state
-                );
                 keys_to_remove.push(vk);
                 polling_state.insert(vk, false);
             }
@@ -892,20 +673,16 @@ fn validate_key_state_loop(state: Arc<RwLock<AppState>>) {
         if !keys_to_add.is_empty() || !keys_to_remove.is_empty() {
             let mut state_lock = state.write();
 
-            for (vk, label) in &keys_to_add {
+            for (vk, label, source_window) in &keys_to_add {
                 // Use VK code as the key code for polling-based tracking
                 let code = *vk as u32 | 0x80000000; // High bit set to distinguish from hook codes
-                state_lock.add_key(code, label.to_string());
+                state_lock.add_key_with_window(code, label.to_string(), source_window.clone());
             }
 
             for vk in &keys_to_remove {
                 let code = *vk as u32 | 0x80000000;
                 state_lock.remove_key(code);
             }
-
-            // Debug: show current state
-            let current_keys: Vec<String> = state_lock.label_order.iter().cloned().collect();
-            eprintln!("[Poller] Current keys: {:?}", current_keys);
         }
     }
 }

@@ -1,3 +1,4 @@
+use crate::window_info::WindowInfo;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -16,6 +17,12 @@ impl Default for TargetConfig {
             value: None,
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct ActiveKey {
+    pub label: String,
+    pub window: Option<WindowInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -366,8 +373,8 @@ impl Default for AppConfig {
 }
 
 pub struct AppState {
-    // Map of key code to label for tracking (code -> label)
-    pub key_labels: HashMap<u32, String>,
+    // Map of key code to label/source window for tracking.
+    pub key_labels: HashMap<u32, ActiveKey>,
     // Reference count for each label (multiple keys can have same label, e.g. ShiftLeft/ShiftRight both = "SHIFT")
     pub label_counts: HashMap<String, u32>,
     // Order of first press for each unique label (for display order)
@@ -405,14 +412,25 @@ impl AppState {
         self.event_tx = Some(tx);
     }
 
-    pub fn add_key(&mut self, key_code: u32, label: String) {
+    pub fn add_key_with_window(
+        &mut self,
+        key_code: u32,
+        label: String,
+        window: Option<WindowInfo>,
+    ) {
         // Skip if this exact key code is already tracked
         if self.key_labels.contains_key(&key_code) {
             return;
         }
 
         // Track this key code -> label mapping
-        self.key_labels.insert(key_code, label.clone());
+        self.key_labels.insert(
+            key_code,
+            ActiveKey {
+                label: label.clone(),
+                window,
+            },
+        );
 
         // Increment reference count for this label
         let count = self.label_counts.entry(label.clone()).or_insert(0);
@@ -430,7 +448,9 @@ impl AppState {
 
     pub fn remove_key(&mut self, key_code: u32) {
         // Get and remove the label for this key code
-        if let Some(label) = self.key_labels.remove(&key_code) {
+        if let Some(entry) = self.key_labels.remove(&key_code) {
+            let label = entry.label;
+
             // Decrement reference count
             if let Some(count) = self.label_counts.get_mut(&label) {
                 *count = count.saturating_sub(1);
@@ -452,9 +472,7 @@ impl AppState {
         self.key_labels.clear();
         self.label_counts.clear();
         self.label_order.clear();
-        if let Some(tx) = &self.event_tx {
-            let _ = tx.send(self.get_keys());
-        }
+        self.publish_keys();
     }
 
     // Check if a key code is currently tracked
@@ -472,5 +490,123 @@ impl AppState {
 
     pub fn get_keys(&self) -> Vec<String> {
         self.label_order.iter().cloned().collect()
+    }
+
+    pub fn publish_keys(&self) {
+        if let Some(tx) = &self.event_tx {
+            let _ = tx.send(self.get_keys());
+        }
+    }
+
+    pub fn target_requires_window(target: &TargetConfig) -> bool {
+        matches!(target.mode.as_str(), "title" | "process" | "hwnd" | "class")
+    }
+
+    pub fn window_matches_target(window: &WindowInfo, target: &TargetConfig) -> bool {
+        match target.mode.as_str() {
+            "all" => true,
+            "title" => target
+                .value
+                .as_ref()
+                .is_some_and(|value| window.title.to_lowercase().contains(&value.to_lowercase())),
+            "process" => target
+                .value
+                .as_ref()
+                .is_some_and(|value| window.process.to_lowercase() == value.to_lowercase()),
+            "hwnd" => target
+                .value
+                .as_ref()
+                .is_some_and(|value| window.hwnd == *value),
+            "class" => target
+                .value
+                .as_ref()
+                .is_some_and(|value| window.class.to_lowercase() == value.to_lowercase()),
+            _ => false,
+        }
+    }
+
+    pub fn get_keys_for_target(
+        &self,
+        target: &TargetConfig,
+        foreground_window: Option<&WindowInfo>,
+    ) -> Vec<String> {
+        match target.mode.as_str() {
+            "disabled" => Vec::new(),
+            "all" => self.get_keys(),
+            "title" | "process" | "hwnd" | "class" => {
+                let Some(foreground_window) = foreground_window else {
+                    return Vec::new();
+                };
+                if !Self::window_matches_target(foreground_window, target) {
+                    return Vec::new();
+                }
+
+                self.label_order
+                    .iter()
+                    .filter(|label| {
+                        self.key_labels.values().any(|entry| {
+                            &entry.label == *label
+                                && entry.window.as_ref().is_some_and(|window| {
+                                    Self::window_matches_target(window, target)
+                                })
+                        })
+                    })
+                    .cloned()
+                    .collect()
+            }
+            _ => Vec::new(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn window(process: &str, title: &str, hwnd: &str) -> WindowInfo {
+        WindowInfo {
+            hwnd: hwnd.to_string(),
+            title: title.to_string(),
+            process: process.to_string(),
+            class: "GameWindow".to_string(),
+        }
+    }
+
+    #[test]
+    fn filters_keys_by_source_and_current_foreground_window() {
+        let game = window("Maplestory.exe", "MapleStory", "100");
+        let notes = window("notepad.exe", "notes", "200");
+        let mut state = AppState::new();
+        state.add_key_with_window(1, "A".to_string(), Some(game.clone()));
+        state.add_key_with_window(2, "B".to_string(), Some(notes.clone()));
+
+        let target = TargetConfig {
+            mode: "process".to_string(),
+            value: Some("Maplestory.exe".to_string()),
+        };
+
+        assert_eq!(
+            state.get_keys_for_target(&target, Some(&game)),
+            vec!["A".to_string()]
+        );
+        assert!(state.get_keys_for_target(&target, Some(&notes)).is_empty());
+    }
+
+    #[test]
+    fn all_target_returns_raw_keys() {
+        let game = window("Maplestory.exe", "MapleStory", "100");
+        let mut state = AppState::new();
+        state.add_key_with_window(1, "A".to_string(), Some(game));
+        state.add_key_with_window(2, "B".to_string(), None);
+
+        let target = TargetConfig {
+            mode: "all".to_string(),
+            value: None,
+        };
+
+        assert_eq!(
+            state.get_keys_for_target(&target, None),
+            vec!["A".to_string(), "B".to_string()]
+        );
     }
 }

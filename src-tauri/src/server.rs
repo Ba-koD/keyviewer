@@ -242,6 +242,90 @@ async fn root_redirect() -> impl IntoResponse {
 struct ObsLocalFileQuery {
     #[serde(rename = "hideKeyText")]
     hide_key_text: Option<String>,
+    #[serde(rename = "targetMode")]
+    target_mode: Option<String>,
+    #[serde(rename = "targetValue")]
+    target_value: Option<String>,
+}
+
+#[derive(Clone)]
+enum WsTargetPolicy {
+    Inherit,
+    Fixed(TargetConfig),
+}
+
+#[derive(serde::Deserialize, Default)]
+struct WsTargetQuery {
+    #[serde(rename = "targetMode")]
+    target_mode: Option<String>,
+    #[serde(rename = "targetValue")]
+    target_value: Option<String>,
+}
+
+impl WsTargetQuery {
+    fn into_policy(self) -> WsTargetPolicy {
+        query_target_to_policy(self.target_mode, self.target_value)
+    }
+}
+
+fn query_target_to_policy(
+    target_mode: Option<String>,
+    target_value: Option<String>,
+) -> WsTargetPolicy {
+    let Some(mode) = target_mode.map(|mode| mode.trim().to_string()) else {
+        return WsTargetPolicy::Inherit;
+    };
+    if mode.is_empty() || mode == "inherit" {
+        return WsTargetPolicy::Inherit;
+    }
+
+    let value = target_value
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    WsTargetPolicy::Fixed(TargetConfig { mode, value })
+}
+
+fn percent_encode_query_value(value: &str) -> String {
+    let mut encoded = String::new();
+    for byte in value.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                encoded.push(byte as char)
+            }
+            _ => encoded.push_str(&format!("%{:02X}", byte)),
+        }
+    }
+    encoded
+}
+
+fn append_target_query(ws_url: &mut String, policy: WsTargetPolicy) {
+    if let WsTargetPolicy::Fixed(target) = policy {
+        ws_url.push_str("?targetMode=");
+        ws_url.push_str(&percent_encode_query_value(&target.mode));
+        if let Some(value) = target.value {
+            ws_url.push_str("&targetValue=");
+            ws_url.push_str(&percent_encode_query_value(&value));
+        }
+    }
+}
+
+fn get_keys_for_socket_target(state: &SharedState, policy: &WsTargetPolicy) -> Vec<String> {
+    let target = match policy {
+        WsTargetPolicy::Inherit => {
+            let s = state.read();
+            s.target_config.clone()
+        }
+        WsTargetPolicy::Fixed(target) => target.clone(),
+    };
+    let foreground_window = if AppState::target_requires_window(&target) {
+        window_info::get_foreground_window()
+    } else {
+        None
+    };
+
+    let s = state.read();
+    s.get_keys_for_target(&target, foreground_window.as_ref())
 }
 
 // Generate and serve the OBS local-file HTML.
@@ -271,7 +355,11 @@ async fn get_obs_local_file(
         .unwrap_or_else(|| json!({}))
         .to_string();
     let base = format!("http://127.0.0.1:{}", port);
-    let ws_url = format!("ws://127.0.0.1:{}/ws", port);
+    let mut ws_url = format!("ws://127.0.0.1:{}/ws", port);
+    append_target_query(
+        &mut ws_url,
+        query_target_to_policy(query.target_mode.clone(), query.target_value.clone()),
+    );
 
     let html = OVERLAY_HTML
         // 1. Remove favicon (not needed, avoids a failed request)
@@ -514,17 +602,19 @@ async fn get_favicon() -> impl IntoResponse {
 
 async fn websocket_handler(
     ws: WebSocketUpgrade,
+    Query(query): Query<WsTargetQuery>,
     AxumState(state): AxumState<SharedState>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(|socket| handle_socket(socket, state))
+    ws.on_upgrade(|socket| handle_socket(socket, state, query.into_policy()))
 }
 
-async fn handle_socket(mut socket: WebSocket, state: SharedState) {
+async fn handle_socket(mut socket: WebSocket, state: SharedState, target_policy: WsTargetPolicy) {
     // Send hello with boot_id so the client can detect stale cached pages
-    let (keys, boot_id) = {
+    let boot_id = {
         let state_lock = state.read();
-        (state_lock.get_keys(), state_lock.cache_buster)
+        state_lock.cache_buster
     };
+    let keys = get_keys_for_socket_target(&state, &target_policy);
     let initial_msg = json!({ "type": "hello", "boot_id": boot_id, "keys": keys });
     if socket
         .send(Message::Text(initial_msg.to_string()))
@@ -545,14 +635,17 @@ async fn handle_socket(mut socket: WebSocket, state: SharedState) {
     loop {
         // Prefer event-driven; fall back to small sleep if no channel yet
         if let Some(rx) = rx_opt.as_mut() {
-            let _ = rx.changed().await; // wake on change
+            tokio::select! {
+                _ = rx.changed() => {},
+                _ = sleep(Duration::from_millis(50)) => {},
+            }
         } else {
-            sleep(Duration::from_millis(15)).await;
+            sleep(Duration::from_millis(50)).await;
         }
 
-        let (alive, keys) = {
+        let alive = {
             let s = state.read();
-            (s.server_alive, s.get_keys())
+            s.server_alive
         };
 
         if !alive {
@@ -564,6 +657,7 @@ async fn handle_socket(mut socket: WebSocket, state: SharedState) {
             break;
         }
 
+        let keys = get_keys_for_socket_target(&state, &target_policy);
         let msg_str = json!({ "keys": keys }).to_string();
         if msg_str == last_sent {
             continue;
@@ -612,7 +706,7 @@ async fn api_set_target(
 ) -> impl IntoResponse {
     let mut state_lock = state.write();
     state_lock.target_config = payload.clone();
-    state_lock.clear_keys();
+    state_lock.publish_keys();
 
     // Save to registry
     let _ = crate::settings::save_target_config(&payload.mode, payload.value.as_deref());
