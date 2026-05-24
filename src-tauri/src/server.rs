@@ -332,9 +332,9 @@ fn get_keys_for_socket_target(state: &SharedState, policy: &WsTargetPolicy) -> V
 // Built by transforming overlay.html:
 //   1. CSS files are inlined
 //   2. Current overlay/key images/key style snapshots are baked in
-//   3. All API/WS URLs become absolute (http://127.0.0.1:PORT/...)
+//   3. WS URL becomes absolute (ws://127.0.0.1:PORT/...)
 //   4. boot_id reload check is disabled (local file is always fresh)
-//   5. On WS reconnect after shutdown, config is re-fetched instead of page reload
+//   5. Config API refreshes are disabled so style/images stay fixed at export time
 async fn get_obs_local_file(
     Query(query): Query<ObsLocalFileQuery>,
     AxumState(state): AxumState<SharedState>,
@@ -393,7 +393,7 @@ async fn get_obs_local_file(
     let html = match replace_required(
         html,
         "if (didShutdown) { location.reload(); return; }",
-        "if (didShutdown) { didShutdown = false; initConfig(); loadKeyImagesConfig(); loadKeyStyleConfig(); return; }",
+        "if (didShutdown) { didShutdown = false; return; }",
         "shutdown reconnect handler",
     ) {
         Ok(html) => html,
@@ -424,14 +424,26 @@ async fn get_obs_local_file(
         )
         .replace(
             "Promise.all([initConfig(), loadKeyImagesConfig(), loadKeyStyleConfig()]).then(()=> setupConfigPanel()); connect();",
-            "if (overlayCfg) applyOverlayConfig(overlayCfg); Promise.all([initConfig(), loadKeyImagesConfig(), loadKeyStyleConfig()]).then(()=> setupConfigPanel()); connect();",
+            "if (overlayCfg) applyOverlayConfig(overlayCfg); connect();",
+        )
+        .replace(
+            "setInterval(initConfig, 5000);",
+            "// [local file] config refresh disabled; uses export-time overlay snapshot.",
+        )
+        .replace(
+            "setInterval(loadKeyImagesConfig, 5000);",
+            "// [local file] key image refresh disabled; uses export-time snapshot.",
+        )
+        .replace(
+            "setInterval(loadKeyStyleConfig, 5000);",
+            "// [local file] key style refresh disabled; uses export-time snapshot.",
         )
         // 7. Make WS URL absolute
         .replace(
             "const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';",
             &format!("const url = '{}'; // [local file] absolute URL", ws_url),
         )
-        // 8. Make all fetch() calls use absolute URL
+        // 8. Keep any dormant API calls absolute if a user manually opens debug config.
         .replace("fetch('/api/", &format!("fetch('{}/api/", base));
 
     Response::builder()
