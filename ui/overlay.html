@@ -144,6 +144,7 @@
 		}
 
 		async function initConfig(){
+			if (IS_LOCAL_FILE) return;
 			try{
 				const buster = Date.now();
 				const res = await fetch('/api/overlay-config?cb=' + buster, { cache: 'no-store' });
@@ -152,6 +153,7 @@
 		}
 
 		async function loadKeyStyleConfig(){
+			if (IS_LOCAL_FILE) return;
 			try{
 				const buster = Date.now();
 				const res = await fetch('/api/key-style?cb=' + buster, { cache: 'no-store' });
@@ -162,6 +164,7 @@
 		}
 
 		async function loadKeyImagesConfig(){
+			if (IS_LOCAL_FILE) return;
 			try{
 				const buster = Date.now();
 				const res = await fetch('/api/key-images?cb=' + buster, { cache: 'no-store' });
@@ -441,11 +444,13 @@
 			if (typeof next.chip_bg === 'string') { root.style.setProperty('--chip-bg', next.chip_bg); overlayCfg.chip_bg = next.chip_bg; }
 			if (typeof next.chip_fg === 'string') { root.style.setProperty('--chip-fg', next.chip_fg); overlayCfg.chip_fg = next.chip_fg; }
 			// Persist full config so OBS reload is consistent
+			if (IS_LOCAL_FILE) return;
 			const payload = Object.assign({}, overlayCfg);
 			fetch('/api/overlay-config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }).catch(()=>{});
 		}
 
 		function setupConfigPanel(){
+			if (IS_LOCAL_FILE) return;
 			const panel = document.getElementById('cfgPanel');
 			const bgHex = document.getElementById('cfg_bg_hex');
 			const bgPick = document.getElementById('cfg_bg');
@@ -516,7 +521,10 @@
 			ws = new WebSocket(url);
 			ws.onopen = () => {
 				// Fallback: if we previously received a shutdown event, reload unconditionally.
-				if (didShutdown) { location.reload(); return; }
+				if (didShutdown) {
+					if (!IS_LOCAL_FILE) { location.reload(); return; }
+					didShutdown = false;
+				}
 			};
 			ws.onmessage = (ev) => { 
 				try { 
@@ -524,7 +532,7 @@
 					if (data.type === 'hello') {
 						// Primary cache-bust check: if the server's boot_id differs from the one
 						// baked into this page, OBS is serving a stale cached copy → force reload.
-						if (data.boot_id !== undefined && data.boot_id !== SERVER_BOOT_ID) {
+						if (!IS_LOCAL_FILE && data.boot_id !== undefined && data.boot_id !== SERVER_BOOT_ID) {
 							location.reload();
 							return;
 						}
@@ -535,7 +543,7 @@
 						didShutdown = true;
 						return;
 					}
-					if (data.type === 'config' && data.overlay){ 
+					if (!IS_LOCAL_FILE && data.type === 'config' && data.overlay){
 						applyOverlayConfig(data.overlay); 
 						return; 
 					} 
@@ -550,18 +558,27 @@
 
 		// Listen for localStorage changes (from control.html)
 		window.addEventListener('storage', (e) => {
+			if (IS_LOCAL_FILE) return;
 			if (e.key === STORAGE_KEY_IMAGES || e.key === STORAGE_KEY_HIDE) {
 				if (isKeyViewerMode()) renderKeyViewerFree(lastKeys);
 				else placeChips(lastKeys, true);
 			}
 		});
 
-		Promise.all([initConfig(), loadKeyImagesConfig(), loadKeyStyleConfig()]).then(()=> setupConfigPanel()); connect();
+		if (IS_LOCAL_FILE) {
+			if (overlayCfg) applyOverlayConfig(overlayCfg);
+			connect();
+		} else {
+			Promise.all([initConfig(), loadKeyImagesConfig(), loadKeyStyleConfig()]).then(()=> setupConfigPanel());
+			connect();
+		}
 		
 		// Periodically refresh key images config (every 5 seconds)
-		setInterval(initConfig, 5000);
-		setInterval(loadKeyImagesConfig, 5000);
-		setInterval(loadKeyStyleConfig, 5000);
+		if (!IS_LOCAL_FILE) {
+			setInterval(initConfig, 5000);
+			setInterval(loadKeyImagesConfig, 5000);
+			setInterval(loadKeyStyleConfig, 5000);
+		}
 	})();
 	</script>
 </body>

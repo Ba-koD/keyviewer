@@ -222,18 +222,6 @@ fn create_router(state: SharedState) -> Router {
         .with_state(state)
 }
 
-fn replace_required(html: String, from: &str, to: &str, label: &str) -> Result<String, String> {
-    let replaced = html.replacen(from, to, 1);
-    if replaced == html {
-        Err(format!(
-            "Failed to generate OBS local file: missing {} marker",
-            label
-        ))
-    } else {
-        Ok(replaced)
-    }
-}
-
 async fn root_redirect() -> impl IntoResponse {
     (StatusCode::FOUND, [(header::LOCATION, "/control")])
 }
@@ -354,7 +342,6 @@ async fn get_obs_local_file(
         .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())
         .unwrap_or_else(|| json!({}))
         .to_string();
-    let base = format!("http://127.0.0.1:{}", port);
     let mut ws_url = format!("ws://127.0.0.1:{}/ws", port);
     append_target_query(
         &mut ws_url,
@@ -380,26 +367,6 @@ async fn get_obs_local_file(
         // 4. Mark as local file (boot_id placeholder → sentinel string)
         .replace("__BOOT_ID__", "\"__KV_LOCAL__\"");
 
-    let html = match replace_required(
-        html,
-        "if (data.boot_id !== undefined && data.boot_id !== SERVER_BOOT_ID) {",
-        "if (false && data.boot_id !== undefined && data.boot_id !== SERVER_BOOT_ID) {",
-        "boot_id reload guard",
-    ) {
-        Ok(html) => html,
-        Err(err) => return (StatusCode::INTERNAL_SERVER_ERROR, err).into_response(),
-    };
-
-    let html = match replace_required(
-        html,
-        "if (didShutdown) { location.reload(); return; }",
-        "if (didShutdown) { didShutdown = false; return; }",
-        "shutdown reconnect handler",
-    ) {
-        Ok(html) => html,
-        Err(err) => return (StatusCode::INTERNAL_SERVER_ERROR, err).into_response(),
-    };
-
     let html = html
         // 7. Bake the current config into the downloaded file so it renders with the
         // current overlay/keyviewer layout before the server replies.
@@ -422,29 +389,11 @@ async fn get_obs_local_file(
             "const BAKED_HIDE_KEY_TEXT = {};",
             &format!("const BAKED_HIDE_KEY_TEXT = {};", hide_key_text_snapshot),
         )
-        .replace(
-            "Promise.all([initConfig(), loadKeyImagesConfig(), loadKeyStyleConfig()]).then(()=> setupConfigPanel()); connect();",
-            "if (overlayCfg) applyOverlayConfig(overlayCfg); connect();",
-        )
-        .replace(
-            "setInterval(initConfig, 5000);",
-            "// [local file] config refresh disabled; uses export-time overlay snapshot.",
-        )
-        .replace(
-            "setInterval(loadKeyImagesConfig, 5000);",
-            "// [local file] key image refresh disabled; uses export-time snapshot.",
-        )
-        .replace(
-            "setInterval(loadKeyStyleConfig, 5000);",
-            "// [local file] key style refresh disabled; uses export-time snapshot.",
-        )
         // 7. Make WS URL absolute
         .replace(
             "const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';",
             &format!("const url = '{}'; // [local file] absolute URL", ws_url),
-        )
-        // 8. Keep any dormant API calls absolute if a user manually opens debug config.
-        .replace("fetch('/api/", &format!("fetch('{}/api/", base));
+        );
 
     Response::builder()
         .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
