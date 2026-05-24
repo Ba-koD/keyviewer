@@ -66,6 +66,26 @@ h1 {
     font-size: 12px;
     line-height: 1;
     white-space: nowrap;
+    cursor: default;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.app-version.update-available {
+    color: #b85b00;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.app-version.update-checking {
+    color: #007bff;
+}
+
+.app-version.update-error {
+    color: #c82333;
+}
+
+.app-version.update-ok {
+    color: #207a37;
 }
 
 .header-update-wrap {
@@ -250,63 +270,6 @@ h1 {
     cursor: pointer;
 }
 
-.update-notice {
-    margin: -4px 0 10px;
-    padding: 8px 10px;
-    border: 1px solid #d7e6f7;
-    border-radius: 4px;
-    background: #f7fbff;
-}
-
-.update-status {
-    font-size: 12px;
-    line-height: 1.5;
-    color: #333;
-}
-
-.update-status.available {
-    color: #b85b00;
-    font-weight: 600;
-}
-
-.update-status.error {
-    color: #c82333;
-}
-
-.update-status.ok {
-    color: #207a37;
-}
-
-.update-link {
-    display: inline-block;
-    font-size: 12px;
-    color: #007bff;
-    text-decoration: none;
-}
-
-.update-link:hover {
-    text-decoration: underline;
-}
-
-.update-notice-actions {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 6px;
-}
-
-.btn-update-install {
-    flex: 0 0 auto;
-    padding: 6px 10px;
-    font-size: 12px;
-    background: #28a745;
-}
-
-.btn-update-install:hover:not(:disabled) {
-    background: #218838;
-}
-
 .btn-secondary {
     flex: 1;
     padding: 8px;
@@ -316,6 +279,98 @@ h1 {
     border-radius: 3px;
     cursor: pointer;
     font-size: 13px;
+}
+
+.update-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.38);
+}
+
+.update-modal {
+    width: min(360px, 100%);
+    border: 1px solid #d7e6f7;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.22);
+}
+
+.update-modal-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 14px 8px;
+}
+
+.update-modal-header h2 {
+    flex: 1;
+    margin: 0;
+    color: #b85b00;
+    font-size: 16px;
+    line-height: 1.25;
+}
+
+.btn-icon {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid #dde2e8;
+    border-radius: 4px;
+    background: #f8f9fa;
+    color: #555;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.btn-icon:hover {
+    background: #eef1f4;
+}
+
+.update-modal-body {
+    padding: 2px 14px 10px;
+}
+
+.update-version-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 7px 0;
+    border-bottom: 1px solid #eef1f4;
+    font-size: 13px;
+}
+
+.update-version-row span {
+    color: #6c757d;
+}
+
+.update-version-row strong {
+    color: #333;
+    white-space: nowrap;
+}
+
+.update-modal-actions {
+    display: flex;
+    gap: 8px;
+    padding: 12px 14px 14px;
+}
+
+.update-modal-actions .btn-secondary {
+    width: auto;
+}
+
+.btn-update-install {
+    background: #28a745;
+}
+
+.btn-update-install:hover:not(:disabled) {
+    background: #218838;
 }
 
 .btn-secondary:hover:not(:disabled) {
@@ -328,11 +383,6 @@ h1 {
 }
 
 .app-header .btn-header-update {
-    flex: 0 0 auto;
-    width: auto;
-}
-
-.update-notice .btn-update-install {
     flex: 0 0 auto;
     width: auto;
 }

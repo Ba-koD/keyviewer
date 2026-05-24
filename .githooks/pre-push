@@ -16,6 +16,17 @@ else
   exit 1
 fi
 
+GIT_DIR="$(git rev-parse --absolute-git-dir)"
+PRE_PUSH_TARGET_DIR="${GIT_DIR}/pre-push-target"
+mkdir -p "$PRE_PUSH_TARGET_DIR"
+
+if [ -z "${RUSTC_WRAPPER:-}" ] && command -v sccache >/dev/null 2>&1; then
+  export RUSTC_WRAPPER="$(command -v sccache)"
+  echo "pre-push: using sccache at ${RUSTC_WRAPPER}"
+fi
+
+echo "pre-push: using Cargo target cache at ${PRE_PUSH_TARGET_DIR}"
+
 run_check() {
   label="$1"
   shift
@@ -24,7 +35,7 @@ run_check() {
   shift
   (
     cd "$worktree_dir"
-    "$CARGO_BIN" "$@"
+    CARGO_TARGET_DIR="$PRE_PUSH_TARGET_DIR" "$CARGO_BIN" "$@"
   )
 }
 

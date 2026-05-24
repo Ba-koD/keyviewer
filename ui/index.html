@@ -19,14 +19,6 @@
             </div>
         </div>
 
-        <div class="update-notice" id="update-notice" style="display:none">
-            <div class="update-status" id="update-status" data-i18n="update_idle">업데이트 확인 준비됨</div>
-            <div class="update-notice-actions" id="update-notice-actions" style="display:none">
-                <a href="#" class="update-link" id="update-release-link" style="display:none"></a>
-                <button class="btn-secondary btn-update-install" id="btn-install-update" data-i18n="install_update" style="display:none">설치 후 재시작</button>
-            </div>
-        </div>
-
         <!-- Settings Section -->
         <div class="section">
             <div class="section-title" data-i18n="settings">Settings</div>
@@ -98,6 +90,33 @@
             <p data-i18n="info_3">3. OBS 스트림칭 소 소비지서 오버레이를 띄워요</p>
             <p><span data-i18n="info_4">4. URL은 다음으로</span> : <a href="#" class="url-link" id="overlay-url">http://localhost:8000/overlay</a></p>
             <p data-i18n="info_note" style="color: #ff9800; font-size: 11px; margin-top: 8px; line-height: 1.7; font-weight: 500;">※ 주의: 사용자 지정 CSS를 비우고 사이트에서 보이나 OBS에서 안 보이는 경우 현재 페이지의 캐시 버튼을 눌러 새로고침 해주세요.</p>
+        </div>
+    </div>
+
+    <div class="update-modal-backdrop" id="update-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="update-modal-title">
+        <div class="update-modal">
+            <div class="update-modal-header">
+                <h2 id="update-modal-title" data-i18n="update_available">새 버전을 사용할 수 있습니다</h2>
+                <button class="btn-icon" id="btn-close-update-modal" aria-label="Close">×</button>
+            </div>
+            <div class="update-modal-body">
+                <div class="update-version-row">
+                    <span data-i18n="current_version">현재 버전</span>
+                    <strong id="update-current-version">-</strong>
+                </div>
+                <div class="update-version-row">
+                    <span data-i18n="latest_version">최신 버전</span>
+                    <strong id="update-latest-version">-</strong>
+                </div>
+                <div class="update-version-row" id="update-size-row" style="display:none">
+                    <span data-i18n="update_size">파일 크기</span>
+                    <strong id="update-size">-</strong>
+                </div>
+            </div>
+            <div class="update-modal-actions">
+                <button class="btn-secondary" id="btn-open-release" data-i18n="open_release">릴리스 열기</button>
+                <button class="btn-secondary btn-update-install" id="btn-install-update" data-i18n="install_update">설치 후 재시작</button>
+            </div>
         </div>
     </div>
 
@@ -202,6 +221,9 @@
                 install_update: '설치 후 재시작',
                 check_update: '업데이트 확인',
                 open_release: '릴리스 열기',
+                current_version: '현재 버전',
+                latest_version: '최신 버전',
+                update_size: '파일 크기',
                 update_install_confirm: '새 버전을 설치하고 앱을 재시작할까요?',
                 info_1: '1. 서버를 시작하세요',
                 info_2: '2. 서버를 시작하면 열면, 대상 창을 설정하세요',
@@ -239,6 +261,9 @@
                 install_update: 'Install & Restart',
                 check_update: 'Check Update',
                 open_release: 'Open Release',
+                current_version: 'Current Version',
+                latest_version: 'Latest Version',
+                update_size: 'File Size',
                 update_install_confirm: 'Install the new version and restart the app?',
                 info_1: '1. Start the server you want',
                 info_2: '2. Once started, set the target window',
@@ -265,12 +290,16 @@
         const overlayUrl = document.getElementById('overlay-url');
         const appVersion = document.getElementById('app-version');
         const headerUpdateStatus = document.getElementById('header-update-status');
-        const updateNotice = document.getElementById('update-notice');
-        const updateNoticeActions = document.getElementById('update-notice-actions');
-        const updateStatus = document.getElementById('update-status');
+        const updateModal = document.getElementById('update-modal');
+        const btnCloseUpdateModal = document.getElementById('btn-close-update-modal');
+        const updateCurrentVersion = document.getElementById('update-current-version');
+        const updateLatestVersion = document.getElementById('update-latest-version');
+        const updateSizeRow = document.getElementById('update-size-row');
+        const updateSize = document.getElementById('update-size');
         const btnCheckUpdate = document.getElementById('btn-check-update');
+        const btnOpenRelease = document.getElementById('btn-open-release');
         const btnInstallUpdate = document.getElementById('btn-install-update');
-        const updateReleaseLink = document.getElementById('update-release-link');
+        let pendingUpdate = null;
 
         // Apply translations
         function applyTranslations(lang) {
@@ -318,7 +347,15 @@
         }
 
         function setAppVersion(version) {
-            if (appVersion && version) appVersion.textContent = `v${version}`;
+            if (!appVersion || !version) return;
+            appVersion.textContent = `v${version}`;
+            appVersion.title = '';
+        }
+
+        function setVersionState(level = '') {
+            if (!appVersion) return;
+            appVersion.classList.remove('update-available', 'update-checking', 'update-error', 'update-ok');
+            if (level) appVersion.classList.add(`update-${level}`);
         }
 
         async function loadAppVersion() {
@@ -329,27 +366,11 @@
             }
         }
 
-        function setUpdateStatus(message, level = '', visible = true) {
-            updateStatus.textContent = message;
-            updateStatus.classList.remove('available', 'error', 'ok');
-            if (level) updateStatus.classList.add(level);
-            if (updateNotice) updateNotice.style.display = visible ? 'block' : 'none';
-        }
-
         function setHeaderUpdateStatus(message, level = '') {
             if (!headerUpdateStatus) return;
             headerUpdateStatus.textContent = message || '';
             headerUpdateStatus.classList.remove('available', 'error', 'ok');
             if (level) headerUpdateStatus.classList.add(level);
-        }
-
-        function hideUpdateNotice() {
-            if (updateNotice) updateNotice.style.display = 'none';
-            setUpdateActionsVisible(false);
-        }
-
-        function setUpdateActionsVisible(visible) {
-            if (updateNoticeActions) updateNoticeActions.style.display = visible ? 'flex' : 'none';
         }
 
         function formatUpdateSize(size) {
@@ -358,13 +379,30 @@
             return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.round(size / 1024)} KB`;
         }
 
+        function showUpdateModal(update) {
+            if (!updateModal || !update) return;
+            pendingUpdate = update;
+            const sizeText = formatUpdateSize(update.asset_size);
+
+            updateCurrentVersion.textContent = `v${update.current_version}`;
+            updateLatestVersion.textContent = `v${update.latest_version}`;
+            updateSize.textContent = sizeText;
+            updateSizeRow.style.display = sizeText ? 'flex' : 'none';
+            btnOpenRelease.disabled = !update.release_url;
+            btnInstallUpdate.disabled = false;
+            updateModal.style.display = 'flex';
+        }
+
+        function hideUpdateModal() {
+            if (updateModal) updateModal.style.display = 'none';
+        }
+
         async function checkForAppUpdate(manual = false) {
             const t = translations[currentLanguage];
             btnCheckUpdate.disabled = true;
-            btnInstallUpdate.style.display = 'none';
-            updateReleaseLink.style.display = 'none';
-            setUpdateActionsVisible(false);
-            hideUpdateNotice();
+            pendingUpdate = null;
+            hideUpdateModal();
+            setVersionState('checking');
             setHeaderUpdateStatus(t.checking_update);
 
             try {
@@ -372,30 +410,26 @@
                 setAppVersion(result.current_version);
                 const update = result.update;
                 if (!update) {
+                    setVersionState('');
                     setHeaderUpdateStatus(t.update_latest, 'ok');
                     return;
                 }
 
-                const sizeText = formatUpdateSize(update.asset_size);
-                const suffix = sizeText ? ` / ${sizeText}` : '';
+                pendingUpdate = update;
+                setVersionState('available');
+                if (appVersion) appVersion.title = `${t.update_available}: v${update.latest_version}`;
                 setHeaderUpdateStatus(`${t.update_available}: v${update.latest_version}`, 'available');
-                setUpdateStatus(`${t.update_available}: ${update.current_version} -> ${update.latest_version}${suffix}`, 'available');
-                updateReleaseLink.textContent = `${t.open_release}: ${update.tag_name}`;
-                updateReleaseLink.href = update.release_url;
-                updateReleaseLink.style.display = 'inline-block';
-                btnInstallUpdate.style.display = 'inline-block';
-                setUpdateActionsVisible(true);
+                showUpdateModal(update);
 
                 if (!manual) {
                     console.log('App update available:', update);
                 }
             } catch (error) {
                 console.error('Failed to check app update:', error);
+                setVersionState('error');
                 setHeaderUpdateStatus(t.update_failed, 'error');
                 if (manual) {
-                    setUpdateStatus(`${t.update_failed}: ${error}`, 'error');
-                } else {
-                    hideUpdateNotice();
+                    alert(`${t.update_failed}: ${error}`);
                 }
             } finally {
                 btnCheckUpdate.disabled = false;
@@ -408,17 +442,20 @@
 
             btnCheckUpdate.disabled = true;
             btnInstallUpdate.disabled = true;
+            btnOpenRelease.disabled = true;
+            setVersionState('checking');
             setHeaderUpdateStatus(t.installing_update);
-            setUpdateStatus(t.installing_update);
 
             try {
                 await invoke('install_app_update');
             } catch (error) {
                 console.error('Failed to install app update:', error);
+                setVersionState('error');
                 setHeaderUpdateStatus(t.update_failed, 'error');
-                setUpdateStatus(`${t.update_failed}: ${error}`, 'error');
+                alert(`${t.update_failed}: ${error}`);
                 btnCheckUpdate.disabled = false;
                 btnInstallUpdate.disabled = false;
+                btnOpenRelease.disabled = false;
             }
         }
 
@@ -612,11 +649,20 @@
             installAppUpdate();
         });
 
-        updateReleaseLink.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (updateReleaseLink.href && updateReleaseLink.href !== '#') {
-                invoke('open_url', { url: updateReleaseLink.href });
+        btnOpenRelease.addEventListener('click', () => {
+            if (pendingUpdate?.release_url) {
+                invoke('open_url', { url: pendingUpdate.release_url });
             }
+        });
+
+        btnCloseUpdateModal.addEventListener('click', hideUpdateModal);
+
+        updateModal.addEventListener('click', (e) => {
+            if (e.target === updateModal) hideUpdateModal();
+        });
+
+        appVersion.addEventListener('click', () => {
+            if (pendingUpdate) showUpdateModal(pendingUpdate);
         });
 
         // Reset settings button
