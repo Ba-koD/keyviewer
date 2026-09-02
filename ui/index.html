@@ -42,6 +42,11 @@
             </div>
         </div>
 
+        <div class="section" id="input-warning" style="display:none; padding:10px 12px; background:#ff475722; border:1px solid #ff4757; border-radius:6px; font-size:12px; line-height:1.5;">
+            <strong style="color:#ff4757;">⚠️ <span data-i18n="input_warning_title">키 입력을 감지할 수 없음</span></strong><br>
+            <span id="input-warning-text"></span>
+        </div>
+
         <!-- Server Status Section -->
         <div class="section">
             <div class="section-title" data-i18n="server_status">Server status:</div>
@@ -61,12 +66,14 @@
         <div class="section">
             <div class="checkbox-row">
                 <input type="checkbox" id="run-on-boot">
-                <label for="run-on-boot" data-i18n="console_toggle">콘솔 토글</label>
+                <label for="run-on-boot" data-i18n="console_toggle">로그 보기</label>
             </div>
+
+            <pre id="console-log" style="display:none; margin-top:8px; max-height:220px; overflow:auto; padding:8px 10px; background:#0d1117; color:#c9d1d9; border:1px solid #30363d; border-radius:6px; font-size:11px; line-height:1.45; white-space:pre-wrap; word-break:break-all;"></pre>
 
             <div class="checkbox-row">
                 <input type="checkbox" id="run-on-startup">
-                <label for="run-on-startup" data-i18n="run_on_startup">Windows 시작 시 실행</label>
+                <label for="run-on-startup" data-i18n="run_on_startup">시스템 시작 시 실행</label>
             </div>
         </div>
 
@@ -204,8 +211,9 @@
                 server_stopped: '서버가 중지되었습니다',
                 start_server: '서버 시작',
                 stop_server: '서버 중지',
-                console_toggle: '콘솔 토글',
-                run_on_startup: 'Windows 시작 시 실행',
+                input_warning_title: '키 입력을 감지할 수 없음',
+                console_toggle: '로그 보기',
+                run_on_startup: '시스템 시작 시 실행',
                 web_control: '웹 제어',
                 overlay: '오버레이',
                 minimize_to_tray: '트레이로 최소화',
@@ -244,8 +252,9 @@
                 server_stopped: 'Server is stopped',
                 start_server: 'Start Server',
                 stop_server: 'Stop Server',
-                console_toggle: 'Console Toggle',
-                run_on_startup: 'Run on Windows startup',
+                input_warning_title: 'Key input cannot be captured',
+                console_toggle: 'Show log',
+                run_on_startup: 'Run at system startup',
                 web_control: 'Web Control',
                 overlay: 'Overlay',
                 minimize_to_tray: 'Minimize to Tray',
@@ -286,6 +295,7 @@
         const portInput = document.getElementById('port');
         const languageSelect = document.getElementById('language');
         const consoleToggle = document.getElementById('run-on-boot');
+        const consoleLog = document.getElementById('console-log');
         const runOnStartup = document.getElementById('run-on-startup');
         const overlayUrl = document.getElementById('overlay-url');
         const appVersion = document.getElementById('app-version');
@@ -459,6 +469,25 @@
             }
         }
 
+        // Surface an OS-level input problem instead of silently capturing nothing.
+        async function refreshInputStatus() {
+            const banner = document.getElementById('input-warning');
+            const text = document.getElementById('input-warning-text');
+            if (!banner || !text) return;
+            try {
+                const status = await invoke('get_input_status');
+                if (status.ok && !status.detail) {
+                    banner.style.display = 'none';
+                    return;
+                }
+                text.textContent = status.detail;
+                banner.style.display = status.detail ? 'block' : 'none';
+            } catch (e) {
+                console.error('Failed to read input status:', e);
+                banner.style.display = 'none';
+            }
+        }
+
         // Load settings from backend
         async function loadSettings() {
             try {
@@ -470,6 +499,8 @@
                 currentLanguage = settings.language || 'ko';
                 languageSelect.value = currentLanguage;
                 runOnStartup.checked = settings.run_on_startup || false;
+
+                refreshInputStatus();
                 
                 // Apply language
                 applyTranslations(currentLanguage);
@@ -631,13 +662,40 @@
             }
         });
 
-        // Console toggle (immediate show/hide on Windows)
-        consoleToggle.addEventListener('change', async (e) => {
+        // Log panel. The app captures its own stdout/stderr, so this shows the same
+        // output on every platform instead of opening a Windows console window.
+        let logCursor = 0;
+        let logTimer = null;
+
+        async function pullConsoleLog() {
             try {
-                await invoke('set_console_visible', { visible: e.target.checked });
+                const chunk = await invoke('get_console_log', { since: logCursor });
+                logCursor = chunk.next;
+                if (chunk.truncated) {
+                    consoleLog.textContent += '... (older lines dropped)\n';
+                }
+                if (chunk.lines.length) {
+                    const atBottom =
+                        consoleLog.scrollTop + consoleLog.clientHeight >= consoleLog.scrollHeight - 24;
+                    consoleLog.textContent += chunk.lines.join('\n') + '\n';
+                    if (atBottom) consoleLog.scrollTop = consoleLog.scrollHeight;
+                }
             } catch (error) {
-                alert('Failed to toggle console: ' + error);
-                e.target.checked = !e.target.checked;
+                console.error('Failed to read log:', error);
+            }
+        }
+
+        consoleToggle.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                consoleLog.style.display = 'block';
+                consoleLog.textContent = '';
+                logCursor = 0;
+                pullConsoleLog();
+                logTimer = setInterval(pullConsoleLog, 800);
+            } else {
+                consoleLog.style.display = 'none';
+                if (logTimer) clearInterval(logTimer);
+                logTimer = null;
             }
         });
 

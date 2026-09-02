@@ -435,13 +435,159 @@ pub fn get_all_windows() -> Vec<WindowInfo> {
     windows
 }
 
+// Linux: the X11 route below also covers XWayland, so it stays the fallback for
+// every session. On Wayland the compositor is asked first - see linux_desktop.
 #[cfg(target_os = "linux")]
 pub fn get_foreground_window() -> Option<WindowInfo> {
-    use std::ptr;
+    if crate::linux_desktop::is_wayland() {
+        if let Some(info) = crate::linux_desktop::foreground_window_cached() {
+            return Some(info);
+        }
+    }
+    x11_foreground_window()
+}
+
+/// XGetInputFocus often lands on a child window that carries neither the title nor
+/// the class, so walk up to the top level the window manager actually tracks.
+#[cfg(target_os = "linux")]
+unsafe fn x11_top_level(
+    display: *mut x11::xlib::Display,
+    mut window: x11::xlib::Window,
+) -> x11::xlib::Window {
+    use x11::xlib::*;
+
+    for _ in 0..32 {
+        let mut root: Window = 0;
+        let mut parent: Window = 0;
+        let mut children: *mut Window = std::ptr::null_mut();
+        let mut count: u32 = 0;
+
+        if XQueryTree(
+            display,
+            window,
+            &mut root,
+            &mut parent,
+            &mut children,
+            &mut count,
+        ) == 0
+        {
+            break;
+        }
+        if !children.is_null() {
+            XFree(children as *mut _);
+        }
+        if parent == 0 || parent == root {
+            break;
+        }
+        window = parent;
+    }
+
+    window
+}
+
+#[cfg(target_os = "linux")]
+unsafe fn x11_window_pid(
+    display: *mut x11::xlib::Display,
+    window: x11::xlib::Window,
+) -> Option<u32> {
+    use x11::xlib::*;
+
+    let name = std::ffi::CString::new("_NET_WM_PID").ok()?;
+    let atom = XInternAtom(display, name.as_ptr(), 1);
+    if atom == 0 {
+        return None;
+    }
+
+    let mut actual_type: Atom = 0;
+    let mut actual_format: i32 = 0;
+    let mut nitems: u64 = 0;
+    let mut bytes_after: u64 = 0;
+    let mut data: *mut u8 = std::ptr::null_mut();
+
+    let status = XGetWindowProperty(
+        display,
+        window,
+        atom,
+        0,
+        1,
+        0,
+        0,
+        &mut actual_type,
+        &mut actual_format,
+        &mut nitems,
+        &mut bytes_after,
+        &mut data,
+    );
+
+    if status != 0 || data.is_null() {
+        return None;
+    }
+    let pid = if nitems > 0 && actual_format == 32 {
+        Some(std::ptr::read_unaligned(data as *const u32))
+    } else {
+        None
+    };
+    XFree(data as *mut _);
+    pid
+}
+
+#[cfg(target_os = "linux")]
+unsafe fn x11_window_info(
+    display: *mut x11::xlib::Display,
+    window: x11::xlib::Window,
+) -> WindowInfo {
+    use x11::xlib::*;
+
+    let mut name: *mut i8 = std::ptr::null_mut();
+    XFetchName(display, window, &mut name);
+    let title = if name.is_null() {
+        String::new()
+    } else {
+        let title = std::ffi::CStr::from_ptr(name)
+            .to_string_lossy()
+            .into_owned();
+        XFree(name as *mut _);
+        title
+    };
+
+    let mut class_hint = XClassHint {
+        res_name: std::ptr::null_mut(),
+        res_class: std::ptr::null_mut(),
+    };
+    XGetClassHint(display, window, &mut class_hint);
+
+    let class = if class_hint.res_class.is_null() {
+        String::new()
+    } else {
+        std::ffi::CStr::from_ptr(class_hint.res_class)
+            .to_string_lossy()
+            .into_owned()
+    };
+    if !class_hint.res_name.is_null() {
+        XFree(class_hint.res_name as *mut _);
+    }
+    if !class_hint.res_class.is_null() {
+        XFree(class_hint.res_class as *mut _);
+    }
+
+    let process = x11_window_pid(display, window)
+        .map(crate::linux_desktop::process_name)
+        .unwrap_or_default();
+
+    WindowInfo {
+        hwnd: format!("{}", window),
+        title,
+        process,
+        class,
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn x11_foreground_window() -> Option<WindowInfo> {
     use x11::xlib::*;
 
     unsafe {
-        let display = XOpenDisplay(ptr::null());
+        let display = XOpenDisplay(std::ptr::null());
         if display.is_null() {
             return None;
         }
@@ -455,56 +601,88 @@ pub fn get_foreground_window() -> Option<WindowInfo> {
             return None;
         }
 
-        // Get window title
-        let mut name: *mut i8 = ptr::null_mut();
-        XFetchName(display, focus_window, &mut name);
-        let title = if !name.is_null() {
-            std::ffi::CStr::from_ptr(name)
-                .to_string_lossy()
-                .into_owned()
-        } else {
-            String::new()
-        };
-
-        if !name.is_null() {
-            XFree(name as *mut _);
-        }
-
-        // Get window class
-        let mut class_hint = XClassHint {
-            res_name: ptr::null_mut(),
-            res_class: ptr::null_mut(),
-        };
-        XGetClassHint(display, focus_window, &mut class_hint);
-
-        let class_name = if !class_hint.res_class.is_null() {
-            std::ffi::CStr::from_ptr(class_hint.res_class)
-                .to_string_lossy()
-                .into_owned()
-        } else {
-            String::new()
-        };
-
-        if !class_hint.res_name.is_null() {
-            XFree(class_hint.res_name as *mut _);
-        }
-        if !class_hint.res_class.is_null() {
-            XFree(class_hint.res_class as *mut _);
-        }
-
+        let window = x11_top_level(display, focus_window);
+        let info = x11_window_info(display, window);
         XCloseDisplay(display);
-
-        Some(WindowInfo {
-            hwnd: format!("{}", focus_window),
-            title,
-            process: String::new(), // Getting process name on Linux requires /proc parsing
-            class: class_name,
-        })
+        Some(info)
     }
 }
 
 #[cfg(target_os = "linux")]
 pub fn get_all_windows() -> Vec<WindowInfo> {
-    // Simplified - full implementation requires X11 window enumeration
-    Vec::new()
+    if crate::linux_desktop::is_wayland() {
+        let windows = crate::linux_desktop::all_windows();
+        if !windows.is_empty() {
+            return windows;
+        }
+    }
+    x11_all_windows()
+}
+
+/// Enumerates the window manager's `_NET_CLIENT_LIST`, which is what every EWMH
+/// compliant WM publishes for taskbars.
+#[cfg(target_os = "linux")]
+fn x11_all_windows() -> Vec<WindowInfo> {
+    use x11::xlib::*;
+
+    unsafe {
+        let display = XOpenDisplay(std::ptr::null());
+        if display.is_null() {
+            return Vec::new();
+        }
+
+        let Ok(name) = std::ffi::CString::new("_NET_CLIENT_LIST") else {
+            XCloseDisplay(display);
+            return Vec::new();
+        };
+        let atom = XInternAtom(display, name.as_ptr(), 1);
+        if atom == 0 {
+            XCloseDisplay(display);
+            return Vec::new();
+        }
+
+        let root = XDefaultRootWindow(display);
+        let mut actual_type: Atom = 0;
+        let mut actual_format: i32 = 0;
+        let mut nitems: u64 = 0;
+        let mut bytes_after: u64 = 0;
+        let mut data: *mut u8 = std::ptr::null_mut();
+
+        let status = XGetWindowProperty(
+            display,
+            root,
+            atom,
+            0,
+            4096,
+            0,
+            0,
+            &mut actual_type,
+            &mut actual_format,
+            &mut nitems,
+            &mut bytes_after,
+            &mut data,
+        );
+
+        if status != 0 || data.is_null() {
+            XCloseDisplay(display);
+            return Vec::new();
+        }
+
+        let mut windows = Vec::new();
+        if actual_format == 32 {
+            let list = data as *const Window;
+            for index in 0..nitems as usize {
+                let window = std::ptr::read_unaligned(list.add(index));
+                let info = x11_window_info(display, window);
+                // Windows with neither a title nor a class are not user facing.
+                if !info.title.is_empty() || !info.class.is_empty() {
+                    windows.push(info);
+                }
+            }
+        }
+
+        XFree(data as *mut _);
+        XCloseDisplay(display);
+        windows
+    }
 }

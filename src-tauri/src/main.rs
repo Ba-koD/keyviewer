@@ -2,7 +2,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app_update;
+mod console_log;
 mod keyboard;
+#[cfg(target_os = "linux")]
+mod linux_desktop;
+#[cfg(target_os = "linux")]
+mod linux_input;
 mod server;
 mod settings;
 mod state;
@@ -18,6 +23,7 @@ extern "C" {
 
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
+use std::process::Command;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
@@ -35,8 +41,6 @@ use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
-#[cfg(target_os = "windows")]
-use std::process::Command;
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -473,6 +477,101 @@ fn process_name_windows(pid: u32) -> Option<String> {
     }
 }
 
+// macOS always ships lsof; most Linux distros ship ss but not lsof, so try both.
+// Without root these only report processes owned by the current user.
+#[cfg(not(target_os = "windows"))]
+fn lsof_listeners(port: u16) -> Vec<PortProcessInfo> {
+    let Ok(output) = Command::new("lsof")
+        .args(["-nP", &format!("-iTCP:{}", port), "-sTCP:LISTEN", "-Fpc"])
+        .output()
+    else {
+        return Vec::new();
+    };
+    if !output.status.success() {
+        return Vec::new();
+    }
+
+    // Field output emits `p<pid>` then `c<command>` for each process.
+    let mut result = Vec::new();
+    let mut pid: Option<u32> = None;
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        let mut chars = line.chars();
+        let Some(tag) = chars.next() else {
+            continue;
+        };
+        let value = chars.as_str().trim();
+        match tag {
+            'p' => pid = value.parse().ok(),
+            'c' => {
+                if let Some(pid) = pid.take() {
+                    result.push(PortProcessInfo {
+                        pid,
+                        name: value.to_string(),
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+    result
+}
+
+#[cfg(not(target_os = "windows"))]
+fn ss_listeners(port: u16) -> Vec<PortProcessInfo> {
+    let Ok(output) = Command::new("ss")
+        .args(["-H", "-l", "-t", "-n", "-p"])
+        .output()
+    else {
+        return Vec::new();
+    };
+    if !output.status.success() {
+        return Vec::new();
+    }
+
+    let suffix = format!(":{}", port);
+    let mut result = Vec::new();
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        // State Recv-Q Send-Q Local:Port Peer:Port users:(("name",pid=1,fd=2),...)
+        let cols: Vec<&str> = line.split_whitespace().collect();
+        if cols.len() < 4 || !cols[3].ends_with(&suffix) {
+            continue;
+        }
+        let Some((_, users)) = line.split_once("users:(") else {
+            continue;
+        };
+        for chunk in users.split("),(") {
+            let chunk = chunk.trim_matches(|c: char| c == '(' || c == ')');
+            let mut fields = chunk.split(',');
+            let name = fields.next().unwrap_or("").trim_matches('"').to_string();
+            let pid = fields
+                .find_map(|field| field.strip_prefix("pid="))
+                .and_then(|value| value.parse::<u32>().ok());
+            if let Some(pid) = pid {
+                result.push(PortProcessInfo {
+                    pid,
+                    name: if name.is_empty() {
+                        "Unknown".to_string()
+                    } else {
+                        name
+                    },
+                });
+            }
+        }
+    }
+    result
+}
+
+#[cfg(not(target_os = "windows"))]
+fn list_port_processes_unix(port: u16) -> Result<Vec<PortProcessInfo>, String> {
+    let mut result = lsof_listeners(port);
+    if result.is_empty() {
+        result = ss_listeners(port);
+    }
+    result.sort_by_key(|process| process.pid);
+    result.dedup_by_key(|process| process.pid);
+    Ok(result)
+}
+
 #[tauri::command]
 fn get_port_processes(port: u16) -> Result<Vec<PortProcessInfo>, String> {
     #[cfg(target_os = "windows")]
@@ -481,8 +580,71 @@ fn get_port_processes(port: u16) -> Result<Vec<PortProcessInfo>, String> {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        let _ = port;
-        Err("Port process lookup is currently supported on Windows only.".to_string())
+        list_port_processes_unix(port)
+    }
+}
+
+/// How key capture is actually running, so the launcher can warn when the OS is
+/// refusing to hand over global input instead of silently showing nothing.
+#[derive(Debug, Serialize)]
+struct InputStatus {
+    backend: String,
+    ok: bool,
+    detail: String,
+    devices: usize,
+}
+
+#[tauri::command]
+fn get_input_status() -> InputStatus {
+    #[cfg(target_os = "linux")]
+    {
+        let status = linux_input::status();
+        let mut detail = status.detail;
+
+        // Target filtering needs a compositor route of its own on Wayland, and
+        // failing it silently looks identical to "the filter matches nothing".
+        if linux_desktop::is_wayland() && linux_desktop::foreground_window_cached().is_none() {
+            if !detail.is_empty() {
+                detail.push(' ');
+            }
+            detail.push_str(
+                "Window targeting cannot see Wayland windows here. GNOME needs the                  window-calls-extended shell extension; KDE needs kdotool. Hyprland and                  sway work out of the box.",
+            );
+        }
+
+        InputStatus {
+            backend: status.backend,
+            ok: status.ok && detail.is_empty(),
+            detail,
+            devices: status.devices,
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        InputStatus {
+            backend: "polling".to_string(),
+            ok: true,
+            detail: String::new(),
+            devices: 0,
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let permissions = check_macos_permissions();
+        let ok = permissions.accessibility && permissions.input_monitoring;
+        InputStatus {
+            backend: "cgeventtap".to_string(),
+            ok,
+            detail: if ok {
+                String::new()
+            } else {
+                "Grant Accessibility and Input Monitoring in System Settings > Privacy & Security."
+                    .to_string()
+            },
+            devices: 0,
+        }
     }
 }
 
@@ -555,8 +717,32 @@ fn kill_process(pid: u32) -> Result<(), String> {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        let _ = pid;
-        Err("Process termination is currently supported on Windows only.".to_string())
+        let pid_arg = pid.to_string();
+        let _ = Command::new("kill").args(["-TERM", &pid_arg]).status();
+
+        // Escalate only if the process ignored the polite signal, so freeing a port
+        // ends up as reliable as taskkill /F on Windows.
+        for _ in 0..10 {
+            std::thread::sleep(Duration::from_millis(100));
+            let alive = Command::new("kill")
+                .args(["-0", &pid_arg])
+                .status()
+                .map(|status| status.success())
+                .unwrap_or(false);
+            if !alive {
+                return Ok(());
+            }
+        }
+
+        let status = Command::new("kill")
+            .args(["-KILL", &pid_arg])
+            .status()
+            .map_err(|e| format!("Failed to run kill: {}", e))?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!("Failed to terminate PID {}", pid))
+        }
     }
 }
 
@@ -607,45 +793,19 @@ fn set_run_on_startup(enabled: bool) -> Result<(), String> {
     let previous_enabled = settings.run_on_startup;
     settings.run_on_startup = enabled;
 
-    settings::set_windows_startup(enabled)?;
+    settings::set_startup_registration(enabled)?;
     if let Err(err) = settings.save() {
-        let _ = settings::set_windows_startup(previous_enabled);
+        let _ = settings::set_startup_registration(previous_enabled);
         return Err(err);
     }
 
     Ok(())
 }
 
+/// Feeds the launcher's log panel. `since` is the cursor from the previous call.
 #[tauri::command]
-fn set_console_visible(visible: bool) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    {
-        use windows::Win32::System::Console::{AllocConsole, GetConsoleWindow};
-        use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE, SW_SHOW};
-
-        unsafe {
-            let mut console_hwnd = GetConsoleWindow();
-
-            if visible {
-                if console_hwnd.0.is_null() && AllocConsole().is_err() {
-                    return Err("Failed to allocate console window.".to_string());
-                }
-                console_hwnd = GetConsoleWindow();
-                if !console_hwnd.0.is_null() {
-                    let _ = ShowWindow(console_hwnd, SW_SHOW);
-                }
-            } else if !console_hwnd.0.is_null() {
-                let _ = ShowWindow(console_hwnd, SW_HIDE);
-            }
-        }
-
-        Ok(())
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = visible;
-        Ok(())
-    }
+fn get_console_log(since: u64) -> console_log::LogChunk {
+    console_log::read_since(since)
 }
 
 #[tauri::command]
@@ -654,6 +814,9 @@ fn reset_settings() -> Result<(), String> {
 }
 
 fn main() {
+    // Before anything prints, so the launcher's log panel sees startup too.
+    console_log::capture();
+
     #[cfg(target_os = "windows")]
     {
         let disable_auto_elevate = std::env::var("KV_NO_AUTO_ELEVATE").unwrap_or_default();
@@ -710,14 +873,11 @@ fn main() {
     initial_state.app_config.port = settings.port;
     println!("Initial language: {}", initial_state.language);
 
-    #[cfg(all(target_os = "windows", not(debug_assertions)))]
+    #[cfg(not(debug_assertions))]
     {
         if settings.run_on_startup {
-            if let Err(e) = settings::set_windows_startup(true) {
-                eprintln!(
-                    "[Startup] Failed to repair Windows startup registration: {}",
-                    e
-                );
+            if let Err(e) = settings::set_startup_registration(true) {
+                eprintln!("[Startup] Failed to repair startup registration: {}", e);
             }
         }
     }
@@ -915,11 +1075,12 @@ fn main() {
             start_server,
             stop_server,
             get_port_processes,
+            get_input_status,
             kill_process,
             open_url,
             minimize_to_tray,
             set_run_on_startup,
-            set_console_visible,
+            get_console_log,
             reset_settings,
             check_macos_permissions,
             open_macos_permission_settings,

@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::fs;
 use std::path::{Path, PathBuf};
-#[cfg(target_os = "windows")]
 use std::process::Command;
 use std::time::Duration;
 
@@ -16,8 +15,88 @@ const GITHUB_LATEST_RELEASE_URL: &str =
     "https://api.github.com/repos/Ba-koD/keyviewer/releases/latest";
 const GITHUB_RELEASES_URL: &str =
     "https://api.github.com/repos/Ba-koD/keyviewer/releases?per_page=100";
-const WINDOWS_ASSET_NAME: &str = "KBQV-windows-x64.exe";
 const USER_AGENT: &str = "KeyQueueViewer";
+
+/// The release workflow publishes one portable binary per platform. This mirrors
+/// the names it produces so a build only ever offers the asset it can install.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum UpdatePlatform {
+    Windows,
+    MacOs { arm: bool },
+    Linux,
+}
+
+impl UpdatePlatform {
+    fn current() -> Self {
+        if cfg!(target_os = "windows") {
+            Self::Windows
+        } else if cfg!(target_os = "macos") {
+            Self::MacOs {
+                arm: cfg!(target_arch = "aarch64"),
+            }
+        } else {
+            Self::Linux
+        }
+    }
+
+    /// Stable, unversioned asset name.
+    fn stable_asset(self) -> String {
+        match self {
+            Self::Windows => "KBQV-windows-x64.exe".to_string(),
+            Self::MacOs { arm } => format!("KBQV-macos-{}", if arm { "arm64" } else { "x64" }),
+            Self::Linux => "KBQV-linux-x64".to_string(),
+        }
+    }
+
+    /// Versioned variant of the same build.
+    fn versioned_asset(self, version: VersionParts) -> String {
+        match self {
+            Self::Windows => format!("KBQV-{}-windows-x64.exe", version),
+            Self::MacOs { arm } => format!(
+                "KBQV-{}-macos-{}",
+                version,
+                if arm { "arm64" } else { "x64" }
+            ),
+            Self::Linux => format!("KBQV-{}-linux-x64", version),
+        }
+    }
+
+    /// Loose match for a renamed asset. Archives are skipped: the installer replaces
+    /// the executable directly and never unpacks.
+    fn matches(self, name: &str) -> bool {
+        let name = name.to_ascii_lowercase();
+        if !name.starts_with("kbqv-") {
+            return false;
+        }
+        match self {
+            Self::Windows => name.contains("windows") && name.ends_with(".exe"),
+            Self::MacOs { arm } => {
+                name.contains("macos")
+                    && name.contains(if arm { "arm64" } else { "x64" })
+                    && !name.ends_with(".zip")
+            }
+            Self::Linux => {
+                name.contains("linux") && !name.ends_with(".zip") && !name.ends_with(".tar.gz")
+            }
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Windows => "Windows",
+            Self::MacOs { .. } => "macOS",
+            Self::Linux => "Linux",
+        }
+    }
+
+    /// File name the downloaded asset is staged under.
+    fn staged_file_name(self) -> &'static str {
+        match self {
+            Self::Windows => "KBQV.exe",
+            _ => "KBQV",
+        }
+    }
+}
 
 #[derive(Clone, Debug, Serialize)]
 pub struct ReleaseUpdate {
@@ -67,9 +146,11 @@ pub fn check_latest_release() -> Result<Option<ReleaseUpdate>, String> {
         return Ok(None);
     }
 
+    let platform = UpdatePlatform::current();
     let asset = select_update_asset(&release.assets, latest_version).ok_or_else(|| {
         format!(
-            "No Windows update asset was found in release {}",
+            "No {} update asset was found in release {}",
+            platform.label(),
             release.tag_name
         )
     })?;
@@ -132,12 +213,25 @@ fn select_update_asset(
     assets: &[GithubAsset],
     latest_version: VersionParts,
 ) -> Option<&GithubAsset> {
-    let expected_windows_exe = format!("KBQV-{}-windows-x64.exe", latest_version);
+    select_update_asset_for(assets, latest_version, UpdatePlatform::current())
+}
+
+fn select_update_asset_for(
+    assets: &[GithubAsset],
+    latest_version: VersionParts,
+    platform: UpdatePlatform,
+) -> Option<&GithubAsset> {
+    let stable = platform.stable_asset();
+    let versioned = platform.versioned_asset(latest_version);
 
     assets
         .iter()
-        .find(|asset| asset.name.eq_ignore_ascii_case(WINDOWS_ASSET_NAME))
+        .find(|asset| asset.name.eq_ignore_ascii_case(&stable))
         .or_else(|| {
+            // Legacy Windows releases published a bare KBQV.exe.
+            if platform != UpdatePlatform::Windows {
+                return None;
+            }
             assets
                 .iter()
                 .find(|asset| asset.name.eq_ignore_ascii_case("KBQV.exe"))
@@ -145,14 +239,9 @@ fn select_update_asset(
         .or_else(|| {
             assets
                 .iter()
-                .find(|asset| asset.name.eq_ignore_ascii_case(&expected_windows_exe))
+                .find(|asset| asset.name.eq_ignore_ascii_case(&versioned))
         })
-        .or_else(|| {
-            assets.iter().find(|asset| {
-                let name = asset.name.to_ascii_lowercase();
-                name.starts_with("kbqv-") && name.contains("windows") && name.ends_with(".exe")
-            })
-        })
+        .or_else(|| assets.iter().find(|asset| platform.matches(&asset.name)))
 }
 
 fn install_and_restart(update: &ReleaseUpdate) -> Result<(), String> {
@@ -189,9 +278,17 @@ fn download_update_asset(update: &ReleaseUpdate) -> Result<PathBuf, String> {
     fs::create_dir_all(&staging_dir)
         .map_err(|e| format!("Failed to create {}: {}", staging_dir.display(), e))?;
 
-    let output = staging_dir.join("KBQV.exe");
+    let output = staging_dir.join(UpdatePlatform::current().staged_file_name());
     fs::write(&output, &bytes)
         .map_err(|e| format!("Failed to write {}: {}", output.display(), e))?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&output, fs::Permissions::from_mode(0o755))
+            .map_err(|e| format!("Failed to mark {} executable: {}", output.display(), e))?;
+    }
+
     Ok(output)
 }
 
@@ -280,9 +377,40 @@ fn schedule_replace_and_restart(downloaded_exe: &Path, current_exe: &Path) -> Re
     Ok(())
 }
 
+// macOS and Linux: wait for this process to exit, swap the binary, relaunch. The
+// helper is reparented to init once we exit, so it outlives us.
 #[cfg(not(target_os = "windows"))]
-fn schedule_replace_and_restart(_downloaded_exe: &Path, _current_exe: &Path) -> Result<(), String> {
-    Err("Automatic self update is only implemented for Windows builds.".to_string())
+fn schedule_replace_and_restart(downloaded_exe: &Path, current_exe: &Path) -> Result<(), String> {
+    let staging_dir = downloaded_exe
+        .parent()
+        .ok_or_else(|| "Downloaded update path has no parent directory".to_string())?;
+
+    let script = format!(
+        "while kill -0 {pid} 2>/dev/null; do sleep 0.2; done; \
+         sleep 0.5; \
+         if mv -f {downloaded} {current}; then \
+             chmod +x {current}; \
+             {current} >/dev/null 2>&1 & \
+         fi; \
+         rm -rf {staging}",
+        pid = std::process::id(),
+        downloaded = shell_literal(downloaded_exe),
+        current = shell_literal(current_exe),
+        staging = shell_literal(staging_dir),
+    );
+
+    Command::new("sh")
+        .args(["-c", &script])
+        .spawn()
+        .map_err(|e| format!("Failed to start updater process: {}", e))?;
+
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn shell_literal(path: &Path) -> String {
+    // POSIX single-quote escaping: close, insert an escaped quote, reopen.
+    format!("'{}'", path.to_string_lossy().replace('\'', "'\\''"))
 }
 
 #[cfg(target_os = "windows")]
@@ -355,7 +483,12 @@ mod tests {
             },
         ];
 
-        let selected = select_update_asset(&assets, parse_version("v1.2.3").unwrap()).unwrap();
+        let selected = select_update_asset_for(
+            &assets,
+            parse_version("v1.2.3").unwrap(),
+            UpdatePlatform::Windows,
+        )
+        .unwrap();
         assert_eq!(selected.name, "KBQV-1.2.3-windows-x64.exe");
     }
 
@@ -374,7 +507,121 @@ mod tests {
             },
         ];
 
-        let selected = select_update_asset(&assets, parse_version("v1.2.3").unwrap()).unwrap();
+        let selected = select_update_asset_for(
+            &assets,
+            parse_version("v1.2.3").unwrap(),
+            UpdatePlatform::Windows,
+        )
+        .unwrap();
         assert_eq!(selected.name, "KBQV-windows-x64.exe");
+    }
+
+    fn release_assets() -> Vec<GithubAsset> {
+        [
+            "KBQV-windows-x64.exe",
+            "KBQV-windows-x64.zip",
+            "KBQV-linux-x64",
+            "KBQV-linux-x64.tar.gz",
+            "KBQV-macos-arm64",
+            "KBQV-macos-arm64.zip",
+            "KBQV-macos-x64",
+            "KBQV-macos-x64.zip",
+        ]
+        .into_iter()
+        .map(|name| GithubAsset {
+            name: name.to_string(),
+            browser_download_url: format!("https://example.invalid/{}", name),
+            size: Some(1),
+        })
+        .collect()
+    }
+
+    #[test]
+    fn picks_the_binary_for_each_platform() {
+        let assets = release_assets();
+        let version = parse_version("v1.2.3").unwrap();
+
+        for (platform, expected) in [
+            (UpdatePlatform::Windows, "KBQV-windows-x64.exe"),
+            (UpdatePlatform::Linux, "KBQV-linux-x64"),
+            (UpdatePlatform::MacOs { arm: true }, "KBQV-macos-arm64"),
+            (UpdatePlatform::MacOs { arm: false }, "KBQV-macos-x64"),
+        ] {
+            let selected = select_update_asset_for(&assets, version, platform).unwrap();
+            assert_eq!(selected.name, expected, "for {:?}", platform);
+        }
+    }
+
+    #[test]
+    fn falls_back_to_the_versioned_name_per_platform() {
+        let assets: Vec<GithubAsset> = [
+            "KBQV-1.2.3-linux-x64",
+            "KBQV-1.2.3-macos-arm64",
+            "KBQV-1.2.3-windows-x64.exe",
+        ]
+        .into_iter()
+        .map(|name| GithubAsset {
+            name: name.to_string(),
+            browser_download_url: "https://example.invalid/asset".to_string(),
+            size: Some(1),
+        })
+        .collect();
+        let version = parse_version("v1.2.3").unwrap();
+
+        assert_eq!(
+            select_update_asset_for(&assets, version, UpdatePlatform::Linux)
+                .unwrap()
+                .name,
+            "KBQV-1.2.3-linux-x64"
+        );
+        assert_eq!(
+            select_update_asset_for(&assets, version, UpdatePlatform::MacOs { arm: true })
+                .unwrap()
+                .name,
+            "KBQV-1.2.3-macos-arm64"
+        );
+    }
+
+    #[test]
+    fn never_offers_an_archive_or_another_platform() {
+        let assets: Vec<GithubAsset> = ["KBQV-linux-x64.tar.gz", "KBQV-windows-x64.exe"]
+            .into_iter()
+            .map(|name| GithubAsset {
+                name: name.to_string(),
+                browser_download_url: "https://example.invalid/asset".to_string(),
+                size: Some(1),
+            })
+            .collect();
+        let version = parse_version("v1.2.3").unwrap();
+
+        assert!(select_update_asset_for(&assets, version, UpdatePlatform::Linux).is_none());
+        assert!(
+            select_update_asset_for(&assets, version, UpdatePlatform::MacOs { arm: true })
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn macos_arm_does_not_take_the_intel_binary() {
+        let assets: Vec<GithubAsset> = ["KBQV-macos-x64"]
+            .into_iter()
+            .map(|name| GithubAsset {
+                name: name.to_string(),
+                browser_download_url: "https://example.invalid/asset".to_string(),
+                size: Some(1),
+            })
+            .collect();
+        let version = parse_version("v1.2.3").unwrap();
+
+        assert!(
+            select_update_asset_for(&assets, version, UpdatePlatform::MacOs { arm: true })
+                .is_none()
+        );
+        assert_eq!(
+            select_update_asset_for(&assets, version, UpdatePlatform::MacOs { arm: false })
+                .unwrap()
+                .name,
+            "KBQV-macos-x64"
+        );
     }
 }
