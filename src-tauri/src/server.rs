@@ -175,6 +175,12 @@ impl ServerController {
     pub fn is_running(&self) -> bool {
         *self.running.lock()
     }
+
+    /// Shares the running flag so watchers can poll the state without taking the
+    /// controller lock.
+    pub fn running_flag(&self) -> Arc<parking_lot::Mutex<bool>> {
+        self.running.clone()
+    }
 }
 
 fn create_router(state: SharedState) -> Router {

@@ -6,6 +6,7 @@ mod keyboard;
 mod server;
 mod settings;
 mod state;
+mod tray;
 mod window_info;
 
 // macOS accessibility trust check to avoid crash when global key hook is denied
@@ -20,8 +21,6 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
-use tauri::menu::{Menu, MenuItem};
-use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, State, Wry};
 
 use crate::server::ServerController;
@@ -590,115 +589,8 @@ fn open_service_url(path: &str) {
 
 #[tauri::command]
 fn minimize_to_tray(window: tauri::Window<Wry>) -> Result<(), String> {
-    let app = window.app_handle();
-
-    // Create tray icon if it doesn't exist
-    if app.tray_by_id("main-tray").is_none() {
-        let show_item = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)
-            .map_err(|e| format!("Failed to create menu item: {}", e))?;
-        let start_server_item =
-            MenuItem::with_id(app, "start_server_tray", "Start Server", true, None::<&str>)
-                .map_err(|e| format!("Failed to create menu item: {}", e))?;
-        let stop_server_item =
-            MenuItem::with_id(app, "stop_server_tray", "Stop Server", true, None::<&str>)
-                .map_err(|e| format!("Failed to create menu item: {}", e))?;
-        let control_item =
-            MenuItem::with_id(app, "open_control_tray", "Web Control", true, None::<&str>)
-                .map_err(|e| format!("Failed to create menu item: {}", e))?;
-        let overlay_item =
-            MenuItem::with_id(app, "open_overlay_tray", "Overlay", true, None::<&str>)
-                .map_err(|e| format!("Failed to create menu item: {}", e))?;
-        let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)
-            .map_err(|e| format!("Failed to create menu item: {}", e))?;
-        let menu = Menu::with_items(
-            app,
-            &[
-                &show_item,
-                &start_server_item,
-                &stop_server_item,
-                &control_item,
-                &overlay_item,
-                &quit_item,
-            ],
-        )
-        .map_err(|e| format!("Failed to create menu: {}", e))?;
-
-        TrayIconBuilder::with_id("main-tray")
-            .icon(app.default_window_icon().unwrap().clone())
-            .menu(&menu)
-            .show_menu_on_left_click(false)
-            .on_menu_event(|app, event| {
-                match event.id.as_ref() {
-                    "show" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                            let _ = window.set_skip_taskbar(false);
-                        }
-                        // Remove tray icon
-                        let _ = app.remove_tray_by_id("main-tray");
-                    }
-                    "start_server_tray" => {
-                        if let Some(state) = app.try_state::<AppHandle>() {
-                            let settings = LauncherSettings::load();
-                            let mut controller = state.server_controller.lock();
-                            let _ = controller.start(state.app_state.clone(), settings.port);
-                        }
-                    }
-                    "stop_server_tray" => {
-                        if let Some(state) = app.try_state::<AppHandle>() {
-                            let mut controller = state.server_controller.lock();
-                            if controller.is_running() {
-                                let _ = controller.stop();
-                            }
-                        }
-                    }
-                    "open_control_tray" => {
-                        open_service_url("/control");
-                    }
-                    "open_overlay_tray" => {
-                        open_service_url("/overlay");
-                    }
-                    "quit" => {
-                        try_stop_server(app);
-                        app.exit(0);
-                    }
-                    _ => {}
-                }
-            })
-            .on_tray_icon_event(|tray, event| {
-                match event {
-                    TrayIconEvent::Click {
-                        button: MouseButton::Right,
-                        button_state: MouseButtonState::Up,
-                        ..
-                    } => {}
-                    TrayIconEvent::Click {
-                        button: MouseButton::Left,
-                        button_state: MouseButtonState::Up,
-                        ..
-                    }
-                    | TrayIconEvent::DoubleClick {
-                        button: MouseButton::Left,
-                        ..
-                    } => {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                            let _ = window.set_skip_taskbar(false);
-                        }
-                        // Remove tray icon
-                        let _ = app.remove_tray_by_id("main-tray");
-                    }
-                    _ => {}
-                }
-            })
-            .build(app)
-            .map_err(|e| format!("Failed to build tray: {}", e))?;
-    }
-
-    // Hide window and remove from taskbar
+    // The tray icon lives for the whole session (see tray::init), so hiding the
+    // window is all this has to do.
     window
         .hide()
         .map_err(|e| format!("Failed to hide window: {}", e))?;
@@ -916,6 +808,7 @@ fn main() {
 
     // Create server controller
     let server_controller = Arc::new(Mutex::new(ServerController::new()));
+    let server_running = server_controller.lock().running_flag();
 
     if let Err(e) = server_controller
         .lock()
@@ -994,7 +887,10 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .setup(|app| {
+        .setup(move |app| {
+            // Tray icon carries the server state for the whole session.
+            tray::init(app.handle(), server_running);
+
             // Setup window event handlers
             if let Some(window) = app.get_webview_window("main") {
                 let app_handle = window.app_handle().clone();
@@ -1004,74 +900,6 @@ fn main() {
                         app_handle.exit(0);
                     }
                 });
-
-                /* OLD CODE - tray on close
-                let app_handle = app.app_handle().clone();
-                let window_clone = window.clone();
-
-                window.on_window_event(move |event| {
-                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                        if app_handle.tray_by_id("main-tray").is_none() {
-                            let show_item = MenuItem::with_id(&app_handle, "show", "Show Window", true, None::<&str>).unwrap();
-                            let quit_item = MenuItem::with_id(&app_handle, "quit", "Quit", true, None::<&str>).unwrap();
-                            let menu = Menu::with_items(&app_handle, &[&show_item, &quit_item]).unwrap();
-
-                            let tray = TrayIconBuilder::with_id("main-tray")
-                                .icon(app_handle.default_window_icon().unwrap().clone())
-                                .menu(&menu)
-                                .menu_on_left_click(false)
-                                .on_menu_event(|app, event| {
-                                    match event.id.as_ref() {
-                                        "show" => {
-                                            if let Some(window) = app.get_webview_window("main") {
-                                                let _ = window.show();
-                                                let _ = window.set_focus();
-                                                let _ = window.set_skip_taskbar(false);
-                                            }
-                                            // Remove tray icon when window is shown
-                                            if let Some(tray) = app.tray_by_id("main-tray") {
-                                                let _ = app.remove_tray_by_id("main-tray");
-                                            }
-                                        }
-                                        "quit" => {
-                                            app.exit(0);
-                                        }
-                                        _ => {}
-                                    }
-                                })
-                                .on_tray_icon_event(|tray, event| {
-                                    match event {
-                                        TrayIconEvent::Click {
-                                            button: MouseButton::Left,
-                                            button_state: MouseButtonState::Up,
-                                            ..
-                                        } | TrayIconEvent::DoubleClick {
-                                            button: MouseButton::Left,
-                                            ..
-                                        } => {
-                                            let app = tray.app_handle();
-                                            if let Some(window) = app.get_webview_window("main") {
-                                                let _ = window.show();
-                                                let _ = window.set_focus();
-                                                let _ = window.set_skip_taskbar(false);
-                                            }
-                                            // Remove tray icon when window is shown
-                                            let _ = app.remove_tray_by_id("main-tray");
-                                        }
-                                        _ => {}
-                                    }
-                                })
-                                .build(&app_handle);
-
-                            std::mem::forget(tray); // Keep tray alive
-                        }
-
-                        let _ = window_clone.hide();
-                        let _ = window_clone.set_skip_taskbar(true);
-                        api.prevent_close();
-                    }
-                });
-                */
             }
             Ok(())
         })
