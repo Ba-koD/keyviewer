@@ -5,6 +5,7 @@
 // even when the window is hidden. On Windows the taskbar button gets the same dot
 // as an overlay icon, the way Discord marks unread activity.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Duration;
@@ -35,6 +36,9 @@ struct TrayItems {
 }
 
 static ITEMS: OnceLock<TrayItems> = OnceLock::new();
+/// Last state painted, so the taskbar badge can be restored without taking the
+/// server lock from the UI thread.
+static LIVE: AtomicBool = AtomicBool::new(false);
 static ICON_IDLE: OnceLock<(Vec<u8>, u32)> = OnceLock::new();
 static ICON_LIVE: OnceLock<(Vec<u8>, u32)> = OnceLock::new();
 #[cfg(target_os = "windows")]
@@ -203,6 +207,7 @@ fn spawn_watcher(app: AppHandle<Wry>, running: Arc<Mutex<bool>>, live: bool) {
 
 fn apply(app: &AppHandle<Wry>, live: bool) {
     let ko = is_korean();
+    LIVE.store(live, Ordering::Relaxed);
 
     if let Some(tray) = app.tray_by_id(TRAY_ID) {
         let _ = tray.set_icon(Some(tray_image(app, live)));
@@ -215,20 +220,30 @@ fn apply(app: &AppHandle<Wry>, live: bool) {
         let _ = items.stop.set_enabled(live);
     }
 
-    #[cfg(target_os = "windows")]
-    if let Some(window) = app.get_webview_window("main") {
-        let overlay = if live {
-            let (rgba, size) = OVERLAY_LIVE.get_or_init(|| (build_overlay_dot(32), 32));
-            Some(Image::new(rgba, *size, *size))
-        } else {
-            None
-        };
-        let _ = window.set_overlay_icon(overlay);
-    }
+    paint_taskbar_badge(app, live);
+}
 
-    // The taskbar overlay has no counterpart elsewhere; the closest equivalent is a
-    // badge on the macOS dock tile or the Linux launcher entry.
-    #[cfg(not(target_os = "windows"))]
+/// Windows keeps the overlay on the taskbar button itself, and hiding the window
+/// destroys that button - so the badge has to be painted again every time the
+/// window comes back, not only when the server state flips.
+#[cfg(target_os = "windows")]
+fn paint_taskbar_badge(app: &AppHandle<Wry>, live: bool) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let overlay = if live {
+        let (rgba, size) = OVERLAY_LIVE.get_or_init(|| (build_overlay_dot(32), 32));
+        Some(Image::new(rgba, *size, *size))
+    } else {
+        None
+    };
+    let _ = window.set_overlay_icon(overlay);
+}
+
+/// The taskbar overlay has no counterpart elsewhere; the closest equivalent is a
+/// badge on the macOS dock tile or the Linux launcher entry.
+#[cfg(not(target_os = "windows"))]
+fn paint_taskbar_badge(app: &AppHandle<Wry>, live: bool) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.set_badge_count(if live { Some(1) } else { None });
     }
@@ -241,6 +256,17 @@ fn show_main_window(app: &AppHandle<Wry>) {
         let _ = window.show();
         let _ = window.set_focus();
     }
+
+    // The shell may not have rebuilt the taskbar button yet, so paint once now and
+    // again shortly after.
+    let live = LIVE.load(Ordering::Relaxed);
+    paint_taskbar_badge(app, live);
+
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(250));
+        paint_taskbar_badge(&app, live);
+    });
 }
 
 fn toggle_main_window(app: &AppHandle<Wry>) {
@@ -550,28 +576,38 @@ fn read_u32(bytes: &[u8], offset: usize) -> u32 {
 
 /// Windows 11 files every tray icon under HKCU\Control Panel\NotifyIconSettings
 /// and buries new ones in the overflow flyout, where a status dot is worthless.
-/// Flip IsPromoted once so the icon sits on the taskbar itself; the user stays in
-/// control afterwards because we never touch it again.
+/// Flip IsPromoted once so the icon sits on the taskbar itself, then leave it
+/// alone so un-pinning it stays the user's decision.
+///
+/// Windows keys that setting on the executable path, so the "already done" marker
+/// has to be keyed the same way. A single app-wide flag would leave the icon buried
+/// after any rename, update or move, with no way to notice.
 #[cfg(target_os = "windows")]
 fn spawn_promotion() {
     use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_SET_VALUE};
     use winreg::RegKey;
 
     const FLAG_PATH: &str = r"Software\KeyViewer";
-    const FLAG_NAME: &str = "TrayPromoted";
+    const FLAG_NAME: &str = "TrayPromotedPath";
+    const LEGACY_FLAG_NAME: &str = "TrayPromoted";
     const SETTINGS_PATH: &str = r"Control Panel\NotifyIconSettings";
-
-    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    if let Ok(key) = hkcu.open_subkey(FLAG_PATH) {
-        if key.get_value::<u32, _>(FLAG_NAME).unwrap_or(0) != 0 {
-            return;
-        }
-    }
 
     let Ok(exe) = std::env::current_exe() else {
         return;
     };
-    let exe = exe.to_string_lossy().to_lowercase();
+    let current = exe.to_string_lossy().to_lowercase();
+
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    if let Ok(key) = hkcu.open_subkey(FLAG_PATH) {
+        if key
+            .get_value::<String, _>(FLAG_NAME)
+            .map(|done| done == current)
+            .unwrap_or(false)
+        {
+            return;
+        }
+    }
+    let exe = current;
 
     std::thread::spawn(move || {
         // Explorer only writes the entry once it has seen the icon, so give it a
@@ -604,7 +640,9 @@ fn spawn_promotion() {
 
             if promoted {
                 if let Ok((key, _)) = hkcu.create_subkey(FLAG_PATH) {
-                    let _ = key.set_value(FLAG_NAME, &1u32);
+                    let _ = key.set_value(FLAG_NAME, &exe);
+                    // Superseded by the per-path marker above.
+                    let _ = key.delete_value(LEGACY_FLAG_NAME);
                 }
                 println!("[Tray] Promoted tray icon to the notification area");
                 return;

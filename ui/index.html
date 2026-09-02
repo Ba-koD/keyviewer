@@ -119,8 +119,13 @@
                     <span data-i18n="update_size">파일 크기</span>
                     <strong id="update-size">-</strong>
                 </div>
+                <div class="update-version-row">
+                    <span data-i18n="install_version">설치할 버전</span>
+                    <select id="update-version-select" style="min-width:150px"></select>
+                </div>
             </div>
             <div class="update-modal-actions">
+                <button class="btn-secondary" id="btn-cancel-update" data-i18n="cancel">취소</button>
                 <button class="btn-secondary" id="btn-open-release" data-i18n="open_release">릴리스 열기</button>
                 <button class="btn-secondary btn-update-install" id="btn-install-update" data-i18n="install_update">설치 후 재시작</button>
             </div>
@@ -212,6 +217,15 @@
                 start_server: '서버 시작',
                 stop_server: '서버 중지',
                 input_warning_title: '키 입력을 감지할 수 없음',
+                cancel: '취소',
+                manage_version: '버전 선택',
+                install_version: '설치할 버전',
+                version_current_suffix: ' (현재)',
+                version_loading: '버전 목록 불러오는 중...',
+                version_list_failed: '버전 목록을 불러오지 못했습니다',
+                version_list_empty: '설치 가능한 버전이 없습니다',
+                reinstall_confirm: '이 버전을 다시 다운로드해 설치합니다. 앱이 재시작됩니다. 계속할까요?',
+                downgrade_confirm: '이전 버전으로 되돌립니다. 앱이 재시작됩니다. 계속할까요?',
                 console_toggle: '로그 보기',
                 run_on_startup: '시스템 시작 시 실행',
                 web_control: '웹 제어',
@@ -253,6 +267,15 @@
                 start_server: 'Start Server',
                 stop_server: 'Stop Server',
                 input_warning_title: 'Key input cannot be captured',
+                cancel: 'Cancel',
+                manage_version: 'Choose a version',
+                install_version: 'Version to install',
+                version_current_suffix: ' (current)',
+                version_loading: 'Loading versions...',
+                version_list_failed: 'Could not load the version list',
+                version_list_empty: 'No installable versions',
+                reinstall_confirm: 'This re-downloads and installs the same version. The app will restart. Continue?',
+                downgrade_confirm: 'This rolls back to an older version. The app will restart. Continue?',
                 console_toggle: 'Show log',
                 run_on_startup: 'Run at system startup',
                 web_control: 'Web Control',
@@ -294,6 +317,8 @@
         const statusIndicator = document.getElementById('status-indicator');
         const portInput = document.getElementById('port');
         const languageSelect = document.getElementById('language');
+        const versionSelect = document.getElementById('update-version-select');
+        const updateModalTitle = document.getElementById('update-modal-title');
         const consoleToggle = document.getElementById('run-on-boot');
         const consoleLog = document.getElementById('console-log');
         const runOnStartup = document.getElementById('run-on-startup');
@@ -302,6 +327,7 @@
         const headerUpdateStatus = document.getElementById('header-update-status');
         const updateModal = document.getElementById('update-modal');
         const btnCloseUpdateModal = document.getElementById('btn-close-update-modal');
+        const btnCancelUpdate = document.getElementById('btn-cancel-update');
         const updateCurrentVersion = document.getElementById('update-current-version');
         const updateLatestVersion = document.getElementById('update-latest-version');
         const updateSizeRow = document.getElementById('update-size-row');
@@ -356,10 +382,24 @@
             overlayUrl.href = `http://localhost:${currentPort}/overlay`;
         }
 
+        let currentAppVersion = '';
+
         function setAppVersion(version) {
             if (!appVersion || !version) return;
+            currentAppVersion = version;
             appVersion.textContent = `v${version}`;
             appVersion.title = '';
+        }
+
+        // Numeric compare so 1.10.0 ranks above 1.9.0.
+        function compareVersions(a, b) {
+            const left = String(a).split('.').map(Number);
+            const right = String(b).split('.').map(Number);
+            for (let i = 0; i < 3; i++) {
+                const diff = (left[i] || 0) - (right[i] || 0);
+                if (diff) return diff < 0 ? -1 : 1;
+            }
+            return 0;
         }
 
         function setVersionState(level = '') {
@@ -389,18 +429,80 @@
             return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.round(size / 1024)} KB`;
         }
 
-        function showUpdateModal(update) {
-            if (!updateModal || !update) return;
-            pendingUpdate = update;
-            const sizeText = formatUpdateSize(update.asset_size);
+        // Every release this build can install, newest first.
+        let releaseOptions = [];
 
-            updateCurrentVersion.textContent = `v${update.current_version}`;
-            updateLatestVersion.textContent = `v${update.latest_version}`;
+        function selectedRelease() {
+            if (!versionSelect || !versionSelect.value) return null;
+            return releaseOptions.find((r) => r.tag_name === versionSelect.value) || null;
+        }
+
+        function renderSelectedRelease() {
+            const release = selectedRelease();
+            const sizeText = formatUpdateSize(release ? release.asset_size : null);
+
             updateSize.textContent = sizeText;
             updateSizeRow.style.display = sizeText ? 'flex' : 'none';
-            btnOpenRelease.disabled = !update.release_url;
-            btnInstallUpdate.disabled = false;
+            btnOpenRelease.disabled = !(release && release.release_url);
+            btnInstallUpdate.disabled = !release;
+        }
+
+        async function loadReleaseOptions(preferredTag) {
+            const t = translations[currentLanguage];
+            if (!versionSelect) return;
+
+            versionSelect.innerHTML = `<option>${t.version_loading}</option>`;
+            versionSelect.disabled = true;
+
+            let failed = false;
+            try {
+                releaseOptions = await invoke('list_app_releases');
+            } catch (error) {
+                console.error('Failed to list releases:', error);
+                releaseOptions = [];
+                failed = true;
+            }
+
+            // An empty list is not a failure: it just means nothing newer than the
+            // oldest rollback target has been published yet.
+            if (!releaseOptions.length) {
+                const message = failed ? t.version_list_failed : t.version_list_empty;
+                versionSelect.innerHTML = `<option>${message}</option>`;
+                return;
+            }
+
+            versionSelect.innerHTML = '';
+            for (const release of releaseOptions) {
+                const option = document.createElement('option');
+                option.value = release.tag_name;
+                option.textContent = `v${release.version}${release.is_current ? t.version_current_suffix : ''}`;
+                versionSelect.appendChild(option);
+            }
+
+            const wanted =
+                releaseOptions.find((r) => r.tag_name === preferredTag) || releaseOptions[0];
+            versionSelect.value = wanted.tag_name;
+            versionSelect.disabled = false;
+            updateLatestVersion.textContent = `v${releaseOptions[0].version}`;
+            renderSelectedRelease();
+        }
+
+        function showUpdateModal(update) {
+            if (!updateModal) return;
+            const t = translations[currentLanguage];
+            pendingUpdate = update;
+
+            if (updateModalTitle) {
+                updateModalTitle.textContent = update ? t.update_available : t.manage_version;
+            }
+            updateCurrentVersion.textContent = `v${update ? update.current_version : currentAppVersion}`;
+            updateLatestVersion.textContent = update ? `v${update.latest_version}` : '-';
+            updateSizeRow.style.display = 'none';
+            btnOpenRelease.disabled = true;
+            btnInstallUpdate.disabled = true;
             updateModal.style.display = 'flex';
+
+            loadReleaseOptions(update ? update.tag_name : null);
         }
 
         function hideUpdateModal() {
@@ -422,6 +524,8 @@
                 if (!update) {
                     setVersionState('');
                     setHeaderUpdateStatus(t.update_latest, 'ok');
+                    // Still open the dialog so any version can be picked from here.
+                    if (manual) showUpdateModal(null);
                     return;
                 }
 
@@ -448,7 +552,18 @@
 
         async function installAppUpdate() {
             const t = translations[currentLanguage];
-            if (!confirm(t.update_install_confirm)) return;
+            const release = selectedRelease();
+            if (!release) return;
+
+            // Re-installing the running build and rolling back are not the plain
+            // "update" the default wording describes, so each gets its own warning.
+            let question = t.update_install_confirm;
+            if (release.is_current) {
+                question = t.reinstall_confirm;
+            } else if (compareVersions(release.version, currentAppVersion) < 0) {
+                question = t.downgrade_confirm;
+            }
+            if (!confirm(question)) return;
 
             btnCheckUpdate.disabled = true;
             btnInstallUpdate.disabled = true;
@@ -457,7 +572,7 @@
             setHeaderUpdateStatus(t.installing_update);
 
             try {
-                await invoke('install_app_update');
+                await invoke('install_app_version', { tag: release.tag_name });
             } catch (error) {
                 console.error('Failed to install app update:', error);
                 setVersionState('error');
@@ -708,19 +823,23 @@
         });
 
         btnOpenRelease.addEventListener('click', () => {
-            if (pendingUpdate?.release_url) {
-                invoke('open_url', { url: pendingUpdate.release_url });
+            const release = selectedRelease();
+            if (release?.release_url) {
+                invoke('open_url', { url: release.release_url });
             }
         });
 
+        versionSelect.addEventListener('change', renderSelectedRelease);
+
         btnCloseUpdateModal.addEventListener('click', hideUpdateModal);
+        btnCancelUpdate.addEventListener('click', hideUpdateModal);
 
         updateModal.addEventListener('click', (e) => {
             if (e.target === updateModal) hideUpdateModal();
         });
 
         appVersion.addEventListener('click', () => {
-            if (pendingUpdate) showUpdateModal(pendingUpdate);
+            showUpdateModal(pendingUpdate);
         });
 
         // Reset settings button

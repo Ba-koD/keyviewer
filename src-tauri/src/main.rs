@@ -318,6 +318,20 @@ fn get_app_version() -> String {
     app_update::CURRENT_VERSION.to_string()
 }
 
+/// Every installable release for this platform, so the launcher can offer a
+/// picker instead of only the newest build.
+#[tauri::command]
+fn list_app_releases() -> Result<Vec<app_update::ReleaseOption>, String> {
+    app_update::list_available_releases()
+}
+
+/// Installs a chosen release, including the one already running (re-download) or
+/// an older one (downgrade).
+#[tauri::command]
+fn install_app_version(tag: String) -> Result<(), String> {
+    app_update::install_release(&tag)
+}
+
 #[tauri::command]
 fn install_app_update() -> Result<(), String> {
     app_update::install_latest_update()
@@ -1069,6 +1083,8 @@ fn main() {
             check_app_update,
             get_app_version,
             install_app_update,
+            list_app_releases,
+            install_app_version,
             save_port_setting,
             save_language_setting,
             get_server_status,

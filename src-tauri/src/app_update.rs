@@ -17,6 +17,15 @@ const GITHUB_RELEASES_URL: &str =
     "https://api.github.com/repos/Ba-koD/keyviewer/releases?per_page=100";
 const USER_AGENT: &str = "KeyQueueViewer";
 
+/// Oldest release the picker will install. 1.1.7 is the first build that ships the
+/// picker itself, so rolling back past it would strand the user on a version with
+/// no way back short of downloading by hand.
+const OLDEST_SELECTABLE: VersionParts = VersionParts {
+    major: 1,
+    minor: 1,
+    patch: 7,
+};
+
 /// The release workflow publishes one portable binary per platform. This mirrors
 /// the names it produces so a build only ever offers the asset it can install.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -61,22 +70,29 @@ impl UpdatePlatform {
         }
     }
 
-    /// Loose match for a renamed asset. Archives are skipped: the installer replaces
-    /// the executable directly and never unpacks.
+    /// Loose match for an asset from an older naming scheme. Archives are skipped:
+    /// the installer replaces the executable directly and never unpacks.
+    ///
+    /// On Windows a `.exe` is proof enough of the platform, which is what lets the
+    /// picker reach releases from before the current naming convention. Elsewhere
+    /// the file name is the only signal, so those stay strict.
     fn matches(self, name: &str) -> bool {
         let name = name.to_ascii_lowercase();
-        if !name.starts_with("kbqv-") {
-            return false;
-        }
         match self {
-            Self::Windows => name.contains("windows") && name.ends_with(".exe"),
+            Self::Windows => {
+                name.ends_with(".exe") && !name.contains("linux") && !name.contains("macos")
+            }
             Self::MacOs { arm } => {
-                name.contains("macos")
+                name.starts_with("kbqv-")
+                    && name.contains("macos")
                     && name.contains(if arm { "arm64" } else { "x64" })
                     && !name.ends_with(".zip")
             }
             Self::Linux => {
-                name.contains("linux") && !name.ends_with(".zip") && !name.ends_with(".tar.gz")
+                name.starts_with("kbqv-")
+                    && name.contains("linux")
+                    && !name.ends_with(".zip")
+                    && !name.ends_with(".tar.gz")
             }
         }
     }
@@ -96,6 +112,19 @@ impl UpdatePlatform {
             _ => "KBQV",
         }
     }
+}
+
+/// One installable release, as offered in the launcher's version picker.
+#[derive(Clone, Debug, Serialize)]
+pub struct ReleaseOption {
+    pub version: String,
+    pub tag_name: String,
+    pub release_url: String,
+    pub asset_name: String,
+    pub asset_size: Option<u64>,
+    /// True for the version already running, which stays installable so a broken
+    /// copy can be replaced with the same build.
+    pub is_current: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -193,20 +222,107 @@ fn fetch_latest_versioned_release(client: &Client) -> Result<Option<GithubReleas
         Ok(_) | Err(_) => {}
     }
 
-    let releases: Vec<GithubRelease> = client
+    Ok(fetch_releases(client)?
+        .into_iter()
+        .filter_map(|release| parse_version(&release.tag_name).map(|version| (version, release)))
+        .max_by(|(left, _), (right, _)| left.cmp(right))
+        .map(|(_, release)| release))
+}
+
+fn fetch_releases(client: &Client) -> Result<Vec<GithubRelease>, String> {
+    client
         .get(GITHUB_RELEASES_URL)
         .send()
         .map_err(|e| format!("Failed to request GitHub releases: {}", e))?
         .error_for_status()
         .map_err(|e| format!("GitHub releases request failed: {}", e))?
         .json()
-        .map_err(|e| format!("Failed to decode GitHub releases: {}", e))?;
+        .map_err(|e| format!("Failed to decode GitHub releases: {}", e))
+}
 
-    Ok(releases
+/// Every release that ships a binary this build can actually install, newest
+/// first. Releases without an asset for this platform are left out rather than
+/// offered as a dead end.
+fn releases_to_options(
+    releases: Vec<GithubRelease>,
+    current: VersionParts,
+    platform: UpdatePlatform,
+) -> Vec<ReleaseOption> {
+    let mut options: Vec<(VersionParts, ReleaseOption)> = releases
         .into_iter()
-        .filter_map(|release| parse_version(&release.tag_name).map(|version| (version, release)))
-        .max_by(|(left, _), (right, _)| left.cmp(right))
-        .map(|(_, release)| release))
+        .filter_map(|release| {
+            let version = parse_version(&release.tag_name)?;
+            if version < OLDEST_SELECTABLE {
+                return None;
+            }
+            let asset = select_update_asset_for(&release.assets, version, platform)?;
+            Some((
+                version,
+                ReleaseOption {
+                    version: version.to_string(),
+                    tag_name: release.tag_name.clone(),
+                    release_url: release.html_url.clone(),
+                    asset_name: asset.name.clone(),
+                    asset_size: asset.size,
+                    is_current: version == current,
+                },
+            ))
+        })
+        .collect();
+
+    options.sort_by(|(left, _), (right, _)| right.cmp(left));
+    options.dedup_by(|(left, _), (right, _)| left == right);
+    options.into_iter().map(|(_, option)| option).collect()
+}
+
+pub fn list_available_releases() -> Result<Vec<ReleaseOption>, String> {
+    let current = parse_version(CURRENT_VERSION)
+        .ok_or_else(|| format!("Current app version is invalid: {}", CURRENT_VERSION))?;
+    let releases = fetch_releases(&http_client()?)?;
+
+    Ok(releases_to_options(
+        releases,
+        current,
+        UpdatePlatform::current(),
+    ))
+}
+
+/// Installs a specific release, which may be older than or identical to the one
+/// running - the picker deliberately allows both.
+pub fn install_release(tag: &str) -> Result<(), String> {
+    let releases = fetch_releases(&http_client()?)?;
+    let platform = UpdatePlatform::current();
+
+    let release = releases
+        .into_iter()
+        .find(|release| release.tag_name.eq_ignore_ascii_case(tag))
+        .ok_or_else(|| format!("Release {} was not found.", tag))?;
+
+    let version = parse_version(&release.tag_name)
+        .ok_or_else(|| format!("Release tag is not a version: {}", release.tag_name))?;
+    if version < OLDEST_SELECTABLE {
+        return Err(format!(
+            "Release {} is older than v{}, which is the oldest version this app can roll back to.",
+            release.tag_name, OLDEST_SELECTABLE
+        ));
+    }
+    let asset = select_update_asset_for(&release.assets, version, platform).ok_or_else(|| {
+        format!(
+            "Release {} has no {} download.",
+            release.tag_name,
+            platform.label()
+        )
+    })?;
+
+    install_and_restart(&ReleaseUpdate {
+        current_version: CURRENT_VERSION.to_string(),
+        latest_version: version.to_string(),
+        tag_name: release.tag_name.clone(),
+        release_url: release.html_url.clone(),
+        asset_name: asset.name.clone(),
+        asset_size: asset.size,
+        download_url: asset.browser_download_url.clone(),
+    })
 }
 
 fn select_update_asset(
@@ -599,6 +715,98 @@ mod tests {
             select_update_asset_for(&assets, version, UpdatePlatform::MacOs { arm: true })
                 .is_none()
         );
+    }
+
+    fn release(tag: &str, assets: &[&str]) -> GithubRelease {
+        GithubRelease {
+            tag_name: tag.to_string(),
+            html_url: format!("https://example.invalid/{}", tag),
+            assets: assets
+                .iter()
+                .map(|name| GithubAsset {
+                    name: name.to_string(),
+                    browser_download_url: format!("https://example.invalid/{}", name),
+                    size: Some(10),
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn lists_newest_first_and_marks_the_running_version() {
+        let releases = vec![
+            release("v1.1.9", &["KBQV-windows-x64.exe"]),
+            release("v1.2.0", &["KBQV-windows-x64.exe"]),
+            release("v1.1.7", &["KBQV-windows-x64.exe"]),
+        ];
+
+        let options = releases_to_options(
+            releases,
+            parse_version("1.1.7").unwrap(),
+            UpdatePlatform::Windows,
+        );
+
+        let versions: Vec<&str> = options.iter().map(|o| o.version.as_str()).collect();
+        assert_eq!(versions, ["1.2.0", "1.1.9", "1.1.7"]);
+        assert!(options[2].is_current);
+        assert!(!options[0].is_current);
+    }
+
+    #[test]
+    fn never_offers_a_build_without_the_picker() {
+        let releases = vec![
+            release("v1.1.8", &["KBQV-windows-x64.exe"]),
+            release("v1.1.7", &["KBQV-windows-x64.exe"]),
+            release("v1.1.6", &["KBQV-windows-x64.exe"]),
+            release("v1.0.4", &["KBQV-Portable-1.0.4.exe"]),
+        ];
+
+        let options = releases_to_options(
+            releases,
+            parse_version("1.1.8").unwrap(),
+            UpdatePlatform::Windows,
+        );
+
+        let versions: Vec<&str> = options.iter().map(|o| o.version.as_str()).collect();
+        assert_eq!(versions, ["1.1.8", "1.1.7"]);
+    }
+
+    #[test]
+    fn skips_releases_without_a_binary_for_this_platform() {
+        let releases = vec![
+            release("v2.0.0", &["KBQV-windows-x64.exe"]),
+            release("v1.9.0", &["KBQV-windows-x64.zip"]),
+            release("not-a-version", &["KBQV-linux-x64"]),
+        ];
+
+        let options = releases_to_options(
+            releases,
+            parse_version("2.0.0").unwrap(),
+            UpdatePlatform::Linux,
+        );
+
+        // Only the Linux asset would qualify, and its tag is not a version.
+        assert!(options.is_empty());
+    }
+
+    #[test]
+    fn reaches_windows_builds_from_older_naming_schemes() {
+        let version = parse_version("v1.0.4").unwrap();
+
+        for name in ["KBQV-Portable-1.0.4.exe", "KeyQueueViewer.v1.0.3.exe"] {
+            let assets = vec![GithubAsset {
+                name: name.to_string(),
+                browser_download_url: "https://example.invalid/a".to_string(),
+                size: Some(1),
+            }];
+            assert_eq!(
+                select_update_asset_for(&assets, version, UpdatePlatform::Windows)
+                    .map(|a| a.name.as_str()),
+                Some(name)
+            );
+            // The same file must never be offered to another platform.
+            assert!(select_update_asset_for(&assets, version, UpdatePlatform::Linux).is_none());
+        }
     }
 
     #[test]
