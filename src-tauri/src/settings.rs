@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 use std::process::Command;
 #[cfg(target_os = "windows")]
 use winreg::enums::*;
@@ -98,6 +98,105 @@ mod macos_defaults {
     }
 }
 
+// Linux and other platforms: a flat JSON map on disk. Mirrors the key/value shape
+// the Windows registry and macOS UserDefaults paths already use, so every caller
+// below stays the same across platforms.
+#[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+mod file_store {
+    use serde_json::{Map, Value};
+    use std::sync::Mutex;
+
+    // Serializes read-modify-write so two saves cannot lose each other.
+    static LOCK: Mutex<()> = Mutex::new(());
+
+    fn path() -> Option<std::path::PathBuf> {
+        super::get_config_dir()
+            .ok()
+            .map(|dir| dir.join("settings.json"))
+    }
+
+    fn read() -> Map<String, Value> {
+        match path()
+            .and_then(|path| std::fs::read_to_string(path).ok())
+            .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        {
+            Some(Value::Object(map)) => map,
+            _ => Map::new(),
+        }
+    }
+
+    fn write(map: &Map<String, Value>) {
+        let Some(path) = path() else {
+            eprintln!("[Settings] No config directory available; settings were not saved");
+            return;
+        };
+        match serde_json::to_string_pretty(map) {
+            Ok(text) => {
+                if let Err(e) = std::fs::write(&path, text) {
+                    eprintln!("[Settings] Failed to write {}: {}", path.display(), e);
+                }
+            }
+            Err(e) => eprintln!("[Settings] Failed to serialize settings: {}", e),
+        }
+    }
+
+    /// Every setting read in one go, so a caller that needs twenty keys touches
+    /// the file once instead of twenty times.
+    pub struct Snapshot(Map<String, Value>);
+
+    impl Snapshot {
+        pub fn integer(&self, key: &str, default: i64) -> i64 {
+            self.0.get(key).and_then(Value::as_i64).unwrap_or(default)
+        }
+
+        pub fn string(&self, key: &str, default: &str) -> String {
+            self.0
+                .get(key)
+                .and_then(Value::as_str)
+                .map(str::to_string)
+                .unwrap_or_else(|| default.to_string())
+        }
+    }
+
+    pub fn snapshot() -> Snapshot {
+        Snapshot(read())
+    }
+
+    /// Collects a group of changes and applies them as a single read-modify-write.
+    #[derive(Default)]
+    pub struct Batch(Vec<(String, Value)>);
+
+    impl Batch {
+        pub fn new() -> Self {
+            Self::default()
+        }
+
+        pub fn integer(mut self, key: &str, value: i64) -> Self {
+            self.0.push((key.to_string(), Value::from(value)));
+            self
+        }
+
+        pub fn string(mut self, key: &str, value: &str) -> Self {
+            self.0.push((key.to_string(), Value::from(value)));
+            self
+        }
+
+        pub fn commit(self) {
+            let _guard = LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            let mut map = read();
+            for (key, value) in self.0 {
+                map.insert(key, value);
+            }
+            write(&map);
+        }
+    }
+
+    pub fn clear() {
+        let _guard = LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        write(&Map::new());
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LauncherSettings {
     pub port: u16,
@@ -156,8 +255,16 @@ impl LauncherSettings {
 
         #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
         {
-            // Linux and other platforms: use default values
-            Self::default()
+            let store = file_store::snapshot();
+            let port = store.integer("Port", 8000).clamp(1, 65535) as u16;
+            let language = store.string("Language", "ko");
+            let run_on_startup = store.integer("RunOnStartup", 0) != 0;
+
+            Self {
+                port,
+                language,
+                run_on_startup,
+            }
         }
     }
 
@@ -199,7 +306,11 @@ impl LauncherSettings {
 
         #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
         {
-            // Linux and other platforms: no-op
+            file_store::Batch::new()
+                .integer("Port", i64::from(self.port))
+                .string("Language", &self.language)
+                .integer("RunOnStartup", i64::from(self.run_on_startup))
+                .commit();
             Ok(())
         }
     }
@@ -264,7 +375,7 @@ fn remove_legacy_run_value() {
 }
 
 #[cfg(target_os = "windows")]
-pub fn set_windows_startup(enabled: bool) -> Result<(), String> {
+pub fn set_startup_registration(enabled: bool) -> Result<(), String> {
     if enabled && cfg!(debug_assertions) {
         remove_legacy_run_value();
         return Err(
@@ -311,9 +422,143 @@ Unregister-ScheduledTask -TaskName {task_name} -Confirm:$false -ErrorAction Sile
     Ok(())
 }
 
-#[cfg(not(target_os = "windows"))]
-pub fn set_windows_startup(_enabled: bool) -> Result<(), String> {
-    Err("Not supported on this platform".to_string())
+// macOS: a per-user LaunchAgent. Writing the plist is enough for the next login;
+// launchctl is called so the change also takes effect in the current session.
+#[cfg(target_os = "macos")]
+const LAUNCH_AGENT_LABEL: &str = "com.keyviewer.launcher";
+
+#[cfg(target_os = "macos")]
+fn launch_agent_path() -> Result<std::path::PathBuf, String> {
+    let home = std::env::var_os("HOME").ok_or_else(|| "HOME not found".to_string())?;
+    let dir = std::path::PathBuf::from(home)
+        .join("Library")
+        .join("LaunchAgents");
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| format!("Failed to create {}: {}", dir.display(), e))?;
+    Ok(dir.join(format!("{}.plist", LAUNCH_AGENT_LABEL)))
+}
+
+#[cfg(target_os = "macos")]
+fn xml_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+#[cfg(target_os = "macos")]
+pub fn set_startup_registration(enabled: bool) -> Result<(), String> {
+    if enabled && cfg!(debug_assertions) {
+        return Err(
+            "Refusing to register a debug build for login startup. Use a release executable."
+                .to_string(),
+        );
+    }
+
+    let plist_path = launch_agent_path()?;
+    let plist_arg = plist_path.to_string_lossy().to_string();
+
+    if enabled {
+        let exe_path =
+            std::env::current_exe().map_err(|e| format!("Failed to get exe path: {}", e))?;
+        let plist = format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{label}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{exe}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>
+"#,
+            label = LAUNCH_AGENT_LABEL,
+            exe = xml_escape(&exe_path.to_string_lossy()),
+        );
+
+        std::fs::write(&plist_path, plist)
+            .map_err(|e| format!("Failed to write {}: {}", plist_path.display(), e))?;
+
+        // Reload so the agent is registered without waiting for the next login.
+        let _ = Command::new("launchctl")
+            .args(["unload", &plist_arg])
+            .output();
+        Command::new("launchctl")
+            .args(["load", "-w", &plist_arg])
+            .output()
+            .map_err(|e| format!("Failed to run launchctl: {}", e))?;
+    } else {
+        let _ = Command::new("launchctl")
+            .args(["unload", "-w", &plist_arg])
+            .output();
+        if plist_path.exists() {
+            std::fs::remove_file(&plist_path)
+                .map_err(|e| format!("Failed to remove {}: {}", plist_path.display(), e))?;
+        }
+    }
+
+    Ok(())
+}
+
+// Linux and other platforms: an XDG autostart desktop entry.
+#[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+fn autostart_dir() -> Result<std::path::PathBuf, String> {
+    if let Some(config_home) = std::env::var_os("XDG_CONFIG_HOME") {
+        if !config_home.is_empty() {
+            return Ok(std::path::PathBuf::from(config_home).join("autostart"));
+        }
+    }
+    let home = std::env::var_os("HOME").ok_or_else(|| "HOME not found".to_string())?;
+    Ok(std::path::PathBuf::from(home)
+        .join(".config")
+        .join("autostart"))
+}
+
+#[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+pub fn set_startup_registration(enabled: bool) -> Result<(), String> {
+    if enabled && cfg!(debug_assertions) {
+        return Err(
+            "Refusing to register a debug build for login startup. Use a release executable."
+                .to_string(),
+        );
+    }
+
+    let entry = autostart_dir()?.join("keyviewer.desktop");
+
+    if enabled {
+        let exe_path =
+            std::env::current_exe().map_err(|e| format!("Failed to get exe path: {}", e))?;
+        // Exec is a quoted string per the Desktop Entry spec, so paths with spaces work.
+        let exec = exe_path
+            .to_string_lossy()
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"");
+        let desktop = format!(
+            "[Desktop Entry]\n\
+             Type=Application\n\
+             Name=KeyQueueViewer\n\
+             Exec=\"{exec}\"\n\
+             Terminal=false\n\
+             X-GNOME-Autostart-enabled=true\n"
+        );
+
+        if let Some(dir) = entry.parent() {
+            std::fs::create_dir_all(dir)
+                .map_err(|e| format!("Failed to create {}: {}", dir.display(), e))?;
+        }
+        std::fs::write(&entry, desktop)
+            .map_err(|e| format!("Failed to write {}: {}", entry.display(), e))?;
+    } else if entry.exists() {
+        std::fs::remove_file(&entry)
+            .map_err(|e| format!("Failed to remove {}: {}", entry.display(), e))?;
+    }
+
+    Ok(())
 }
 
 // Save/Load Target Config to/from Registry or UserDefaults
@@ -342,8 +587,10 @@ pub fn save_target_config(mode: &str, value: Option<&str>) -> Result<(), String>
 
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
-        // Linux and other platforms: no-op
-        let _ = (mode, value); // Consume to avoid warnings
+        file_store::Batch::new()
+            .string("TargetMode", mode)
+            .string("TargetValue", value.unwrap_or(""))
+            .commit();
         Ok(())
     }
 }
@@ -376,8 +623,11 @@ pub fn load_target_config() -> (String, Option<String>) {
 
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
-        // Linux and other platforms: return defaults
-        ("disabled".to_string(), None)
+        let store = file_store::snapshot();
+        let mode = store.string("TargetMode", "disabled");
+        let value = store.string("TargetValue", "");
+        let value_opt = if value.is_empty() { None } else { Some(value) };
+        (mode, value_opt)
     }
 }
 
@@ -487,29 +737,28 @@ pub fn save_overlay_config(
 
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
-        // Linux and other platforms: no-op
-        let _ = (
-            fade_in_ms,
-            fade_out_ms,
-            chip_bg,
-            chip_fg,
-            chip_gap,
-            chip_pad_v,
-            chip_pad_h,
-            chip_radius,
-            chip_font_px,
-            chip_font_weight,
-            background,
-            cols,
-            rows,
-            align,
-            direction,
-            color_mode,
-            grad_color1,
-            grad_color2,
-            grad_dir,
-            overlay_mode,
-        );
+        file_store::Batch::new()
+            .integer("overlay.FadeInMs", i64::from(fade_in_ms))
+            .integer("overlay.FadeOutMs", i64::from(fade_out_ms))
+            .string("overlay.ChipBg", chip_bg)
+            .string("overlay.ChipFg", chip_fg)
+            .integer("overlay.ChipGap", i64::from(chip_gap))
+            .integer("overlay.ChipPadV", i64::from(chip_pad_v))
+            .integer("overlay.ChipPadH", i64::from(chip_pad_h))
+            .integer("overlay.ChipRadius", i64::from(chip_radius))
+            .integer("overlay.ChipFontPx", i64::from(chip_font_px))
+            .integer("overlay.ChipFontWeight", i64::from(chip_font_weight))
+            .string("overlay.Background", background)
+            .integer("overlay.Cols", i64::from(cols))
+            .integer("overlay.Rows", i64::from(rows))
+            .string("overlay.Align", align)
+            .string("overlay.Direction", direction)
+            .string("overlay.ColorMode", color_mode)
+            .string("overlay.GradColor1", grad_color1)
+            .string("overlay.GradColor2", grad_color2)
+            .string("overlay.GradDir", grad_dir)
+            .string("overlay.OverlayMode", overlay_mode)
+            .commit();
         Ok(())
     }
 }
@@ -688,28 +937,69 @@ pub fn load_overlay_config() -> (
 
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
-        // Linux and other platforms: return defaults
+        let store = file_store::snapshot();
+        let fade_in_ms = store
+            .integer("overlay.FadeInMs", 120)
+            .clamp(0, i64::from(u32::MAX)) as u32;
+        let fade_out_ms = store
+            .integer("overlay.FadeOutMs", 120)
+            .clamp(0, i64::from(u32::MAX)) as u32;
+        let chip_bg = store.string("overlay.ChipBg", "#000000");
+        let chip_fg = store.string("overlay.ChipFg", "#ffffff");
+        let chip_gap = store
+            .integer("overlay.ChipGap", 8)
+            .clamp(0, i64::from(u32::MAX)) as u32;
+        let chip_pad_v = store
+            .integer("overlay.ChipPadV", 10)
+            .clamp(0, i64::from(u32::MAX)) as u32;
+        let chip_pad_h = store
+            .integer("overlay.ChipPadH", 14)
+            .clamp(0, i64::from(u32::MAX)) as u32;
+        let chip_radius = store
+            .integer("overlay.ChipRadius", 10)
+            .clamp(0, i64::from(u32::MAX)) as u32;
+        let chip_font_px = store
+            .integer("overlay.ChipFontPx", 24)
+            .clamp(0, i64::from(u32::MAX)) as u32;
+        let chip_font_weight = store
+            .integer("overlay.ChipFontWeight", 700)
+            .clamp(0, i64::from(u32::MAX)) as u32;
+        let background = store.string("overlay.Background", "rgba(0,0,0,0)");
+        let cols = store
+            .integer("overlay.Cols", 8)
+            .clamp(0, i64::from(u32::MAX)) as u32;
+        let rows = store
+            .integer("overlay.Rows", 1)
+            .clamp(0, i64::from(u32::MAX)) as u32;
+        let align = store.string("overlay.Align", "left");
+        let direction = store.string("overlay.Direction", "ltr");
+        let color_mode = store.string("overlay.ColorMode", "solid");
+        let grad_color1 = store.string("overlay.GradColor1", "#000000");
+        let grad_color2 = store.string("overlay.GradColor2", "#333333");
+        let grad_dir = store.string("overlay.GradDir", "to bottom");
+        let overlay_mode = store.string("overlay.OverlayMode", "queue");
+
         (
-            120,
-            120,
-            "#000000".to_string(),
-            "#ffffff".to_string(),
-            8,
-            10,
-            14,
-            10,
-            24,
-            700,
-            "rgba(0,0,0,0)".to_string(),
-            8,
-            1,
-            "left".to_string(),
-            "ltr".to_string(),
-            "solid".to_string(),
-            "#000000".to_string(),
-            "#333333".to_string(),
-            "to bottom".to_string(),
-            "queue".to_string(),
+            fade_in_ms,
+            fade_out_ms,
+            chip_bg,
+            chip_fg,
+            chip_gap,
+            chip_pad_v,
+            chip_pad_h,
+            chip_radius,
+            chip_font_px,
+            chip_font_weight,
+            background,
+            cols,
+            rows,
+            align,
+            direction,
+            color_mode,
+            grad_color1,
+            grad_color2,
+            grad_dir,
+            overlay_mode,
         )
     }
 }
@@ -811,7 +1101,7 @@ fn get_config_dir() -> Result<std::path::PathBuf, String> {
 pub fn reset_all_settings() -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
-        if let Err(e) = set_windows_startup(false) {
+        if let Err(e) = set_startup_registration(false) {
             eprintln!("Warning: failed to remove Windows startup task: {}", e);
         }
 
@@ -838,6 +1128,10 @@ pub fn reset_all_settings() -> Result<(), String> {
 
     #[cfg(target_os = "macos")]
     {
+        if let Err(e) = set_startup_registration(false) {
+            eprintln!("Warning: failed to remove the login startup agent: {}", e);
+        }
+
         // Remove all settings from UserDefaults
         macos_defaults::remove("com.keyviewer.Port");
         macos_defaults::remove("com.keyviewer.Language");
@@ -859,14 +1153,22 @@ pub fn reset_all_settings() -> Result<(), String> {
         macos_defaults::remove("com.keyviewer.overlay.Rows");
         macos_defaults::remove("com.keyviewer.overlay.Align");
         macos_defaults::remove("com.keyviewer.overlay.Direction");
+        macos_defaults::remove("com.keyviewer.overlay.ColorMode");
+        macos_defaults::remove("com.keyviewer.overlay.GradColor1");
+        macos_defaults::remove("com.keyviewer.overlay.GradColor2");
+        macos_defaults::remove("com.keyviewer.overlay.GradDir");
+        macos_defaults::remove("com.keyviewer.overlay.OverlayMode");
         println!("UserDefaults settings deleted successfully");
         Ok(())
     }
 
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
-        // Linux and other platforms: no-op
-        println!("Settings reset (no persistent storage)");
+        if let Err(e) = set_startup_registration(false) {
+            eprintln!("Warning: failed to remove autostart entry: {}", e);
+        }
+        file_store::clear();
+        println!("Settings file cleared successfully");
         Ok(())
     }
 }

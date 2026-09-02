@@ -225,6 +225,13 @@ fn apply(app: &AppHandle<Wry>, live: bool) {
         };
         let _ = window.set_overlay_icon(overlay);
     }
+
+    // The taskbar overlay has no counterpart elsewhere; the closest equivalent is a
+    // badge on the macOS dock tile or the Linux launcher entry.
+    #[cfg(not(target_os = "windows"))]
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_badge_count(if live { Some(1) } else { None });
+    }
 }
 
 fn show_main_window(app: &AppHandle<Wry>) {

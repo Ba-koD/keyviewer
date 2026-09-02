@@ -433,6 +433,19 @@ pub fn start_keyboard_hook(state: Arc<RwLock<AppState>>) {
 // Linux: Hook-based detection with async processing
 #[cfg(target_os = "linux")]
 pub fn start_keyboard_hook(state: Arc<RwLock<AppState>>) {
+    // rdev records X11 events, which on Wayland only ever shows XWayland traffic.
+    // Read the kernel devices instead, and keep XRecord as the fallback.
+    if crate::linux_desktop::is_wayland() {
+        eprintln!("[Keyboard Hook] Wayland session detected; using evdev.");
+        if crate::linux_input::listen(state.clone()) {
+            return;
+        }
+        eprintln!(
+            "[Keyboard Hook] evdev unavailable ({}); falling back to XWayland.",
+            crate::linux_input::status().detail
+        );
+    }
+
     eprintln!("[Keyboard Hook] Linux: Starting hook-based key detection...");
 
     let (tx, rx) = mpsc::channel::<InputEvent>();
@@ -473,8 +486,20 @@ pub fn start_keyboard_hook(state: Arc<RwLock<AppState>>) {
     };
 
     eprintln!("[Keyboard Hook] Calling rdev::listen()...");
+    crate::linux_input::set_status("x11", true, String::new(), 0);
+
     if let Err(error) = listen(callback) {
         eprintln!("[Keyboard Hook] ERROR: {:?}", error);
+        let detail = if crate::linux_desktop::is_wayland() {
+            format!(
+                "X11 capture failed ({:?}) and /dev/input is not readable. Add your user to \
+                 the `input` group (sudo usermod -aG input $USER) and log back in.",
+                error
+            )
+        } else {
+            format!("X11 key capture failed: {:?}", error)
+        };
+        crate::linux_input::set_status("none", false, detail, 0);
     }
     eprintln!("[Keyboard Hook] Listener stopped unexpectedly");
 }
